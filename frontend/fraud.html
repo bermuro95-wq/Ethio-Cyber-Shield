@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/jpeg" href="assets/logo-shield.jpg">
+    <title>Fraud Detection | Ethio-Cyber Shield</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <div id="navbar"></div>
+    <div class="container-fluid py-4 px-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="page-title mb-0"><i class="bi bi-cash-stack me-2 text-success"></i>Fraud & Transactions</h3>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createModal" id="btnCreate">
+                <i class="bi bi-plus-lg me-1"></i> Add Transaction
+            </button>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body py-2">
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Account or device...">
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select form-select-sm" id="filterSuspicious">
+                            <option value="">All</option>
+                            <option value="true">Suspicious only</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-outline-success btn-sm w-100" onclick="loadTx()">Filter</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body p-0" id="tableArea">
+                <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="createModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Record Transaction</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Account Number *</label>
+                        <input type="text" class="form-control" id="cAccount" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Amount (ETB) *</label>
+                        <input type="number" class="form-control" id="cAmount" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Type</label>
+                        <select class="form-select" id="cType">
+                            <option value="transfer">Transfer</option>
+                            <option value="withdrawal">Withdrawal</option>
+                            <option value="deposit">Deposit</option>
+                            <option value="payment">Payment</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Device ID</label>
+                        <input type="text" class="form-control" id="cDevice">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">IP Address</label>
+                        <input type="text" class="form-control" id="cIP">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Location</label>
+                        <input type="text" class="form-control" id="cLocation" placeholder="e.g. Addis Ababa">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-success" onclick="submitCreate()">Save & Analyze</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/common.js"></script>
+    <script>
+        if (!requireAuth()) { /* redirect */ }
+        document.getElementById('navbar').innerHTML = renderNavbar('fraud');
+        if (API.getUser().role === 'viewer') document.getElementById('btnCreate').style.display = 'none';
+
+        async function loadTx() {
+            loadingSpinner('tableArea');
+            try {
+                const params = {};
+                const s = document.getElementById('searchInput').value.trim();
+                const sus = document.getElementById('filterSuspicious').value;
+                if (s) params.search = s;
+                if (sus) params.suspicious = sus;
+                const data = await API.getTransactions(params);
+                if (!data.length) {
+                    document.getElementById('tableArea').innerHTML = noData();
+                    return;
+                }
+                const rows = data.map(t => {
+                    const reasons = (t.suspicion_reasons || []).join('; ') || '-';
+                    const canEdit = (API.getUser()||{}).role === 'admin' || (API.getUser()||{}).role === 'analyst';
+                    return `
+                    <tr class="${t.is_suspicious ? 'table-danger' : ''}">
+                        <td><code>${escapeHtml(t.account_number)}</code></td>
+                        <td class="fw-semibold">${Number(t.amount).toLocaleString()} ${t.currency || 'ETB'}</td>
+                        <td class="text-capitalize">${t.transaction_type}</td>
+                        <td class="small">${escapeHtml(t.device_id || '-')}</td>
+                        <td>${t.is_suspicious ? statusBadge('flagged') : statusBadge(t.status)}</td>
+                        <td class="small text-muted" title="${escapeHtml(reasons)}">${escapeHtml(reasons).substring(0,60)}${reasons.length>60?'...':''}</td>
+                        <td class="small">${formatDate(t.transaction_time)}</td>
+                        <td>${canEdit ? `<button class="btn btn-outline-danger btn-sm" onclick="delTx('${t.id}')">Delete</button>` : '-'}</td>
+                    </tr>`;
+                }).join('');
+                document.getElementById('tableArea').innerHTML = `
+                    <table class="table table-hover mb-0">
+                        <thead><tr>
+                            <th>Account</th><th>Amount</th><th>Type</th><th>Device</th><th>Status</th><th>Reasons</th><th>Time</th><th>Actions</th>
+                        </tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>`;
+            } catch (e) {
+                document.getElementById('tableArea').innerHTML = noData(e.message);
+            }
+        }
+
+        async function submitCreate() {
+            const payload = {
+                account_number: document.getElementById('cAccount').value.trim(),
+                amount: parseFloat(document.getElementById('cAmount').value),
+                transaction_type: document.getElementById('cType').value,
+                device_id: document.getElementById('cDevice').value.trim(),
+                ip_address: document.getElementById('cIP').value.trim(),
+                location: document.getElementById('cLocation').value.trim()
+            };
+            if (!payload.account_number || !payload.amount) {
+                showToast('Account and amount required', 'error');
+                return;
+            }
+            try {
+                const tx = await API.createTransaction(payload);
+                if (tx.is_suspicious) {
+                    showToast('Transaction FLAGGED as suspicious!', 'warning');
+                } else {
+                    showToast('Transaction recorded');
+                }
+                bootstrap.Modal.getInstance(document.getElementById('createModal')).hide();
+                async function delTx(id) {
+            if (!confirm('Delete this transaction?')) return;
+            try { await API.deleteTransaction(id); showToast('Deleted'); loadTx(); }
+            catch (e) { showToast(e.message, 'error'); }
+        }
+        loadTx();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+        async function delTx(id) {
+            if (!confirm('Delete this transaction?')) return;
+            try { await API.deleteTransaction(id); showToast('Deleted'); loadTx(); }
+            catch (e) { showToast(e.message, 'error'); }
+        }
+        loadTx();
+    </script>
+</body>
+</html>

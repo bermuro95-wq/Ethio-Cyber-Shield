@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | Ethio-Cyber Shield</title>
+    <link rel="icon" type="image/jpeg" href="assets/logo-shield.jpg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+    <style>
+        :root {
+            --eth-green: #078930;
+            --eth-yellow: #FCDD09;
+            --eth-red: #DA121A;
+            --eth-blue: #0F47AF;
+        }
+        * { box-sizing: border-box; }
+        body.login-page {
+            margin: 0;
+            min-height: 100vh;
+            background: #020406;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            overflow-x: hidden;
+        }
+        .bg-cyber {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background-color: #020406;
+            background-image:
+                linear-gradient(135deg, rgba(2,4,6,0.82) 0%, rgba(2,4,6,0.5) 45%, rgba(2,4,6,0.78) 100%),
+                url('assets/logo-cyber-flag.jpg');
+            background-position: center center;
+            background-size: cover;
+            background-repeat: no-repeat;
+            transition: transform 0.2s ease-out;
+        }
+        .bg-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+            background: radial-gradient(ellipse at center, transparent 10%, rgba(2,4,6,0.7) 100%);
+            pointer-events: none;
+        }
+        .login-container {
+            position: relative;
+            z-index: 10;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.25rem;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 420px;
+            background: rgba(8, 12, 18, 0.92);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(7, 137, 48, 0.45);
+            border-radius: 20px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.75), 0 0 80px rgba(7,137,48,0.15);
+            overflow: hidden;
+        }
+        .card-accent {
+            height: 6px;
+            background: linear-gradient(90deg, #078930, #FCDD09, #DA121A, #0F47AF);
+            background-size: 200% 100%;
+            animation: flow 4s linear infinite;
+        }
+        @keyframes flow {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
+        }
+        .card-inner { padding: 1.6rem 1.75rem 1.4rem; }
+        .logo-wrap {
+            text-align: center;
+            margin-bottom: 0.75rem;
+        }
+        .logo-shield {
+            width: 90px;
+            height: 90px;
+            object-fit: contain;
+            border-radius: 10px;
+            filter: drop-shadow(0 0 16px rgba(252,221,9,0.5));
+            display: inline-block;
+        }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(7,137,48,0.2);
+            border: 1px solid rgba(7,137,48,0.45);
+            color: #3dd68c;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            letter-spacing: 0.06em;
+            margin-bottom: 0.6rem;
+        }
+        .status-pill .dot {
+            width: 7px; height: 7px;
+            background: #3dd68c;
+            border-radius: 50%;
+            box-shadow: 0 0 6px #3dd68c;
+            animation: blink 1.4s ease-in-out infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.35; }
+        }
+        .brand-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            text-align: center;
+            margin: 0 0 0.2rem;
+            background: linear-gradient(135deg, #fff, #FCDD09 50%, #078930);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .brand-sub {
+            text-align: center;
+            color: #8b949e;
+            font-size: 0.82rem;
+            margin-bottom: 1.15rem;
+        }
+        .brand-sub span { color: #078930; font-weight: 600; }
+
+        .field {
+            position: relative;
+            margin-bottom: 0.85rem;
+        }
+        .field input {
+            width: 100%;
+            background: rgba(16,22,30,0.95);
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            color: #e6edf3;
+            padding: 0.78rem 2.7rem 0.78rem 2.7rem;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .field input:focus {
+            border-color: #078930;
+            box-shadow: 0 0 0 3px rgba(7,137,48,0.28);
+        }
+        .field input::placeholder { color: #6e7681; }
+        .field .icon-left {
+            position: absolute;
+            left: 0.95rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6e7681;
+            font-size: 1.1rem;
+            pointer-events: none;
+        }
+        .field input:focus ~ .icon-left { color: #078930; }
+        .btn-eye {
+            position: absolute;
+            right: 0.7rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            color: #8b949e;
+            cursor: pointer;
+            padding: 0.35rem;
+            font-size: 1.2rem;
+            line-height: 1;
+            z-index: 5;
+        }
+        .btn-eye:hover { color: #FCDD09; }
+
+        .forgot-row {
+            text-align: right;
+            margin: -0.25rem 0 0.9rem;
+        }
+        .forgot-row a {
+            color: #8b949e;
+            font-size: 0.84rem;
+            text-decoration: none;
+        }
+        .forgot-row a:hover { color: #FCDD09; }
+
+        .btn-primary-login {
+            width: 100%;
+            padding: 0.85rem;
+            border: none;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            letter-spacing: 0.04em;
+            color: #000;
+            background: linear-gradient(135deg, #078930, #00a84f 45%, #FCDD09);
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(7,137,48,0.45);
+        }
+        .btn-primary-login:hover:not(:disabled) {
+            filter: brightness(1.08);
+        }
+        .btn-primary-login:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .alert-box {
+            border-radius: 10px;
+            padding: 0.7rem 0.9rem;
+            font-size: 0.88rem;
+            margin-bottom: 0.85rem;
+            display: none;
+        }
+        .alert-box.show { display: block; }
+        .alert-box.err {
+            background: rgba(218,18,26,0.2);
+            border: 1px solid rgba(218,18,26,0.5);
+            color: #ff8a8a;
+        }
+        .alert-box.ok {
+            background: rgba(7,137,48,0.2);
+            border: 1px solid rgba(7,137,48,0.5);
+            color: #3dd68c;
+        }
+
+        .panel { display: none; }
+        .panel.show { display: block; }
+        .back-btn {
+            background: none;
+            border: none;
+            color: #8b949e;
+            font-size: 0.85rem;
+            cursor: pointer;
+            margin-bottom: 0.75rem;
+            padding: 0;
+        }
+        .back-btn:hover { color: #078930; }
+
+        .mini-logo {
+            display: block;
+            margin: 1rem auto 0;
+            width: 48px;
+            height: auto;
+            border-radius: 6px;
+            opacity: 0.55;
+        }
+        .footer-note {
+            text-align: center;
+            margin-top: 0.9rem;
+            font-size: 0.72rem;
+            color: #6e7681;
+        }
+        .token-box {
+            margin-top: 0.75rem;
+            padding: 0.7rem;
+            background: rgba(15,71,175,0.18);
+            border: 1px dashed rgba(15,71,175,0.5);
+            border-radius: 8px;
+            font-size: 0.78rem;
+            color: #a5c4ff;
+            word-break: break-all;
+        }
+        .token-box a { color: #7eb8ff; }
+    </style>
+</head>
+<body class="login-page">
+    <div class="bg-cyber" id="bgCyber"></div>
+    <div class="bg-overlay"></div>
+
+    <div class="login-container">
+        <div class="login-card">
+            <div class="card-accent"></div>
+            <div class="card-inner">
+                <div class="logo-wrap">
+                    <img src="assets/logo-shield.jpg" alt="Ethio-Cyber Shield" class="logo-shield"
+                         onerror="this.style.display='none'; document.getElementById('logoFallback').style.display='block';">
+                    <div id="logoFallback" style="display:none;font-size:3rem;color:#FCDD09;">🛡️</div>
+                </div>
+
+                <div class="text-center">
+                    <div class="status-pill"><span class="dot"></span> SYSTEM ONLINE</div>
+                </div>
+                <h1 class="brand-title">Ethio-Cyber Shield</h1>
+                <p class="brand-sub">INSA Ethiopia · <span>Homegrown Cyber Defense</span></p>
+
+                <!-- LOGIN -->
+                <div id="panelLogin" class="panel show">
+                    <form id="loginForm">
+                        <div class="field">
+                            <input type="email" id="email" required placeholder="admin@ethiocybershield.et" autocomplete="username">
+                            <i class="bi bi-envelope icon-left"></i>
+                        </div>
+                        <div class="field">
+                            <input type="password" id="password" required placeholder="Enter your password" autocomplete="current-password">
+                            <i class="bi bi-shield-lock icon-left"></i>
+                            <button type="button" class="btn-eye" id="btnTogglePass" title="Show password">
+                                <i class="bi bi-eye" id="iconEye"></i>
+                            </button>
+                        </div>
+                        <div class="forgot-row">
+                            <a href="javascript:void(0)" id="linkForgot">Forgot password?</a>
+                        </div>
+                        <div id="loginAlert" class="alert-box err"></div>
+                        <button type="submit" class="btn-primary-login" id="btnLogin">SECURE LOGIN</button>
+                    </form>
+                </div>
+
+                <!-- FORGOT -->
+                <div id="panelForgot" class="panel">
+                    <button type="button" class="back-btn" id="btnBackLogin">← Back to login</button>
+                    <p style="color:#8b949e;font-size:0.85rem;margin-bottom:0.9rem;">
+                        Enter your email. A reset token is stored in Supabase (demo link shown below).
+                    </p>
+                    <form id="forgotForm">
+                        <div class="field">
+                            <input type="email" id="forgotEmail" required placeholder="Your registered email">
+                            <i class="bi bi-envelope icon-left"></i>
+                        </div>
+                        <div id="forgotAlert" class="alert-box"></div>
+                        <button type="submit" class="btn-primary-login" id="btnForgot">Send Reset Link</button>
+                    </form>
+                </div>
+
+                <img src="assets/logo-cyber-flag.jpg" alt="" class="mini-logo"
+                     onerror="this.style.display='none'">
+                <div class="footer-note">Authorized personnel only · All activity is audited</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script>
+    (function () {
+        // ---- Password show / hide (works even if API fails) ----
+        var btnEye = document.getElementById('btnTogglePass');
+        var passInput = document.getElementById('password');
+        var iconEye = document.getElementById('iconEye');
+        if (btnEye && passInput) {
+            btnEye.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (passInput.type === 'password') {
+                    passInput.type = 'text';
+                    iconEye.className = 'bi bi-eye-slash';
+                    btnEye.title = 'Hide password';
+                } else {
+                    passInput.type = 'password';
+                    iconEye.className = 'bi bi-eye';
+                    btnEye.title = 'Show password';
+                }
+            });
+        }
+
+        // ---- Panel switch ----
+        function showPanel(name) {
+            document.getElementById('panelLogin').classList.remove('show');
+            document.getElementById('panelForgot').classList.remove('show');
+            document.getElementById(name).classList.add('show');
+        }
+        document.getElementById('linkForgot').addEventListener('click', function (e) {
+            e.preventDefault();
+            showPanel('panelForgot');
+        });
+        document.getElementById('btnBackLogin').addEventListener('click', function () {
+            showPanel('panelLogin');
+        });
+
+        // ---- Auth helpers (safe if scripts missing) ----
+        function hasAPI() {
+            return typeof API !== 'undefined' && API && typeof API.login === 'function';
+        }
+
+        if (hasAPI() && API.isAuthenticated()) {
+            window.location.href = 'dashboard.html';
+            return;
+        }
+
+        // ---- Login submit ----
+        document.getElementById('loginForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            var alertEl = document.getElementById('loginAlert');
+            var btn = document.getElementById('btnLogin');
+            alertEl.classList.remove('show');
+            if (!hasAPI()) {
+                alertEl.textContent = 'API scripts failed to load. Open this page via a local server (not file://).';
+                alertEl.classList.add('show');
+                return;
+            }
+            btn.disabled = true;
+            btn.textContent = 'Authenticating...';
+            try {
+                var res = await API.login(
+                    document.getElementById('email').value.trim(),
+                    document.getElementById('password').value
+                );
+                API.setAuth(res.token, res.user);
+                btn.textContent = 'ACCESS GRANTED';
+                setTimeout(function () { window.location.href = 'dashboard.html'; }, 400);
+            } catch (err) {
+                alertEl.textContent = (err && err.message) ? err.message : 'Login failed. Is the backend running?';
+                alertEl.classList.add('show');
+                btn.disabled = false;
+                btn.textContent = 'SECURE LOGIN';
+            }
+        });
+
+        // ---- Forgot password ----
+        document.getElementById('forgotForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            var alertEl = document.getElementById('forgotAlert');
+            var btn = document.getElementById('btnForgot');
+            alertEl.className = 'alert-box';
+            alertEl.classList.remove('show', 'ok', 'err');
+            if (!hasAPI() || typeof API.forgotPassword !== 'function') {
+                alertEl.textContent = 'API not loaded. Serve the frontend folder with a local server.';
+                alertEl.classList.add('show', 'err');
+                return;
+            }
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+            try {
+                var email = document.getElementById('forgotEmail').value.trim();
+                var res = await API.forgotPassword(email);
+                alertEl.classList.add('show', 'ok');
+                var html = res.message || 'If the account exists, a reset was generated.';
+                if (res.reset_token) {
+                    var link = 'reset-password.html?token=' + encodeURIComponent(res.reset_token);
+                    html += '<div class="token-box"><strong>Demo reset link:</strong><br><a href="' + link + '">' + link + '</a></div>';
+                }
+                alertEl.innerHTML = html;
+            } catch (err) {
+                alertEl.classList.add('show', 'err');
+                alertEl.textContent = (err && err.message) ? err.message : 'Request failed. Is the backend running?';
+            }
+            btn.disabled = false;
+            btn.textContent = 'Send Reset Link';
+        });
+
+        // Mild parallax
+        document.addEventListener('mousemove', function (e) {
+            var x = (e.clientX / window.innerWidth - 0.5) * 8;
+            var y = (e.clientY / window.innerHeight - 0.5) * 8;
+            var bg = document.getElementById('bgCyber');
+            if (bg) bg.style.transform = 'scale(1.06) translate(' + x + 'px,' + y + 'px)';
+        });
+    })();
+    </script>
+</body>
+</html>

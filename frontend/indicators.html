@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/jpeg" href="assets/logo-shield.jpg">
+    <title>Indicators | Ethio-Cyber Shield</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <div id="navbar"></div>
+    <div class="container-fluid py-4 px-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="page-title mb-0"><i class="bi bi-crosshair me-2 text-success"></i>Threat Indicators</h3>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createModal" id="btnCreate">
+                <i class="bi bi-plus-lg me-1"></i> Add Indicator
+            </button>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body py-2">
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Search value...">
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select form-select-sm" id="filterType">
+                            <option value="">All Types</option>
+                            <option value="ip">IP</option>
+                            <option value="domain">Domain</option>
+                            <option value="url">URL</option>
+                            <option value="email">Email</option>
+                            <option value="file_hash">File Hash</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select form-select-sm" id="filterStatus">
+                            <option value="">All Status</option>
+                            <option value="unknown">Unknown</option>
+                            <option value="suspicious">Suspicious</option>
+                            <option value="malicious">Malicious</option>
+                            <option value="benign">Benign</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-outline-success btn-sm w-100" onclick="loadIndicators()">Filter</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body p-0" id="tableArea">
+                <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="createModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Threat Indicator</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Type *</label>
+                        <select class="form-select" id="cType">
+                            <option value="ip">IP Address</option>
+                            <option value="domain">Domain</option>
+                            <option value="url">URL</option>
+                            <option value="email">Email</option>
+                            <option value="file_hash">File Hash</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Value *</label>
+                        <input type="text" class="form-control" id="cValue" required placeholder="e.g. 192.168.1.100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="cStatus">
+                            <option value="unknown">Unknown</option>
+                            <option value="suspicious">Suspicious</option>
+                            <option value="malicious">Malicious</option>
+                            <option value="benign">Benign</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="cDesc" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Source</label>
+                        <input type="text" class="form-control" id="cSource" placeholder="e.g. Manual, Threat Intel">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-success" onclick="submitCreate()">Add</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/common.js"></script>
+    <script>
+        if (!requireAuth()) { /* redirect */ }
+        document.getElementById('navbar').innerHTML = renderNavbar('indicators');
+        if (API.getUser().role === 'viewer') document.getElementById('btnCreate').style.display = 'none';
+
+        async function loadIndicators() {
+            loadingSpinner('tableArea');
+            try {
+                const params = {};
+                const s = document.getElementById('searchInput').value.trim();
+                const t = document.getElementById('filterType').value;
+                const st = document.getElementById('filterStatus').value;
+                if (s) params.search = s;
+                if (t) params.type = t;
+                if (st) params.status = st;
+                const data = await API.getIndicators(params);
+                if (!data.length) {
+                    document.getElementById('tableArea').innerHTML = noData();
+                    return;
+                }
+                const rows = data.map(i => `
+                    <tr>
+                        <td><code>${escapeHtml(i.value)}</code></td>
+                        <td class="text-capitalize">${i.indicator_type}</td>
+                        <td>${statusBadge(i.status)}</td>
+                        <td class="small text-muted">${escapeHtml(i.source || '-')}</td>
+                        <td class="small">${formatDate(i.created_at)}</td>
+                    </tr>
+                `).join('');
+                document.getElementById('tableArea').innerHTML = `
+                    <table class="table table-hover mb-0">
+                        <thead><tr><th>Value</th><th>Type</th><th>Status</th><th>Source</th><th>Added</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>`;
+            } catch (e) {
+                document.getElementById('tableArea').innerHTML = noData(e.message);
+            }
+        }
+
+        async function submitCreate() {
+            const payload = {
+                indicator_type: document.getElementById('cType').value,
+                value: document.getElementById('cValue').value.trim(),
+                status: document.getElementById('cStatus').value,
+                description: document.getElementById('cDesc').value.trim(),
+                source: document.getElementById('cSource').value.trim()
+            };
+            if (!payload.value) { showToast('Value required', 'error'); return; }
+            try {
+                await API.createIndicator(payload);
+                showToast('Indicator added');
+                bootstrap.Modal.getInstance(document.getElementById('createModal')).hide();
+                loadIndicators();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+        loadIndicators();
+    </script>
+</body>
+</html>

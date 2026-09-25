@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/jpeg" href="assets/logo-shield.jpg">
+    <title>Alerts | Ethio-Cyber Shield</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <div id="navbar"></div>
+    <div class="container-fluid py-4 px-4">
+        <h3 class="page-title mb-4"><i class="bi bi-bell me-2 text-success"></i>Alerts</h3>
+
+        <div class="card mb-3">
+            <div class="card-body py-2">
+                <div class="row g-2">
+                    <div class="col-md-2">
+                        <select class="form-select form-select-sm" id="filterStatus">
+                            <option value="">All Status</option>
+                            <option value="open" selected>Open</option>
+                            <option value="acknowledged">Acknowledged</option>
+                            <option value="resolved">Resolved</option>
+                            <option value="false_positive">False Positive</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select form-select-sm" id="filterSeverity">
+                            <option value="">All Severity</option>
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-outline-success btn-sm w-100" onclick="loadAlerts()">Filter</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body p-0" id="tableArea">
+                <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/common.js"></script>
+    <script>
+        if (!requireAuth()) { /* redirect */ }
+        document.getElementById('navbar').innerHTML = renderNavbar('alerts');
+        const canAct = API.getUser().role !== 'viewer';
+
+        async function loadAlerts() {
+            loadingSpinner('tableArea');
+            try {
+                const params = {};
+                const st = document.getElementById('filterStatus').value;
+                const sev = document.getElementById('filterSeverity').value;
+                if (st) params.status = st;
+                if (sev) params.severity = sev;
+                const data = await API.getAlerts(params);
+                if (!data.length) {
+                    document.getElementById('tableArea').innerHTML = noData();
+                    return;
+                }
+                const rows = data.map(a => `
+                    <tr>
+                        <td>${severityBadge(a.severity)}</td>
+                        <td>
+                            <div class="fw-semibold">${escapeHtml(a.title)}</div>
+                            <div class="small text-muted">${escapeHtml((a.description||'').substring(0,100))}</div>
+                        </td>
+                        <td class="text-capitalize small">${(a.alert_type||'').replace(/_/g,' ')}</td>
+                        <td>${statusBadge(a.status)}</td>
+                        <td class="small">${formatDate(a.created_at)}</td>
+                        <td>
+                            ${canAct ? `
+                                ${a.status === 'open' ? `<button class="btn btn-outline-info btn-sm me-1" onclick="ack('${a.id}')">Ack</button>` : ''}
+                                ${a.status !== 'resolved' && a.status !== 'false_positive' ? `<button class="btn btn-outline-success btn-sm me-1" onclick="resolve('${a.id}')">Resolve</button>` : ''}
+                                <button class="btn btn-outline-warning btn-sm me-1" onclick="addNote('${a.id}')">Note</button>
+                                ${role === 'admin' ? `<button class="btn btn-outline-danger btn-sm" onclick="delAlert('${a.id}')">Del</button>` : ''}
+                            ` : '-'}
+                        </td>
+                    </tr>
+                `).join('');
+                document.getElementById('tableArea').innerHTML = `
+                    <table class="table table-hover mb-0">
+                        <thead><tr>
+                            <th>Severity</th><th>Alert</th><th>Type</th><th>Status</th><th>Created</th><th>Actions</th>
+                        </tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>`;
+            } catch (e) {
+                document.getElementById('tableArea').innerHTML = noData(e.message);
+            }
+        }
+
+        async function ack(id) {
+            try {
+                await API.acknowledgeAlert(id);
+                showToast('Alert acknowledged');
+        
+        async function addNote(id) {
+            const note = prompt('Investigation note:');
+            if (!note) return;
+            try {
+                await API.addAlertNote(id, note);
+                showToast('Note added');
+            } catch (e) { showToast(e.message, 'error'); }
+        }
+        async function delAlert(id) {
+            if (!confirm('Delete this alert?')) return;
+            try {
+                await API.deleteAlert(id);
+                showToast('Deleted');
+                loadAlerts();
+            } catch (e) { showToast(e.message, 'error'); }
+        }
+
+        loadAlerts();
+            } catch (e) { showToast(e.message, 'error'); }
+        }
+
+        async function resolve(id) {
+            try {
+                await API.resolveAlert(id);
+                showToast('Alert resolved');
+        
+        async function addNote(id) {
+            const note = prompt('Investigation note:');
+            if (!note) return;
+            try {
+                await API.addAlertNote(id, note);
+                showToast('Note added');
+            } catch (e) { showToast(e.message, 'error'); }
+        }
+        async function delAlert(id) {
+            if (!confirm('Delete this alert?')) return;
+            try {
+                await API.deleteAlert(id);
+                showToast('Deleted');
+                loadAlerts();
+            } catch (e) { showToast(e.message, 'error'); }
+        }
+
+        loadAlerts();
+            } catch (e) { showToast(e.message, 'error'); }
+        }
+
+
+        async function addNote(id) {
+            const note = prompt('Investigation note:');
+            if (!note) return;
+            try {
+                await API.addAlertNote(id, note);
+                showToast('Note added');
+            } catch (e) { showToast(e.message, 'error'); }
+        }
+        async function delAlert(id) {
+            if (!confirm('Delete this alert?')) return;
+            try {
+                await API.deleteAlert(id);
+                showToast('Deleted');
+                loadAlerts();
+            } catch (e) { showToast(e.message, 'error'); }
+        }
+
+        loadAlerts();
+    </script>
+</body>
+</html>

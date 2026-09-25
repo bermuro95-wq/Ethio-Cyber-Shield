@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/jpeg" href="assets/logo-shield.jpg">
+    <title>Incident Detail | Ethio-Cyber Shield</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <div id="navbar"></div>
+    <div class="container-fluid py-4 px-4" id="content">
+        <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+    </div>
+
+    <!-- Link Indicator Modal -->
+    <div class="modal fade" id="linkModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Link Indicator</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label">Select Indicator</label>
+                    <select class="form-select" id="linkIndSelect"></select>
+                    <label class="form-label mt-2">Notes</label>
+                    <input type="text" class="form-control" id="linkNotes">
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-success" onclick="doLink()">Link</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/common.js"></script>
+    <script>
+        if (!requireAuth()) { /* redirect */ }
+        document.getElementById('navbar').innerHTML = renderNavbar('incidents');
+        const params = new URLSearchParams(window.location.search);
+        const incidentId = params.get('id');
+        if (!incidentId) { window.location.href = '/incidents.html'; }
+
+        let currentIncident = null;
+
+        async function loadDetail() {
+            try {
+                currentIncident = await API.getIncident(incidentId);
+                const i = currentIncident;
+                const reasons = (i.risk_reasons || []).map(r => `<li>${escapeHtml(r)}</li>`).join('') || '<li class="text-muted">No analysis run yet</li>';
+                const inds = (i.indicators || []).map(ind => `
+                    <tr>
+                        <td><code>${escapeHtml(ind.value)}</code></td>
+                        <td class="text-capitalize">${ind.indicator_type}</td>
+                        <td>${statusBadge(ind.status)}</td>
+                    </tr>
+                `).join('') || `<tr><td colspan="3" class="text-muted text-center">No indicators linked</td></tr>`;
+
+                const alerts = (i.alerts || []).map(a => `
+                    <div class="border-bottom border-secondary py-2">
+                        ${severityBadge(a.severity)} ${escapeHtml(a.title)}
+                        <div class="small text-muted">${statusBadge(a.status)} · ${formatDate(a.created_at)}</div>
+                    </div>
+                `).join('') || '<p class="text-muted">No alerts</p>';
+
+                const canEdit = API.getUser().role !== 'viewer';
+
+                document.getElementById('content').innerHTML = `
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <a href="incidents.html" class="text-muted small text-decoration-none"><i class="bi bi-arrow-left"></i> Back</a>
+                            <h3 class="page-title mt-1">${escapeHtml(i.title)}</h3>
+                            <div class="d-flex gap-2 flex-wrap">
+                                ${severityBadge(i.severity)} ${statusBadge(i.status)} ${riskBadge(i.risk_level)}
+                                <span class="badge bg-dark border">${(i.incident_type||'').replace(/_/g,' ')}</span>
+                            </div>
+                        </div>
+                        ${canEdit ? `
+                        <div class="btn-group">
+                            <button class="btn btn-outline-success btn-sm" onclick="runAnalysis()"><i class="bi bi-cpu me-1"></i> Run Analysis</button>
+                            <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#linkModal" onclick="prepLink()"><i class="bi bi-link-45deg me-1"></i> Link IOC</button>
+                        </div>` : ''}
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-lg-8">
+                            <div class="card mb-3">
+                                <div class="card-header">Description</div>
+                                <div class="card-body">${escapeHtml(i.description) || '<span class="text-muted">No description</span>'}</div>
+                            </div>
+                            <div class="card mb-3">
+                                <div class="card-header">Linked Indicators</div>
+                                <div class="card-body p-0">
+                                    <table class="table table-sm mb-0">
+                                        <thead><tr><th>Value</th><th>Type</th><th>Status</th></tr></thead>
+                                        <tbody>${inds}</tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="card">
+                                <div class="card-header">Related Alerts</div>
+                                <div class="card-body">${alerts}</div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card mb-3">
+                                <div class="card-header">Risk Assessment</div>
+                                <div class="card-body">
+                                    <div class="text-center mb-3">
+                                        <div class="stat-value">${i.risk_score || 0}</div>
+                                        <div>${riskBadge(i.risk_level || 'low')}</div>
+                                    </div>
+                                    <ul class="risk-reasons ps-3 mb-0">${reasons}</ul>
+                                </div>
+                            </div>
+                            <div class="card">
+                                <div class="card-header">Metadata</div>
+                                <div class="card-body small">
+                                    <div class="mb-2"><span class="text-muted">Created:</span> ${formatDate(i.created_at)}</div>
+                                    <div class="mb-2"><span class="text-muted">Incident Date:</span> ${formatDate(i.incident_date)}</div>
+                                    <div class="mb-2"><span class="text-muted">Assigned:</span> ${i.assigned?.full_name || '-'}</div>
+                                    <div><span class="text-muted">ID:</span> <code class="small">${i.id}</code></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                document.getElementById('content').innerHTML = noData(e.message);
+            }
+        }
+
+        async function runAnalysis() {
+            try {
+                showToast('Running security rules...', 'warning');
+                const result = await API.analyzeIncident(incidentId);
+                showToast(`Risk: ${result.risk.risk_level.toUpperCase()} (${result.risk.risk_score})`);
+                loadDetail();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function prepLink() {
+            const inds = await API.getIndicators();
+            const sel = document.getElementById('linkIndSelect');
+            sel.innerHTML = inds.map(i => `<option value="${i.id}">[${i.indicator_type}] ${escapeHtml(i.value)} (${i.status})</option>`).join('') || '<option>No indicators</option>';
+        }
+
+        async function doLink() {
+            const indId = document.getElementById('linkIndSelect').value;
+            const notes = document.getElementById('linkNotes').value;
+            if (!indId) return;
+            try {
+                await API.linkIndicator(incidentId, indId, notes);
+                showToast('Indicator linked');
+                bootstrap.Modal.getInstance(document.getElementById('linkModal')).hide();
+                loadDetail();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        loadDetail();
+    </script>
+</body>
+</html>

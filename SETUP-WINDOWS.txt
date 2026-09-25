@@ -1,0 +1,32 @@
+ETHIO-CYBER SHIELD - Windows Setup (Fixed)
+==========================================
+
+1) SUPABASE
+   - SQL Editor → run entire file: sql/schema.sql
+   - If errors about existing tables, run DROP script first (see README)
+
+2) BACKEND
+   cd C:\Users\HP\Desktop\ethio-cyber-shield\backend
+   copy .env.example .env
+   notepad .env
+   # Fill SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY
+   # Keep FLASK_DEBUG=1 for local CORS
+
+   pip install -r requirements.txt
+   python run.py
+   # Leave open. Test: http://127.0.0.1:5000/api/health
+
+3) FRONTEND
+   cd C:\Users\HP\Desktop\ethio-cyber-shield\frontend
+   python -m http.server 5500
+   # Open: http://127.0.0.1:5500/login.html
+
+4) LOGIN
+   Email: admin@ethiocybershield.et
+   Password: Admin@123
+
+5) config.js already points to http://127.0.0.1:5000/api
+   CORS is open when FLASK_DEBUG=1
+
+Do NOT open the project ROOT on port 3000 (that shows folder listing).
+Always serve the frontend FOLDER only.

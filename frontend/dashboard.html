@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Ethio-Cyber Shield</title>
+    <link rel="icon" type="image/jpeg" href="assets/logo-shield.jpg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <div id="navbar"></div>
+    <div class="container-fluid py-4 px-4">
+        <div class="ecs-hero">
+            <img src="assets/logo-cyber-flag.jpg" alt="Cyber Security" class="cyber-thumb">
+            <div class="hero-text flex-grow-1">
+                <h5><img src="assets/logo-shield.jpg" width="28" height="28" class="me-2 rounded" alt="">Security Operations Dashboard</h5>
+                <p>Ethio-Cyber Shield · Real-time posture from Supabase · INSA Ethiopia</p>
+            </div>
+        </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+            <h3 class="page-title mb-0"><i class="bi bi-speedometer2 me-2 text-success"></i>Security Dashboard</h3>
+            <a href="live-threats.html" class="btn btn-outline-danger btn-sm"><i class="bi bi-activity"></i> Open Live Threats</a>
+        </div>
+        
+        <div class="row g-3 mb-4" id="statsRow">
+            <!-- Stats loaded dynamically -->
+        </div>
+
+        <div class="row g-3">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-activity me-2"></i>Recent Activity</span>
+                    </div>
+                    <div class="card-body p-0" id="recentActivity">
+                        <div class="text-center py-4"><div class="spinner-border text-success spinner-border-sm"></div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header"><i class="bi bi-pie-chart me-2"></i>Incident Types</div>
+                    <div class="card-body" id="typeBreakdown">
+                        <div class="text-center py-4"><div class="spinner-border text-success spinner-border-sm"></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/common.js"></script>
+    <script>
+        if (!requireAuth()) { /* redirected */ }
+
+        document.getElementById('navbar').innerHTML = renderNavbar('dashboard');
+
+        async function loadDashboard() {
+            const statsEl = document.getElementById('statsRow');
+            const activityEl = document.getElementById('recentActivity');
+            const typesEl = document.getElementById('typeBreakdown');
+
+            function renderStats(stats) {
+                const inc = stats.incidents || {};
+                const ind = stats.indicators || {};
+                const tx = stats.transactions || {};
+                const al = stats.alerts || {};
+                statsEl.innerHTML = `
+                    <div class="col-6 col-md-3"><div class="card stat-card h-100"><div class="card-body text-center">
+                        <div class="stat-value">${inc.total ?? 0}</div><div class="stat-label">Total Incidents</div>
+                    </div></div></div>
+                    <div class="col-6 col-md-3"><div class="card stat-card h-100"><div class="card-body text-center">
+                        <div class="stat-value text-warning">${inc.open ?? 0}</div><div class="stat-label">Open Incidents</div>
+                    </div></div></div>
+                    <div class="col-6 col-md-3"><div class="card stat-card h-100"><div class="card-body text-center">
+                        <div class="stat-value text-danger">${inc.high_risk ?? 0}</div><div class="stat-label">High Risk</div>
+                    </div></div></div>
+                    <div class="col-6 col-md-3"><div class="card stat-card h-100"><div class="card-body text-center">
+                        <div class="stat-value">${ind.malicious ?? 0}</div><div class="stat-label">Malicious IOCs</div>
+                    </div></div></div>
+                    <div class="col-6 col-md-3"><div class="card stat-card h-100"><div class="card-body text-center">
+                        <div class="stat-value text-warning">${tx.suspicious ?? 0}</div><div class="stat-label">Suspicious Txns</div>
+                    </div></div></div>
+                    <div class="col-6 col-md-3"><div class="card stat-card h-100"><div class="card-body text-center">
+                        <div class="stat-value text-danger">${al.open ?? 0}</div><div class="stat-label">Open Alerts</div>
+                    </div></div></div>
+                    <div class="col-6 col-md-3"><div class="card stat-card h-100"><div class="card-body text-center">
+                        <div class="stat-value">${ind.total ?? 0}</div><div class="stat-label">Total Indicators</div>
+                    </div></div></div>
+                    <div class="col-6 col-md-3"><div class="card stat-card h-100"><div class="card-body text-center">
+                        <div class="stat-value">${tx.total ?? 0}</div><div class="stat-label">Transactions</div>
+                    </div></div></div>`;
+            }
+
+            try {
+                const stats = await API.getDashboardStats();
+                renderStats(stats);
+
+                const activity = stats.recent_activity || [];
+                if (activity.length === 0) {
+                    activityEl.innerHTML = noData('No activity yet. Create an incident to get started.');
+                } else {
+                    const rows = activity.map(a => `
+                        <tr>
+                            <td class="small">${formatDate(a.created_at)}</td>
+                            <td><code class="small">${escapeHtml(a.action)}</code></td>
+                            <td class="small text-muted">${escapeHtml(a.entity_type || '-')}</td>
+                        </tr>`).join('');
+                    activityEl.innerHTML = `<table class="table table-sm table-hover mb-0">
+                        <thead><tr><th>Time</th><th>Action</th><th>Entity</th></tr></thead>
+                        <tbody>${rows}</tbody></table>`;
+                }
+
+                const types = stats.incident_types || {};
+                const keys = Object.keys(types);
+                if (keys.length === 0) {
+                    typesEl.innerHTML = noData('No incidents yet.');
+                } else {
+                    typesEl.innerHTML = keys.map(k => `
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-capitalize">${k.replace(/_/g,' ')}</span>
+                            <span class="badge bg-secondary">${types[k]}</span>
+                        </div>`).join('');
+                }
+            } catch (e) {
+                console.error('Dashboard error:', e);
+                renderStats({ incidents: {}, indicators: {}, transactions: {}, alerts: {} });
+                activityEl.innerHTML = noData('Could not load activity: ' + (e.message || 'API error') + '. Is the backend running?');
+                typesEl.innerHTML = noData('No data');
+                if (typeof showToast === 'function') showToast(e.message || 'Dashboard load failed', 'error');
+            }
+        }
+
+        loadDashboard();
+        // Auto-refresh dashboard every 20 seconds for near real-time view
+        setInterval(loadDashboard, 20000);
+    </script>
+</body>
+</html>

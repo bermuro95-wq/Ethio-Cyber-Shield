@@ -1,0 +1,253 @@
+/* Ethio-Cyber Shield - SOC Style Theme */
+:root {
+    --ecs-green: #00c853;
+    --ecs-dark: #0d1117;
+    --ecs-card: #161b22;
+    --ecs-border: #30363d;
+    --ecs-text: #e6edf3;
+    --ecs-muted: #8b949e;
+}
+
+body {
+    background-color: var(--ecs-dark);
+    color: var(--ecs-text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+}
+
+.navbar {
+    background-color: #010409 !important;
+}
+
+.card {
+    background-color: var(--ecs-card);
+    border: 1px solid var(--ecs-border);
+    border-radius: 8px;
+}
+
+.card-header {
+    background-color: rgba(0, 200, 83, 0.08);
+    border-bottom: 1px solid var(--ecs-border);
+    font-weight: 600;
+}
+
+.table {
+    color: var(--ecs-text);
+    --bs-table-bg: transparent;
+    --bs-table-hover-bg: rgba(0, 200, 83, 0.05);
+}
+
+.table thead th {
+    border-bottom-color: var(--ecs-border);
+    color: var(--ecs-muted);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.table td, .table th {
+    border-color: var(--ecs-border);
+    vertical-align: middle;
+}
+
+.form-control, .form-select {
+    background-color: #0d1117;
+    border-color: var(--ecs-border);
+    color: var(--ecs-text);
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: #0d1117;
+    border-color: var(--ecs-green);
+    color: var(--ecs-text);
+    box-shadow: 0 0 0 0.2rem rgba(0, 200, 83, 0.25);
+}
+
+.form-control::placeholder {
+    color: var(--ecs-muted);
+}
+
+.btn-success {
+    background-color: var(--ecs-green);
+    border-color: var(--ecs-green);
+    color: #000;
+    font-weight: 600;
+}
+
+.btn-success:hover {
+    background-color: #00e676;
+    border-color: #00e676;
+    color: #000;
+}
+
+.stat-card {
+    transition: transform 0.15s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--ecs-green);
+}
+
+.stat-label {
+    color: var(--ecs-muted);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+}
+
+.login-wrapper {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at top, #0d2818 0%, #0d1117 60%);
+}
+
+.login-card {
+    width: 100%;
+    max-width: 420px;
+    border: 1px solid var(--ecs-border);
+    box-shadow: 0 0 40px rgba(0, 200, 83, 0.1);
+}
+
+.risk-reasons {
+    font-size: 0.9rem;
+}
+
+.risk-reasons li {
+    margin-bottom: 0.25rem;
+}
+
+.modal-content {
+    background-color: var(--ecs-card);
+    border: 1px solid var(--ecs-border);
+    color: var(--ecs-text);
+}
+
+.modal-header, .modal-footer {
+    border-color: var(--ecs-border);
+}
+
+.badge {
+    font-weight: 500;
+    letter-spacing: 0.02em;
+}
+
+.nav-link.active {
+    color: var(--ecs-green) !important;
+    font-weight: 600;
+}
+
+.page-title {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.footer-note {
+    color: var(--ecs-muted);
+    font-size: 0.8rem;
+}
+
+/* ===== Logo & Branding ===== */
+.navbar-logo {
+    border-radius: 6px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 6px rgba(252, 221, 9, 0.35));
+    transition: transform 0.25s ease, filter 0.25s ease;
+}
+
+.navbar-brand:hover .navbar-logo {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 10px rgba(252, 221, 9, 0.55));
+}
+
+/* Ethiopian accent bar under navbar */
+.navbar {
+    border-bottom: 2px solid transparent !important;
+    border-image: linear-gradient(90deg, #078930, #FCDD09, #DA121A, #0F47AF) 1 !important;
+}
+
+/* Subtle page accent using flag colors */
+.page-title::after {
+    content: '';
+    display: block;
+    width: 48px;
+    height: 3px;
+    margin-top: 6px;
+    background: linear-gradient(90deg, #078930, #FCDD09, #DA121A);
+    border-radius: 2px;
+}
+
+/* Dashboard hero strip with cyber logo */
+.ecs-hero {
+    background: linear-gradient(135deg, rgba(7,137,48,0.12) 0%, rgba(15,71,175,0.08) 50%, rgba(218,18,26,0.08) 100%);
+    border: 1px solid rgba(7,137,48,0.25);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.ecs-hero img.cyber-thumb {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid rgba(252,221,9,0.3);
+}
+
+.ecs-hero .hero-text h5 {
+    margin: 0;
+    font-weight: 700;
+    color: #e6edf3;
+}
+
+.ecs-hero .hero-text p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #8b949e;
+}
+
+/* Live threats extras */
+.live-dot { vertical-align: middle; }
+
+
+/* Force readable table text (fix invisible unselected text) */
+.table, .table td, .table th, .table tbody td, .table thead th {
+    color: #e6edf3 !important;
+}
+.table-danger, .table-danger td {
+    color: #ffc9c9 !important;
+    background-color: rgba(220, 53, 69, 0.15) !important;
+}
+.table-hover tbody tr:hover td {
+    color: #ffffff !important;
+    background-color: rgba(0, 200, 83, 0.12) !important;
+}
+.text-muted {
+    color: #9aa4b2 !important;
+}
+code, .form-control, .form-select, label, .card-body, .card-header {
+    color: #e6edf3;
+}
+.form-control::placeholder {
+    color: #8b949e;
+    opacity: 1;
+}
+.modal-content {
+    background-color: #161b22;
+    color: #e6edf3;
+}
+.modal-header, .modal-footer {
+    border-color: #30363d;
+}
+.modal-title {
+    color: #e6edf3;
+}
