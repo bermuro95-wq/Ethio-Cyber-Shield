@@ -251,3 +251,57 @@ code, .form-control, .form-select, label, .card-body, .card-header {
 .modal-title {
     color: #e6edf3;
 }
+
+/* Attack Kill-Chain Visualizer */
+.attack-chain {
+    display: flex;
+    align-items: stretch;
+    gap: 0.75rem;
+    overflow-x: auto;
+    padding: 0.5rem 0.25rem;
+}
+.attack-step {
+    flex: 1;
+    min-width: 160px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 0.75rem;
+    position: relative;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+.attack-step.threat {
+    border-color: #dc3545;
+    background: rgba(220, 53, 69, 0.08);
+}
+.attack-step.warning {
+    border-color: #ffc107;
+    background: rgba(255, 193, 7, 0.08);
+}
+.attack-step.contained {
+    border-color: #00c853;
+    background: rgba(0, 200, 83, 0.1);
+}
+.attack-step .step-num {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #8b949e;
+}
+.attack-step .step-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin: 0.2rem 0;
+}
+.attack-step .step-detail {
+    font-size: 0.75rem;
+    color: #8b949e;
+}
+.attack-arrow {
+    display: flex;
+    align-items: center;
+    color: #8b949e;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
