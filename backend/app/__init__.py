@@ -40,6 +40,8 @@ def create_app():
     from app.routes.watchlists import watchlists_bp
     from app.routes.settings import settings_bp
     from app.routes.reports import reports_bp
+    from app.routes.events import events_bp
+    from app.routes.targets import targets_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(incidents_bp, url_prefix='/api/incidents')
@@ -53,6 +55,8 @@ def create_app():
     app.register_blueprint(watchlists_bp, url_prefix='/api/watchlists')
     app.register_blueprint(settings_bp, url_prefix='/api/settings')
     app.register_blueprint(reports_bp, url_prefix='/api/reports')
+    app.register_blueprint(events_bp, url_prefix='/api/events')
+    app.register_blueprint(targets_bp, url_prefix='/api/targets')
 
     @app.route('/api/health')
     def health():
