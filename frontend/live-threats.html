@@ -64,23 +64,66 @@
         </div>
 
         <!-- Live stat cards -->
-        <div class="row g-3 mb-4" id="statCards">
-            <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body text-center">
-                <div class="stat-value" id="sTxTotal">—</div>
-                <div class="stat-label">Transactions</div>
+        <div class="row g-2 mb-4" id="statCards">
+            <div class="col-6 col-md-2"><div class="card h-100"><div class="card-body text-center p-3">
+                <div class="stat-value fs-3" id="sTxTotal">—</div>
+                <div class="stat-label small">Transactions</div>
             </div></div></div>
-            <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body text-center">
-                <div class="stat-value text-danger" id="sTxSus">—</div>
-                <div class="stat-label">Suspicious</div>
+            <div class="col-6 col-md-2"><div class="card h-100"><div class="card-body text-center p-3">
+                <div class="stat-value fs-3 text-danger" id="sTxSus">—</div>
+                <div class="stat-label small">Suspicious</div>
             </div></div></div>
-            <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body text-center">
-                <div class="stat-value text-warning" id="sAlertsOpen">—</div>
-                <div class="stat-label">Open Alerts</div>
+            <div class="col-6 col-md-2"><div class="card h-100"><div class="card-body text-center p-3">
+                <div class="stat-value fs-3 text-warning" id="sAlertsOpen">—</div>
+                <div class="stat-label small">Open Alerts</div>
             </div></div></div>
-            <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body text-center">
-                <div class="stat-value text-danger" id="sCritical">—</div>
-                <div class="stat-label">Critical Open</div>
+            <div class="col-6 col-md-2"><div class="card h-100"><div class="card-body text-center p-3">
+                <div class="stat-value fs-3 text-danger" id="sCritical">—</div>
+                <div class="stat-label small">Critical Open</div>
             </div></div></div>
+            <div class="col-6 col-md-2"><div class="card h-100"><div class="card-body text-center p-3">
+                <div class="stat-value fs-3 text-success" id="sContained">—</div>
+                <div class="stat-label small">Contained Actions</div>
+            </div></div></div>
+            <div class="col-6 col-md-2"><div class="card h-100"><div class="card-body text-center p-3">
+                <div class="stat-value fs-3 text-info" id="sBlockedIps">—</div>
+                <div class="stat-label small">Blocked Malicious IPs</div>
+            </div></div></div>
+        </div>
+
+        <!-- Lab Scenario Orchestration Controller (Part 6) -->
+        <div class="card mb-4 border-success">
+            <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-radioactive text-warning me-2"></i><strong>Target Lab Simulator & Attack Scenario Demonstrator</strong></span>
+                <span class="badge bg-secondary border">SRS §22 Demo Orchestrator</span>
+            </div>
+            <div class="card-body">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-5">
+                        <label class="form-label small text-muted">Select Target Scenario</label>
+                        <select id="simScenario" class="form-select form-select-sm">
+                            <option value="account_takeover" selected>ATO-001: Full Account Takeover (6x Fails -> New Device -> Mule Beneficiary -> 180k Hold -> Auto Containment)</option>
+                            <option value="credential_stuffing">AUTH-002: Multi-Account Credential Stuffing (6 accounts, 60s)</option>
+                            <option value="rapid_transfers">TX-001 & TX-003: Off-Hours High-Value Fraud (Addis Night 02:00, 250k ETB)</option>
+                            <option value="admin_probe">PRIV-001: Unauthorized Administrative Privilege Abuse</option>
+                            <option value="normal_traffic">Normal Traffic Baseline (0 Risk Score, Clean Baseline)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Target Account (Optional)</label>
+                        <input type="text" id="simAccount" class="form-control form-control-sm" placeholder="Default victim account">
+                    </div>
+                    <div class="col-md-4 d-flex gap-2">
+                        <button class="btn btn-danger btn-sm flex-grow-1" id="btnLaunchSim" onclick="launchSimulation()">
+                            <i class="bi bi-play-circle-fill me-1"></i> Launch Attack Demo
+                        </button>
+                        <button class="btn btn-outline-info btn-sm" onclick="syncTargetNow()">
+                            <i class="bi bi-arrow-repeat me-1"></i> Poll Now
+                        </button>
+                    </div>
+                </div>
+                <div id="simResultAlert" class="mt-2 d-none alert alert-dark small mb-0 py-2 border"></div>
+            </div>
         </div>
 
         <div class="row g-3 mb-4">
@@ -108,7 +151,7 @@
             </div>
         </div>
 
-        <div class="row g-3">
+        <div class="row g-3 mb-4">
             <div class="col-lg-4">
                 <div class="card h-100">
                     <div class="card-header d-flex justify-content-between">
@@ -122,21 +165,67 @@
             <div class="col-lg-8">
                 <div class="card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-lightning-charge me-2"></i>Live event feed</span>
+                        <span><i class="bi bi-lightning-charge me-2"></i>Live Alert Feed</span>
                         <span class="badge bg-danger" id="eventCount">0</span>
                     </div>
-                    <div class="card-body" style="max-height: 360px; overflow-y: auto;" id="eventFeed">
+                    <div class="card-body" style="max-height: 320px; overflow-y: auto;" id="eventFeed">
                         <div class="text-center py-4 text-muted">Loading events…</div>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- Telemetry Ingestion & Containment Table -->
+        <div class="card mb-4">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span><i class="bi bi-broadcast me-2 text-info"></i><strong>Target Telemetry Event Stream (Canonical Common Envelope v1.0)</strong></span>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <select id="filterEventType" class="form-select form-select-sm" style="width: auto;" onchange="applyTelemetryFilters()">
+                        <option value="">All Event Types</option>
+                        <option value="auth.">Authentication (auth.*)</option>
+                        <option value="transaction.">Transactions (transaction.*)</option>
+                        <option value="beneficiary.">Beneficiaries (beneficiary.*)</option>
+                        <option value="admin.">Admin / Privileges (admin.*)</option>
+                        <option value="security.">Security Controls</option>
+                    </select>
+                    <select id="filterResult" class="form-select form-select-sm" style="width: auto;" onchange="applyTelemetryFilters()">
+                        <option value="">All Results</option>
+                        <option value="success">Success</option>
+                        <option value="failed">Failed</option>
+                        <option value="held">Held (Hold)</option>
+                        <option value="blocked">Blocked / Denied</option>
+                    </select>
+                    <input type="text" id="filterSearch" class="form-control form-control-sm" style="width: 140px;" placeholder="Search Account/IP" oninput="applyTelemetryFilters()">
+                    <span class="badge bg-secondary" id="telemetryCount">0 events</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+                    <table class="table table-dark table-hover table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Time (EAT)</th>
+                                <th>Event Type</th>
+                                <th>Account / Entity</th>
+                                <th>Source IP / Device</th>
+                                <th>Amount</th>
+                                <th>Result</th>
+                                <th>Scenario / Context</th>
+                            </tr>
+                        </thead>
+                        <tbody id="telemetryTableBody">
+                            <tr><td colspan="7" class="text-center py-3 text-muted">Loading telemetry stream...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <div class="mt-4 small text-muted">
             <i class="bi bi-info-circle"></i>
-            Detection runs <strong>instantly</strong> when a transaction is created (POST /api/transactions).
-            Rules include: high amount, night transfers, burst velocity, multi-account device, new device + high value, shared IP, rapid successive transfers.
-            Graphs refresh every 15 seconds. SSE pushes new alerts in real time.
+            Continuous autonomous detection executes deterministically on every incoming push webhook and pull sync.
+            Rules: L1 Thresholds (AUTH-001, AUTH-002, TX-001, IOC-001, API-001) · L2 Contextual (AUTH-003, TX-003, TX-004, PRIV-001) · L3 Correlation Chains (ATO-001).
+            Closed-loop containment dispatches HMAC-signed controls directly to connected target systems.
         </div>
     </div>
 
@@ -189,6 +278,8 @@
             document.getElementById('sTxSus').textContent = s.transactions?.suspicious ?? 0;
             document.getElementById('sAlertsOpen').textContent = s.alerts?.open ?? 0;
             document.getElementById('sCritical').textContent = s.alerts?.critical_open ?? 0;
+            document.getElementById('sContained').textContent = s.contained_actions ?? 0;
+            document.getElementById('sBlockedIps').textContent = s.blocked_ips ?? 0;
             setThreatBanner(s.threat_level || 'low');
             document.getElementById('lastUpdate').textContent =
                 'Updated ' + new Date(s.generated_at || Date.now()).toLocaleTimeString('en-ET', { timeZone: 'Africa/Addis_Ababa' });
@@ -285,10 +376,156 @@
             `).join('');
         }
 
+        let allTelemetryEvents = [];
+
+        function applyTelemetryFilters() {
+            const typeFilter = (document.getElementById('filterEventType')?.value || '').toLowerCase();
+            const resultFilter = (document.getElementById('filterResult')?.value || '').toLowerCase();
+            const searchFilter = (document.getElementById('filterSearch')?.value || '').trim().toLowerCase();
+
+            const filtered = allTelemetryEvents.filter(ev => {
+                if (typeFilter && !ev.event_type.toLowerCase().includes(typeFilter)) return false;
+                if (resultFilter && !(ev.result || '').toLowerCase().includes(resultFilter)) return false;
+                if (searchFilter) {
+                    const acc = (ev.account_id || ev.user_id || '').toLowerCase();
+                    const ip = (ev.source_ip || '').toLowerCase();
+                    if (!acc.includes(searchFilter) && !ip.includes(searchFilter)) return false;
+                }
+                return true;
+            });
+
+            document.getElementById('telemetryCount').textContent = `${filtered.length} of ${allTelemetryEvents.length} events`;
+            const tbody = document.getElementById('telemetryTableBody');
+            if (!filtered.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">No telemetry events match your filter criteria.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(ev => {
+                const timeStr = ev.occurred_at ? new Date(ev.occurred_at).toLocaleTimeString('en-ET', { timeZone: 'Africa/Addis_Ababa', hour12: false }) : '—';
+                let evTypeBadge = 'secondary';
+                if (ev.event_type.startsWith('auth.login.failed')) evTypeBadge = 'danger';
+                else if (ev.event_type.startsWith('auth.login.succeeded')) evTypeBadge = 'success';
+                else if (ev.event_type.startsWith('transaction.transfer.held') || ev.event_type.includes('freeze')) evTypeBadge = 'warning';
+                else if (ev.event_type.startsWith('transaction')) evTypeBadge = 'info';
+                else if (ev.event_type.includes('contain') || ev.event_type.includes('block')) evTypeBadge = 'danger';
+
+                const attrs = ev.attributes || {};
+                const amt = attrs.amount ? `${Number(attrs.amount).toLocaleString()} ETB` : '—';
+                const resBadge = ev.result === 'success' ? '<span class="badge bg-success">success</span>' :
+                                 ev.result === 'failed' ? '<span class="badge bg-danger">failed</span>' :
+                                 ev.result === 'held' ? '<span class="badge bg-warning text-dark">held</span>' :
+                                 `<span class="badge bg-secondary">${escapeHtml(ev.result || 'unknown')}</span>`;
+
+                const contextText = attrs.scenario ? `Scenario: ${attrs.scenario}` :
+                                    (attrs.failure_reason ? `Reason: ${attrs.failure_reason}` :
+                                    (attrs.threat_rule ? `Rule: ${attrs.threat_rule}` :
+                                    (ev.source_system ? `Target: ${ev.source_system}` : '—')));
+
+                const devStr = ev.device_id ? ` <small class="text-muted">(${escapeHtml(ev.device_id.slice(0, 10))})</small>` : '';
+
+                return `
+                    <tr>
+                        <td class="text-nowrap small text-muted">${timeStr}</td>
+                        <td><span class="badge bg-${evTypeBadge} font-monospace">${escapeHtml(ev.event_type)}</span></td>
+                        <td><code>${escapeHtml(ev.account_id || ev.user_id || '—')}</code></td>
+                        <td class="small"><code>${escapeHtml(ev.source_ip || '—')}</code>${devStr}</td>
+                        <td class="text-end font-monospace">${amt}</td>
+                        <td>${resBadge}</td>
+                        <td class="small text-truncate" style="max-width: 240px;" title="${escapeHtml(contextText)}">${escapeHtml(contextText)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function loadTelemetryStream() {
+            try {
+                const events = await API.getStreamEvents({ limit: 50 });
+                allTelemetryEvents = Array.isArray(events) ? events : [];
+                applyTelemetryFilters();
+            } catch (err) {
+                console.error('Error loading telemetry stream:', err);
+            }
+        }
+
+        async function launchSimulation() {
+            const btn = document.getElementById('btnLaunchSim');
+            const alertBox = document.getElementById('simResultAlert');
+            const scenario = document.getElementById('simScenario').value;
+            const account = document.getElementById('simAccount').value.trim() || undefined;
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Orchestrating attack...';
+            alertBox.classList.remove('d-none', 'alert-danger', 'alert-success');
+            alertBox.classList.add('alert-info');
+            alertBox.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Running simulated attack on connected target system & polling telemetry...';
+
+            try {
+                const res = await API.triggerScenario({
+                    scenario,
+                    target_account: account,
+                    sync_immediately: true
+                });
+
+                alertBox.classList.remove('alert-info');
+                alertBox.classList.add('alert-success');
+                const count = res.sync_result?.events_ingested ?? res.sync_result?.events_count ?? 'multiple';
+                const targetName = res.target_name || 'ShieldBank';
+                alertBox.innerHTML = `<strong><i class="bi bi-check-circle-fill me-1"></i> Scenario Executed!</strong> Target <code>${escapeHtml(targetName)}</code> ran <strong>${escapeHtml(scenario)}</strong>. ECS ingested and evaluated <strong>${count} telemetry events</strong>. Multi-layer detection triggered!`;
+
+                if (typeof showToast === 'function') {
+                    showToast(`Attack scenario "${scenario}" executed. Telemetry analyzed!`, 'warning');
+                }
+
+                await refreshAll();
+            } catch (err) {
+                console.error('Simulation error:', err);
+                alertBox.classList.remove('alert-info');
+                alertBox.classList.add('alert-danger');
+                alertBox.innerHTML = `<strong><i class="bi bi-exclamation-triangle-fill me-1"></i> Scenario Failed:</strong> ${escapeHtml(err.message || 'Error communicating with target system')}`;
+                if (typeof showToast === 'function') {
+                    showToast(err.message || 'Failed to trigger attack scenario', 'error');
+                }
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-play-circle-fill me-1"></i> Launch Attack Demo';
+            }
+        }
+
+        async function syncTargetNow() {
+            const alertBox = document.getElementById('simResultAlert');
+            alertBox.classList.remove('d-none', 'alert-danger', 'alert-success');
+            alertBox.classList.add('alert-info');
+            alertBox.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Polling connected target systems...';
+
+            try {
+                const targets = await API.getTargets();
+                const active = (targets || []).filter(t => t.is_active);
+                if (!active.length) {
+                    throw new Error('No active target systems configured. Check Settings.');
+                }
+
+                let totalEvents = 0;
+                for (const t of active) {
+                    const pollRes = await API.pollTargetNow(t.id);
+                    totalEvents += (pollRes.events_ingested || 0);
+                }
+
+                alertBox.classList.remove('alert-info');
+                alertBox.classList.add('alert-success');
+                alertBox.innerHTML = `<i class="bi bi-check2-circle me-1"></i> Sync complete. Ingested <strong>${totalEvents}</strong> new telemetry events from target systems.`;
+                await refreshAll();
+            } catch (err) {
+                alertBox.classList.remove('alert-info');
+                alertBox.classList.add('alert-danger');
+                alertBox.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i> Poll sync failed: ${escapeHtml(err.message)}`;
+            }
+        }
+
         async function refreshAll() {
             try {
                 document.getElementById('liveDot').classList.remove('off');
-                await Promise.all([loadSummary(), loadTimeline(), loadEvents()]);
+                await Promise.all([loadSummary(), loadTimeline(), loadEvents(), loadTelemetryStream()]);
             } catch (err) {
                 console.error(err);
                 document.getElementById('liveDot').classList.add('off');
