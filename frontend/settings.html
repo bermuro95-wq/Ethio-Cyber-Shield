@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/jpeg" href="assets/logo-shield.jpg">
     <title>Settings | Ethio-Cyber Shield</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
@@ -11,15 +12,130 @@
 <body>
     <div id="navbar"></div>
     <div class="container-fluid py-4 px-4">
-        <h3 class="page-title mb-3"><i class="bi bi-sliders me-2 text-success"></i>Rule thresholds</h3>
-        <p class="text-muted small">Admin only. Changes apply to the next transaction analysis (no restart needed).</p>
+        <!-- Autonomous Containment Policy Switch (SRS §11) -->
+        <div class="card mb-4 border-success">
+            <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-shield-lock text-success me-2"></i><strong>Autonomous Mitigation & Containment Engine (SRS §11)</strong></span>
+                <span class="badge bg-secondary">Closed-Loop Mitigations</span>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1 text-light">Automatic Target Containment Dispatcher</h6>
+                        <p class="text-muted small mb-0">
+                            When enabled, high-confidence critical detections (e.g. <code>ATO-001</code> with risk &ge; 50) automatically sign and dispatch containment controls (<code>freeze-transaction</code>, <code>revoke-session</code>, <code>block-ip</code>) directly to connected target systems via HMAC-SHA256 authenticated channels.
+                        </p>
+                    </div>
+                    <div class="form-check form-switch fs-4 ms-3">
+                        <input class="form-check-input" type="checkbox" id="toggleAutoContainment" onchange="toggleAutoContainment(this.checked)">
+                    </div>
+                </div>
+                <div id="containmentStatusBadge" class="mt-2 small text-success">
+                    <i class="bi bi-check-circle-fill me-1"></i> Autonomous containment is ACTIVE. Threats are contained in real time.
+                </div>
+            </div>
+        </div>
+
+        <!-- Connected Target Systems (SRS §10, §22) -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-bank text-info me-2"></i><strong>Connected Banking & Target Systems (HMAC-SHA256 Authenticated Endpoints)</strong></span>
+                <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#registerTargetModal" id="btnAddTarget">
+                    <i class="bi bi-plus-circle me-1"></i> Register Target System
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Target Name & System Type</th>
+                                <th>Base URL</th>
+                                <th>Key ID / Auth</th>
+                                <th>Sync Mode</th>
+                                <th>Health Status</th>
+                                <th>Last Sync / Polled</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="targetsTableBody">
+                            <tr><td colspan="7" class="text-center py-3 text-muted">Loading target systems...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rule Thresholds -->
         <div class="card">
+            <div class="card-header">
+                <i class="bi bi-sliders me-2 text-warning"></i><strong>Multi-Layer Detection Engine Thresholds</strong>
+                <span class="text-muted small ms-2">(Admin only. Changes apply dynamically to live evaluation without restart)</span>
+            </div>
             <div class="card-body">
                 <div class="row g-3" id="fields"></div>
                 <button class="btn btn-success mt-3" id="btnSave" onclick="save()">Save thresholds</button>
             </div>
         </div>
     </div>
+
+    <!-- Register Target System Modal -->
+    <div class="modal fade" id="registerTargetModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-bank me-2 text-success"></i>Register Target System</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">System Name</label>
+                        <input type="text" class="form-control" id="targetName" placeholder="e.g. ShieldBank Core Testbed" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">System Type</label>
+                        <select class="form-select" id="targetType">
+                            <option value="testbed" selected>Lab Testbed (ShieldBank)</option>
+                            <option value="core_banking">Core Banking System (CBS)</option>
+                            <option value="payment_gateway">Payment Gateway / Switch</option>
+                            <option value="mobile_money">Mobile Money / Telebirr</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">Base URL (Target Root)</label>
+                        <input type="url" class="form-control" id="targetBaseUrl" placeholder="http://localhost:3000" required>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small text-muted">HMAC Key ID</label>
+                            <input type="text" class="form-control" id="targetKeyId" placeholder="ecs-key-01" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Sync Mode</label>
+                            <select class="form-select" id="targetSyncMode">
+                                <option value="bidirectional" selected>Bidirectional (Push + Pull)</option>
+                                <option value="pull">Pull Polling Only</option>
+                                <option value="push">Push Webhook Only</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">HMAC Secret Key (Hex or Base64)</label>
+                        <input type="password" class="form-control" id="targetSecretKey" placeholder="e.g. supersecret-key-32bytes..." required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted">Polling Interval (Seconds)</label>
+                        <input type="number" class="form-control" id="targetPollInterval" value="10" min="2" max="3600">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-success" onclick="doRegisterTarget()"><i class="bi bi-check2-circle me-1"></i> Register & Verify</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/config.js"></script>
     <script src="js/api.js"></script>
@@ -28,6 +144,7 @@
         if (!requireAuth()) {}
         document.getElementById('navbar').innerHTML = renderNavbar('settings');
         const role = (API.getUser() || {}).role;
+
         const labels = {
             high_amount: 'High amount (ETB)',
             critical_amount: 'Critical amount (ETB)',
@@ -42,7 +159,158 @@
             rapid_transfer_amount: 'Rapid transfer amount (ETB)',
             rapid_window_minutes: 'Rapid window (minutes)'
         };
-        async function load() {
+
+        async function loadAutoContainment() {
+            try {
+                const res = await API.getAutoContainment();
+                const enabled = res?.auto_containment_enabled !== false;
+                const toggle = document.getElementById('toggleAutoContainment');
+                toggle.checked = enabled;
+                updateContainmentBadge(enabled);
+                if (role !== 'admin') {
+                    toggle.disabled = true;
+                }
+            } catch (err) {
+                console.warn('Could not load auto-containment state', err);
+            }
+        }
+
+        function updateContainmentBadge(enabled) {
+            const el = document.getElementById('containmentStatusBadge');
+            if (enabled) {
+                el.className = 'mt-2 small text-success';
+                el.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Autonomous containment is <strong>ACTIVE</strong>. Threats are contained in real time.';
+            } else {
+                el.className = 'mt-2 small text-warning';
+                el.innerHTML = '<i class="bi bi-pause-circle-fill me-1"></i> Autonomous containment is <strong>PAUSED</strong>. Alerts will require manual mitigation.';
+            }
+        }
+
+        async function toggleAutoContainment(enabled) {
+            try {
+                await API.setAutoContainment(enabled);
+                updateContainmentBadge(enabled);
+                showToast(`Auto-containment ${enabled ? 'enabled' : 'disabled'}`);
+            } catch (err) {
+                showToast(`Failed to update containment policy: ${err.message}`, 'error');
+                loadAutoContainment();
+            }
+        }
+
+        async function loadTargets() {
+            try {
+                const targets = await API.getTargets();
+                const tbody = document.getElementById('targetsTableBody');
+                if (!targets || !targets.length) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">No target systems registered. Click "+ Register Target System" to connect a bank.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = targets.map(t => {
+                    const healthCls = t.health_status === 'healthy' ? 'bg-success' : (t.health_status === 'down' ? 'bg-danger' : 'bg-secondary');
+                    const isAdm = role === 'admin';
+                    return `
+                        <tr>
+                            <td>
+                                <strong>${escapeHtml(t.name)}</strong>
+                                <div><span class="badge bg-dark border text-muted">${escapeHtml(t.system_type || 'generic')}</span></div>
+                            </td>
+                            <td><code>${escapeHtml(t.base_url)}</code></td>
+                            <td><code>${escapeHtml(t.key_id)}</code> <small class="text-muted">(HMAC-SHA256)</small></td>
+                            <td><span class="badge bg-secondary">${escapeHtml(t.sync_mode || 'bidirectional')}</span> <small class="text-muted">(${t.poll_interval_seconds || 10}s)</small></td>
+                            <td><span class="badge ${healthCls} text-uppercase">${escapeHtml(t.health_status || 'unknown')}</span></td>
+                            <td class="small text-muted">${t.last_synced_at ? formatDate(t.last_synced_at) : (t.last_health_check ? formatDate(t.last_health_check) : 'Never')}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-info" title="Test Connection Health" onclick="pingTarget('${t.id}')">
+                                        <i class="bi bi-activity"></i> Ping
+                                    </button>
+                                    <button class="btn btn-outline-primary" title="Poll Telemetry Now" onclick="pollTarget('${t.id}')">
+                                        <i class="bi bi-arrow-repeat"></i> Poll
+                                    </button>
+                                    ${isAdm ? `
+                                    <button class="btn btn-outline-danger" title="Delete Target" onclick="deleteTarget('${t.id}')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>` : ''}
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (err) {
+                console.error(err);
+                document.getElementById('targetsTableBody').innerHTML = `<tr><td colspan="7" class="text-danger text-center py-3">Failed to load target systems: ${escapeHtml(err.message)}</td></tr>`;
+            }
+        }
+
+        async function pingTarget(targetId) {
+            try {
+                showToast('Testing target connection health...', 'warning');
+                const res = await API.testTargetHealth(targetId);
+                showToast(`Target health status: ${(res.health_status || 'ok').toUpperCase()}`, res.health_status === 'healthy' ? 'success' : 'error');
+                loadTargets();
+            } catch (err) {
+                showToast(`Health check error: ${err.message}`, 'error');
+            }
+        }
+
+        async function pollTarget(targetId) {
+            try {
+                showToast('Polling telemetry from target...', 'warning');
+                const res = await API.pollTargetNow(targetId);
+                showToast(`Ingested ${res.events_ingested || 0} telemetry events from target`, 'success');
+                loadTargets();
+            } catch (err) {
+                showToast(`Poll failed: ${err.message}`, 'error');
+            }
+        }
+
+        async function deleteTarget(targetId) {
+            if (!confirm('Are you sure you want to disconnect and delete this target system registration?')) return;
+            try {
+                await API.deleteTarget(targetId);
+                showToast('Target system removed');
+                loadTargets();
+            } catch (err) {
+                showToast(`Delete failed: ${err.message}`, 'error');
+            }
+        }
+
+        async function doRegisterTarget() {
+            const name = document.getElementById('targetName').value.trim();
+            const system_type = document.getElementById('targetType').value;
+            const base_url = document.getElementById('targetBaseUrl').value.trim();
+            const key_id = document.getElementById('targetKeyId').value.trim();
+            const secret_key = document.getElementById('targetSecretKey').value.trim();
+            const sync_mode = document.getElementById('targetSyncMode').value;
+            const poll_interval_seconds = parseInt(document.getElementById('targetPollInterval').value, 10) || 10;
+
+            if (!name || !base_url || !key_id || !secret_key) {
+                showToast('Please fill in all target credentials', 'error');
+                return;
+            }
+
+            try {
+                showToast('Registering target system and checking health...', 'warning');
+                await API.registerTarget({
+                    name,
+                    system_type,
+                    base_url,
+                    key_id,
+                    secret_key,
+                    sync_mode,
+                    poll_interval_seconds,
+                    is_active: true
+                });
+                showToast('Target system successfully registered!', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('registerTargetModal')).hide();
+                loadTargets();
+            } catch (err) {
+                showToast(`Registration failed: ${err.message}`, 'error');
+            }
+        }
+
+        async function loadRules() {
             const rules = await API.getFraudRules();
             const el = document.getElementById('fields');
             el.innerHTML = Object.keys(labels).map(k => `
@@ -52,19 +320,25 @@
                 </div>`).join('');
             if (role !== 'admin') {
                 document.getElementById('btnSave').disabled = true;
+                document.getElementById('btnAddTarget')?.setAttribute('disabled', 'true');
                 document.querySelectorAll('#fields input').forEach(i => i.disabled = true);
             }
         }
+
         async function save() {
             const data = {};
             Object.keys(labels).forEach(k => { data[k] = document.getElementById('f_' + k).value; });
             try {
                 await API.updateFraudRules(data);
                 showToast('Thresholds saved');
-                load();
+                loadRules();
             } catch (e) { showToast(e.message, 'error'); }
         }
-        load().catch(e => showToast(e.message, 'error'));
+
+        loadAutoContainment();
+        loadTargets();
+        loadRules().catch(e => showToast(e.message, 'error'));
     </script>
 </body>
 </html>
+

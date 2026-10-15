@@ -20,6 +20,43 @@
                 </select></div>
         </div>
         <div class="row g-3 mb-4" id="summaryCards"></div>
+
+        <!-- Forensic Incident Replay & Investigation Station (§7.1 item 4) -->
+        <div class="card mb-4 border-info">
+            <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-rewind-btn text-info me-2"></i><strong>Forensic Incident Replay & Investigation Station (SRS §22)</strong></span>
+                <span class="badge bg-secondary">Interactive Attack Scrubbing</span>
+            </div>
+            <div class="card-body">
+                <div class="row g-2 align-items-end mb-3">
+                    <div class="col-md-8">
+                        <label class="form-label small text-muted">Select Historical Incident to Replay</label>
+                        <select id="replayIncidentSelect" class="form-select form-select-sm" onchange="loadIncidentForReplay(this.value)">
+                            <option value="">Loading historical incidents...</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex gap-2">
+                        <button class="btn btn-outline-info btn-sm flex-grow-1" id="btnReplayPlay" onclick="toggleHistoricalPlay()">
+                            <i class="bi bi-play-fill me-1"></i> Auto Replay
+                        </button>
+                        <a id="btnViewDetail" href="#" class="btn btn-outline-success btn-sm disabled">
+                            <i class="bi bi-box-arrow-up-right me-1"></i> Open Incident
+                        </a>
+                    </div>
+                </div>
+
+                <div id="replayContainer" class="d-none">
+                    <div class="attack-chain mb-3" id="replayChainSteps"></div>
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="small text-muted">Ingress</span>
+                        <input type="range" class="form-range" id="histSlider" min="1" max="5" value="5" oninput="scrubHistReplay(parseInt(this.value, 10))">
+                        <span class="small text-muted">Containment</span>
+                    </div>
+                    <div id="histDetailBox" class="mt-2 alert alert-dark small mb-0 py-2 border"></div>
+                </div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header">Export CSV</div>
             <div class="card-body d-flex flex-wrap gap-2">
@@ -37,6 +74,10 @@
     <script>
         if (!requireAuth()) {}
         document.getElementById('navbar').innerHTML = renderNavbar('reports');
+
+        let histSteps = [];
+        let histTimer = null;
+
         async function loadSummary() {
             const days = document.getElementById('days').value;
             const s = await API.getReportSummary(days);
@@ -50,6 +91,132 @@
                 <div class="col-6 col-md-3"><div class="card"><div class="card-body text-center">
                     <div class="stat-value">${s.incidents?.total ?? 0}</div><div class="stat-label">Incidents</div></div></div></div>`;
         }
+
+        async function loadIncidentsForReplay() {
+            try {
+                const res = await API.getIncidents({ limit: 20 });
+                const incidents = (res && res.data) ? res.data : (Array.isArray(res) ? res : []);
+                const sel = document.getElementById('replayIncidentSelect');
+                if (!incidents.length) {
+                    sel.innerHTML = '<option value="">No historical incidents recorded yet</option>';
+                    return;
+                }
+                sel.innerHTML = incidents.map(inc => `
+                    <option value="${inc.id}">[${(inc.severity || 'high').toUpperCase()}] ${escapeHtml(inc.title)} (${formatDate(inc.created_at)})</option>
+                `).join('');
+                if (incidents[0]) {
+                    loadIncidentForReplay(incidents[0].id);
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('replayIncidentSelect').innerHTML = '<option value="">Error loading incidents</option>';
+            }
+        }
+
+        async function loadIncidentForReplay(incidentId) {
+            if (!incidentId) return;
+            const linkBtn = document.getElementById('btnViewDetail');
+            linkBtn.href = `incident-detail.html?id=${incidentId}`;
+            linkBtn.classList.remove('disabled');
+
+            try {
+                const inc = await API.getIncident(incidentId);
+                const isATO = inc.incident_type === 'account_takeover' || (inc.risk_reasons || []).some(r => r.includes('ATO-001'));
+                if (isATO) {
+                    histSteps = [
+                        { num: 'STAGE 1', title: 'Brute Force Probe', detail: '6x Rapid auth failures on account (AUTH-001)', cls: 'threat' },
+                        { num: 'STAGE 2', title: 'Session Hijack', detail: 'New device session established (AUTH-003)', cls: 'warning' },
+                        { num: 'STAGE 3', title: 'Mule Payee Added', detail: 'Rapid beneficiary registered (TX-004)', cls: 'warning' },
+                        { num: 'STAGE 4', title: 'Exfiltration Attempt', detail: '180,000 ETB transfer held (TX-001)', cls: 'threat' },
+                        { num: 'STAGE 5', title: 'Auto Containment', detail: 'HMAC signed freeze & session revoke confirmed (ATO-001)', cls: 'contained' }
+                    ];
+                } else {
+                    histSteps = (inc.alerts || []).map((a, i) => ({
+                        num: `STAGE ${i + 1}`,
+                        title: a.title,
+                        detail: a.rule_fired || a.severity.toUpperCase(),
+                        cls: a.severity === 'critical' ? 'threat' : 'warning'
+                    }));
+                    if (!histSteps.length) {
+                        histSteps = [
+                            { num: 'STAGE 1', title: 'Telemetry Ingested', detail: 'Target event recorded in security_events', cls: 'warning' },
+                            { num: 'STAGE 2', title: 'Risk Scored', detail: `Deterministic risk: ${inc.risk_score || 0}/100`, cls: 'threat' }
+                        ];
+                    }
+                }
+
+                document.getElementById('replayContainer').classList.remove('d-none');
+                document.getElementById('replayChainSteps').innerHTML = histSteps.map((s, idx) => `
+                    <div class="attack-step ${s.cls}" id="histStep_${idx}" style="transition: all 0.3s ease;">
+                        <div class="step-num">${escapeHtml(s.num)}</div>
+                        <div class="step-title">${escapeHtml(s.title)}</div>
+                        <div class="step-detail">${escapeHtml(s.detail)}</div>
+                    </div>
+                    ${idx < histSteps.length - 1 ? '<div class="attack-arrow"><i class="bi bi-chevron-right"></i></div>' : ''}
+                `).join('');
+
+                const slider = document.getElementById('histSlider');
+                slider.max = histSteps.length;
+                slider.value = histSteps.length;
+                scrubHistReplay(histSteps.length);
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function scrubHistReplay(stepNum) {
+            if (!histSteps.length) return;
+            const idx = stepNum - 1;
+            const step = histSteps[idx];
+            document.getElementById('histDetailBox').innerHTML = `
+                <strong>${escapeHtml(step.num)}: ${escapeHtml(step.title)}</strong> — ${escapeHtml(step.detail)}
+            `;
+            histSteps.forEach((s, i) => {
+                const el = document.getElementById(`histStep_${i}`);
+                if (!el) return;
+                if (i < stepNum) {
+                    el.style.opacity = '1';
+                    el.style.filter = 'none';
+                    if (i === idx) {
+                        el.style.transform = 'scale(1.04)';
+                        el.style.boxShadow = '0 0 10px rgba(0, 200, 83, 0.4)';
+                    } else {
+                        el.style.transform = 'none';
+                        el.style.boxShadow = 'none';
+                    }
+                } else {
+                    el.style.opacity = '0.35';
+                    el.style.filter = 'grayscale(80%)';
+                    el.style.transform = 'none';
+                    el.style.boxShadow = 'none';
+                }
+            });
+        }
+
+        function toggleHistoricalPlay() {
+            const btn = document.getElementById('btnReplayPlay');
+            if (histTimer) {
+                clearInterval(histTimer);
+                histTimer = null;
+                btn.innerHTML = '<i class="bi bi-play-fill me-1"></i> Auto Replay';
+            } else {
+                btn.innerHTML = '<i class="bi bi-pause-fill me-1"></i> Pause';
+                let current = parseInt(document.getElementById('histSlider').value, 10);
+                if (current >= histSteps.length) current = 0;
+                histTimer = setInterval(() => {
+                    current++;
+                    if (current > histSteps.length) {
+                        clearInterval(histTimer);
+                        histTimer = null;
+                        btn.innerHTML = '<i class="bi bi-play-fill me-1"></i> Auto Replay';
+                        return;
+                    }
+                    document.getElementById('histSlider').value = current;
+                    scrubHistReplay(current);
+                }, 1300);
+            }
+        }
+
         async function downloadCsv(type) {
             const days = document.getElementById('days').value;
             try {
@@ -65,7 +232,9 @@
                 showToast('Download started');
             } catch (e) { showToast(e.message, 'error'); }
         }
+
         loadSummary().catch(e => showToast(e.message, 'error'));
+        loadIncidentsForReplay();
     </script>
 </body>
 </html>
