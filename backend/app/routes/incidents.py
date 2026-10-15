@@ -207,3 +207,54 @@ def link_indicator(incident_id):
         )
 
     return jsonify(res.data[0] if res.data else {'linked': True}), 201
+
+
+@incidents_bp.route('/<incident_id>/attack-graph', methods=['GET'])
+@login_required
+def get_attack_graph(incident_id):
+    """Returns the explainable visual attack graph for an incident including linked alerts, indicators, and timeline."""
+    from app.services.incident_service import get_incident_attack_graph
+    graph = get_incident_attack_graph(incident_id)
+    if 'error' in graph:
+        return jsonify(graph), 404
+    return jsonify(graph)
+
+
+@incidents_bp.route('/promote-alert/<alert_id>', methods=['POST'])
+@role_required('admin', 'analyst')
+def promote_alert(alert_id):
+    """Manual analyst endpoint to promote an alert to an incident."""
+    from app.services.incident_service import promote_alert_to_incident
+    sb = get_service_supabase()
+    a_res = sb.table('alerts').select('*').eq('id', alert_id).execute()
+    if not a_res.data:
+        return jsonify({'error': 'Alert not found'}), 404
+
+    alert = a_res.data[0]
+    evidence = alert.get('evidence') or {}
+    event = {
+        'event_id': evidence.get('trigger_event_id') or alert.get('id'),
+        'event_type': alert.get('alert_type'),
+        'account_id_pub': evidence.get('account'),
+        'source_ip': evidence.get('source_ip'),
+        'device_id_pub': evidence.get('device_id'),
+        'amount': evidence.get('amount_etb'),
+        'source_system': 'ShieldBank Testbed',
+    }
+    detection_result = {
+        'risk_score': alert.get('risk_score', 80),
+        'severity': alert.get('severity', 'high'),
+        'confidence': evidence.get('confidence', 'high'),
+        'reasons': [alert.get('description', 'Manual promotion')],
+        'rules_fired': [r.get('rule_id') for r in evidence.get('fired_rules', [])] or ['MANUAL-PROMOTE'],
+        'is_attack_chain': alert.get('alert_type') == 'account_takeover',
+    }
+    incident = promote_alert_to_incident(alert, event, detection_result)
+    if not incident:
+        return jsonify({'error': 'Could not promote alert to incident'}), 500
+
+    log_action(g.user['id'], 'alert_manually_promoted', 'incident', incident['id'], {
+        'alert_id': alert_id
+    })
+    return jsonify(incident), 201
+
