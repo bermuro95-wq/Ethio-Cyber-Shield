@@ -37,6 +37,38 @@
         </div>
     </div>
 
+    <!-- Dispatch Control Modal -->
+    <div class="modal fade" id="dispatchControlModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-shield-slash text-danger me-2"></i>Dispatch Target Mitigation</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label">Target System</label>
+                    <select class="form-select mb-2" id="dispatchTargetSelect"></select>
+                    <label class="form-label">Control Action</label>
+                    <select class="form-select mb-2" id="dispatchActionType">
+                        <option value="freeze-transaction">Freeze Transaction (Hold Funds)</option>
+                        <option value="revoke-session">Revoke Active User Session</option>
+                        <option value="block-ip">Block Malicious IP Address</option>
+                        <option value="lock-account">Lock Account / Invalidate Credentials</option>
+                        <option value="require-step-up">Enforce Multi-Factor Step-Up Challenge</option>
+                    </select>
+                    <label class="form-label">Target Entity ID (Transaction ID / Session ID / IP / Account)</label>
+                    <input type="text" class="form-control mb-2" id="dispatchEntityId" placeholder="e.g. TX-9921, 196.188.12.44, or acc-1002">
+                    <label class="form-label">Operational Reason</label>
+                    <input type="text" class="form-control" id="dispatchReason" value="Containment dispatched by ECS Incident Analyst">
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-danger" onclick="doDispatchControl()"><i class="bi bi-send me-1"></i> Send Signed Control</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/config.js"></script>
     <script src="js/api.js"></script>
@@ -49,11 +81,163 @@
         if (!incidentId) { window.location.href = '/incidents.html'; }
 
         let currentIncident = null;
+        let cachedTargets = [];
+
+        let currentReplaySteps = [];
+        let replayTimer = null;
+
+        function renderAttackChain(incident, graph, actions) {
+            const rules = incident.risk_reasons || [];
+            const alerts = incident.alerts || [];
+            const isATO = incident.incident_type === 'account_takeover' || rules.some(r => r.includes('ATO-001') || r.includes('Account takeover'));
+
+            let steps = [];
+            if (isATO) {
+                steps = [
+                    { num: 'STAGE 1', title: 'Brute Force Probe', detail: '6x Rapid auth failures (AUTH-001)', cls: 'threat' },
+                    { num: 'STAGE 2', title: 'Session Compromise', detail: 'New device session established (AUTH-003)', cls: 'warning' },
+                    { num: 'STAGE 3', title: 'Mule Payee Added', detail: 'Rapid beneficiary registered (TX-004)', cls: 'warning' },
+                    { num: 'STAGE 4', title: 'Exfiltration Attempt', detail: '180k ETB wire transfer intercepted (TX-001)', cls: 'threat' },
+                    { num: 'STAGE 5', title: 'Autonomous Containment', detail: 'HMAC signed freeze & session revoke (ATO-001)', cls: 'contained' }
+                ];
+            } else if (alerts.length > 0) {
+                steps = alerts.map((a, idx) => ({
+                    num: `STAGE ${idx + 1}`,
+                    title: a.title,
+                    detail: a.rule_fired || (a.evidence?.trigger_rule) || a.severity.toUpperCase(),
+                    cls: a.severity === 'critical' ? 'threat' : 'warning'
+                }));
+                if (actions.length > 0) {
+                    steps.push({
+                        num: `STAGE ${steps.length + 1}`,
+                        title: 'Containment Action',
+                        detail: `${actions.length} control(s) dispatched to target`,
+                        cls: 'contained'
+                    });
+                }
+            } else {
+                steps = [
+                    { num: 'STAGE 1', title: 'Threat Ingestion', detail: 'Event detected and analyzed', cls: 'warning' },
+                    { num: 'STAGE 2', title: 'Risk Scored', detail: `Deterministic score: ${incident.risk_score || 0}/100`, cls: (incident.risk_score >= 70 ? 'threat' : 'warning') }
+                ];
+            }
+
+            currentReplaySteps = steps;
+
+            const stepHtml = steps.map((s, idx) => `
+                <div class="attack-step ${s.cls}" id="attackStep_${idx}" style="transition: all 0.3s ease;">
+                    <div class="step-num">${escapeHtml(s.num)}</div>
+                    <div class="step-title">${escapeHtml(s.title)}</div>
+                    <div class="step-detail">${escapeHtml(s.detail)}</div>
+                </div>
+                ${idx < steps.length - 1 ? '<div class="attack-arrow"><i class="bi bi-chevron-right"></i></div>' : ''}
+            `).join('');
+
+            return `
+                <div class="card mb-3 border-danger">
+                    <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-diagram-3 text-danger me-2"></i><strong>Explainable Multi-Layer Kill-Chain Visualizer (SRS §11 & §22)</strong></span>
+                        <span class="badge ${isATO ? 'bg-danger' : 'bg-primary'}">${isATO ? 'ATO-001 Correlation Chain' : 'Sequential Event Graph'}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="attack-chain mb-2">
+                            ${stepHtml}
+                        </div>
+
+                        <!-- Forensics Scrubbing & Replay Player -->
+                        <div class="mt-3 pt-3 border-top border-secondary">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small text-muted"><i class="bi bi-clock-history text-info me-1"></i><strong>Incident Forensics & Attack Timeline Scrubbing Player</strong></span>
+                                <div class="d-flex align-items-center gap-2">
+                                    <button class="btn btn-outline-info btn-sm py-0" id="btnTogglePlay" onclick="toggleReplayPlay()">
+                                        <i class="bi bi-play-fill me-1"></i> Auto Play
+                                    </button>
+                                    <span class="badge bg-secondary" id="replayStepBadge">Step ${steps.length} of ${steps.length}</span>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center gap-3">
+                                <span class="small text-muted">Start</span>
+                                <input type="range" class="form-range" min="1" max="${steps.length}" value="${steps.length}" id="replaySlider" oninput="scrubReplay(parseInt(this.value, 10))">
+                                <span class="small text-muted">Contained</span>
+                            </div>
+                            <div id="replayDetailBox" class="mt-2 alert alert-dark small mb-0 py-2 border">
+                                <strong>${escapeHtml(steps[steps.length - 1].num)}: ${escapeHtml(steps[steps.length - 1].title)}</strong> — ${escapeHtml(steps[steps.length - 1].detail)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function scrubReplay(stepNum) {
+            if (!currentReplaySteps.length) return;
+            const idx = stepNum - 1;
+            document.getElementById('replayStepBadge').textContent = `Step ${stepNum} of ${currentReplaySteps.length}`;
+            const step = currentReplaySteps[idx];
+            document.getElementById('replayDetailBox').innerHTML = `
+                <strong>${escapeHtml(step.num)}: ${escapeHtml(step.title)}</strong> — ${escapeHtml(step.detail)}
+            `;
+
+            currentReplaySteps.forEach((s, i) => {
+                const el = document.getElementById(`attackStep_${i}`);
+                if (!el) return;
+                if (i < stepNum) {
+                    el.style.opacity = '1';
+                    el.style.filter = 'none';
+                    if (i === idx) {
+                        el.style.transform = 'scale(1.04)';
+                        el.style.boxShadow = '0 0 10px rgba(0, 200, 83, 0.4)';
+                    } else {
+                        el.style.transform = 'none';
+                        el.style.boxShadow = 'none';
+                    }
+                } else {
+                    el.style.opacity = '0.35';
+                    el.style.filter = 'grayscale(80%)';
+                    el.style.transform = 'none';
+                    el.style.boxShadow = 'none';
+                }
+            });
+        }
+
+        function toggleReplayPlay() {
+            const btn = document.getElementById('btnTogglePlay');
+            if (replayTimer) {
+                clearInterval(replayTimer);
+                replayTimer = null;
+                btn.innerHTML = '<i class="bi bi-play-fill me-1"></i> Auto Play';
+            } else {
+                btn.innerHTML = '<i class="bi bi-pause-fill me-1"></i> Pause';
+                let current = parseInt(document.getElementById('replaySlider').value, 10);
+                if (current >= currentReplaySteps.length) current = 0;
+                replayTimer = setInterval(() => {
+                    current++;
+                    if (current > currentReplaySteps.length) {
+                        clearInterval(replayTimer);
+                        replayTimer = null;
+                        btn.innerHTML = '<i class="bi bi-play-fill me-1"></i> Auto Play';
+                        return;
+                    }
+                    document.getElementById('replaySlider').value = current;
+                    scrubReplay(current);
+                }, 1400);
+            }
+        }
 
         async function loadDetail() {
             try {
-                currentIncident = await API.getIncident(incidentId);
+                const [incident, attackGraph, actions, targets] = await Promise.all([
+                    API.getIncident(incidentId),
+                    API.getIncidentAttackGraph(incidentId).catch(() => null),
+                    API.getResponseActions({ incident_id: incidentId }).catch(() => []),
+                    API.getTargets().catch(() => [])
+                ]);
+
+                currentIncident = incident;
+                cachedTargets = targets || [];
                 const i = currentIncident;
+                const canEdit = API.getUser().role !== 'viewer';
+
                 const reasons = (i.risk_reasons || []).map(r => `<li>${escapeHtml(r)}</li>`).join('') || '<li class="text-muted">No analysis run yet</li>';
                 const inds = (i.indicators || []).map(ind => `
                     <tr>
@@ -70,7 +254,26 @@
                     </div>
                 `).join('') || '<p class="text-muted">No alerts</p>';
 
-                const canEdit = API.getUser().role !== 'viewer';
+                // Render Response Actions Table
+                const actionsRows = (actions || []).map(act => {
+                    const statusClass = act.status === 'executed' ? 'bg-success' : (act.status === 'reverted' ? 'bg-secondary' : 'bg-warning');
+                    const isRevertible = act.status === 'executed' && canEdit;
+                    return `
+                        <tr>
+                            <td><span class="badge bg-dark border text-uppercase font-monospace">${escapeHtml(act.action_type || '')}</span></td>
+                            <td><code>${escapeHtml(act.description || act.target_entity_id || 'ShieldBank')}</code></td>
+                            <td><span class="badge ${statusClass}">${escapeHtml(act.status)}</span></td>
+                            <td class="small text-muted">${formatDate(act.created_at)}</td>
+                            <td>
+                                ${isRevertible ? `
+                                    <button class="btn btn-outline-warning btn-sm py-0" onclick="revertMitigation('${act.id}')">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i> Revert
+                                    </button>
+                                ` : '<span class="text-muted small">—</span>'}
+                            </td>
+                        </tr>
+                    `;
+                }).join('') || '<tr><td colspan="5" class="text-muted text-center py-3">No mitigation actions dispatched yet.</td></tr>';
 
                 document.getElementById('content').innerHTML = `
                     <div class="d-flex justify-content-between align-items-start mb-3">
@@ -84,19 +287,48 @@
                         </div>
                         ${canEdit ? `
                         <div class="btn-group">
+                            <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#dispatchControlModal" onclick="prepDispatchModal()"><i class="bi bi-shield-slash me-1"></i> Dispatch Control</button>
                             <button class="btn btn-outline-success btn-sm" onclick="runAnalysis()"><i class="bi bi-cpu me-1"></i> Run Analysis</button>
                             <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#linkModal" onclick="prepLink()"><i class="bi bi-link-45deg me-1"></i> Link IOC</button>
                         </div>` : ''}
                     </div>
 
+                    <!-- Kill Chain Visualizer -->
+                    ${renderAttackChain(i, attackGraph, actions)}
+
                     <div class="row g-3">
                         <div class="col-lg-8">
-                            <div class="card mb-3">
-                                <div class="card-header">Description</div>
-                                <div class="card-body">${escapeHtml(i.description) || '<span class="text-muted">No description</span>'}</div>
+                            <!-- Target Response & Mitigations Card -->
+                            <div class="card mb-3 border-success">
+                                <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                                    <span><i class="bi bi-shield-check text-success me-2"></i><strong>Target Response Mitigations (Closed-Loop Containment)</strong></span>
+                                    <span class="badge bg-secondary">${actions.length} action(s)</span>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="table-responsive">
+                                        <table class="table table-dark table-hover table-sm mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Control Action</th>
+                                                    <th>Details / Entity</th>
+                                                    <th>Status</th>
+                                                    <th>Executed At</th>
+                                                    <th>Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>${actionsRows}</tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
+
                             <div class="card mb-3">
-                                <div class="card-header">Linked Indicators</div>
+                                <div class="card-header">Description & Evidence</div>
+                                <div class="card-body" style="white-space: pre-wrap;">${escapeHtml(i.description) || '<span class="text-muted">No description</span>'}</div>
+                            </div>
+
+                            <div class="card mb-3">
+                                <div class="card-header">Linked Observable Threat Indicators (IOCs)</div>
                                 <div class="card-body p-0">
                                     <table class="table table-sm mb-0">
                                         <thead><tr><th>Value</th><th>Type</th><th>Status</th></tr></thead>
@@ -104,29 +336,36 @@
                                     </table>
                                 </div>
                             </div>
+
                             <div class="card">
-                                <div class="card-header">Related Alerts</div>
+                                <div class="card-header">Correlated Alerts</div>
                                 <div class="card-body">${alerts}</div>
                             </div>
                         </div>
+
                         <div class="col-lg-4">
                             <div class="card mb-3">
-                                <div class="card-header">Risk Assessment</div>
+                                <div class="card-header">Deterministic Risk Scoring (L4)</div>
                                 <div class="card-body">
-                                    <div class="text-center mb-3">
-                                        <div class="stat-value">${i.risk_score || 0}</div>
+                                    <div class="text-center mb-2">
+                                        <div class="stat-value ${i.risk_score >= 70 ? 'text-danger' : (i.risk_score >= 40 ? 'text-warning' : 'text-success')}">${i.risk_score || 0}</div>
                                         <div>${riskBadge(i.risk_level || 'low')}</div>
                                     </div>
+                                    <div class="progress mb-3" style="height: 8px;">
+                                        <div class="progress-bar ${i.risk_score >= 70 ? 'bg-danger' : (i.risk_score >= 40 ? 'bg-warning' : 'bg-success')}" 
+                                             role="progressbar" style="width: ${Math.min(100, Math.max(0, i.risk_score || 0))}%;"></div>
+                                    </div>
+                                    <div class="small text-muted mb-2 fw-bold">Itemized Rule Contributions (§9):</div>
                                     <ul class="risk-reasons ps-3 mb-0">${reasons}</ul>
                                 </div>
                             </div>
                             <div class="card">
-                                <div class="card-header">Metadata</div>
+                                <div class="card-header">Incident Metadata</div>
                                 <div class="card-body small">
                                     <div class="mb-2"><span class="text-muted">Created:</span> ${formatDate(i.created_at)}</div>
                                     <div class="mb-2"><span class="text-muted">Incident Date:</span> ${formatDate(i.incident_date)}</div>
                                     <div class="mb-2"><span class="text-muted">Assigned:</span> ${i.assigned?.full_name || '-'}</div>
-                                    <div><span class="text-muted">ID:</span> <code class="small">${i.id}</code></div>
+                                    <div><span class="text-muted">Incident ID:</span> <code class="small">${i.id}</code></div>
                                 </div>
                             </div>
                         </div>
@@ -134,6 +373,58 @@
                 `;
             } catch (e) {
                 document.getElementById('content').innerHTML = noData(e.message);
+            }
+        }
+
+        async function revertMitigation(actionId) {
+            if (!confirm('Are you sure you want to rollback/revert this mitigation control on the target system?')) return;
+            try {
+                showToast('Reverting containment action on target...', 'warning');
+                await API.revertAction(actionId, 'Analyst rollback via ECS detail page');
+                showToast('Mitigation successfully reverted on target system!', 'success');
+                loadDetail();
+            } catch (e) {
+                showToast(`Revert failed: ${e.message}`, 'error');
+            }
+        }
+
+        function prepDispatchModal() {
+            const sel = document.getElementById('dispatchTargetSelect');
+            if (cachedTargets.length > 0) {
+                sel.innerHTML = cachedTargets.map(t => `<option value="${t.id}">${escapeHtml(t.name)} (${t.base_url})</option>`).join('');
+            } else {
+                sel.innerHTML = '<option value="">No targets configured</option>';
+            }
+        }
+
+        async function doDispatchControl() {
+            const targetId = document.getElementById('dispatchTargetSelect').value;
+            const actionType = document.getElementById('dispatchActionType').value;
+            const entityId = document.getElementById('dispatchEntityId').value.trim();
+            const reason = document.getElementById('dispatchReason').value.trim();
+
+            if (!targetId) {
+                showToast('Select a target system', 'error');
+                return;
+            }
+            if (!entityId) {
+                showToast('Specify the target entity ID (account, transaction ID, session ID, or IP)', 'error');
+                return;
+            }
+
+            try {
+                showToast('Dispatching signed mitigation control...', 'warning');
+                await API.executeTargetControl(targetId, {
+                    action_type: actionType,
+                    target_entity_id: entityId,
+                    reason: reason,
+                    incident_id: incidentId
+                });
+                showToast('Control dispatched and confirmed by target system!', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('dispatchControlModal')).hide();
+                loadDetail();
+            } catch (e) {
+                showToast(`Dispatch failed: ${e.message}`, 'error');
             }
         }
 
@@ -151,7 +442,7 @@
         async function prepLink() {
             const inds = await API.getIndicators();
             const sel = document.getElementById('linkIndSelect');
-            sel.innerHTML = inds.map(i => `<option value="${i.id}">[${i.indicator_type}] ${escapeHtml(i.value)} (${i.status})</option>`).join('') || '<option>No indicators</option>';
+            sel.innerHTML = (inds || []).map(i => `<option value="${i.id}">[${i.indicator_type}] ${escapeHtml(i.value)} (${i.status})</option>`).join('') || '<option>No indicators</option>';
         }
 
         async function doLink() {
@@ -172,3 +463,4 @@
     </script>
 </body>
 </html>
+
