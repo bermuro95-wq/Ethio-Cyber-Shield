@@ -4,8 +4,11 @@ Real-time monitoring endpoints for graphs and live SOC view.
 Pure Python — no AI/ML.
 """
 from flask import Blueprint, request, jsonify, Response, stream_with_context, g
-from app.services.auth_service import login_required
+from app.services.auth_service import login_required, role_required
 from app.services.db import get_service_supabase
+from app.services.audit_service import log_action
+from app.services.target_system_service import get_target_by_id, list_active_targets, run_target_scenario
+from app.services.poller_service import poll_target_once
 from datetime import datetime, timedelta, timezone
 from dateutil import parser
 import json
@@ -55,6 +58,20 @@ def live_summary():
     critical_open = sum(1 for a in open_alerts if a.get('severity') == 'critical')
     high_open = sum(1 for a in open_alerts if a.get('severity') == 'high')
 
+    contained_count = 0
+    try:
+        act_res = sb.table('response_actions').select('id', count='exact').eq('status', 'confirmed').execute()
+        contained_count = act_res.count or len(act_res.data or [])
+    except Exception:
+        pass
+
+    blocked_ips_count = 0
+    try:
+        ind_res = sb.table('indicators').select('id', count='exact').eq('indicator_type', 'ip').execute()
+        blocked_ips_count = ind_res.count or len(ind_res.data or [])
+    except Exception:
+        pass
+
     return jsonify({
         'window_minutes': minutes,
         'transactions': {
@@ -69,6 +86,8 @@ def live_summary():
             'critical_open': critical_open,
             'high_open': high_open,
         },
+        'contained_actions': contained_count,
+        'blocked_ips': blocked_ips_count,
         'threat_level': (
             'critical' if critical_open > 0 else
             'high' if high_open > 0 or len(suspicious_txs) >= 3 else
@@ -275,3 +294,143 @@ def live_stream():
             'Connection': 'keep-alive',
         }
     )
+
+
+@live_bp.route('/scenarios', methods=['GET'])
+@login_required
+def list_scenarios():
+    """
+    Returns available lab attack scenarios and demonstration scenarios for analysts and judges.
+    """
+    return jsonify({
+        'scenarios': [
+            {
+                'id': 'account_takeover',
+                'name': 'Account Takeover Chain (ATO-001)',
+                'severity': 'critical',
+                'description': 'Simulates password guessing bursts, authentication from unrecognized hardware, mule beneficiary addition, and high-value 180,000 ETB transfer held in review.',
+                'expected_detection': 'ATO-001 Correlation (Risk 100/100, Critical Alert, Auto Incident, Tri-Fold Containment: Freeze Transfer, Revoke Session, Block IP)'
+            },
+            {
+                'id': 'credential_stuffing',
+                'name': 'Multi-Account Credential Stuffing (AUTH-002)',
+                'severity': 'high',
+                'description': 'Rapid succession of failed logins from a single IP address targeting distinct accounts within 60 seconds.',
+                'expected_detection': 'AUTH-002 Signature (Risk 75/100, High Alert, Automated IP Block)'
+            },
+            {
+                'id': 'rapid_transfers',
+                'name': 'Rapid Succession Fraud (TX-001 & TX-003)',
+                'severity': 'high',
+                'description': 'High-value transfers exceeding 100,000 ETB occurring during Addis Ababa local night hours (00:00 - 05:00).',
+                'expected_detection': 'TX-001 & TX-003 (Risk 70/100, High Alert, Automated Transfer Freeze)'
+            },
+            {
+                'id': 'admin_probe',
+                'name': 'Unauthorized Privilege Abuse (PRIV-001)',
+                'severity': 'high',
+                'description': 'Customer identity attempting administrative endpoint traversal and privilege escalation.',
+                'expected_detection': 'PRIV-001 (Risk 65/100, High Alert, Session Revocation / Step-up challenge)'
+            },
+            {
+                'id': 'normal_traffic',
+                'name': 'Legitimate Banking Baseline',
+                'severity': 'low',
+                'description': 'Standard daytime banking activities: legitimate user logins, balance checks, and compliant merchant transfers.',
+                'expected_detection': 'Risk Score 0/100, Clean Baseline, No Alerts'
+            }
+        ]
+    }), 200
+
+
+@live_bp.route('/trigger-scenario', methods=['POST'])
+@role_required('admin', 'analyst')
+def trigger_lab_scenario():
+    """
+    Remotely triggers an attack scenario on the connected target system and syncs telemetry.
+    """
+    data = request.get_json() or {}
+    target_id = data.get('target_id')
+    scenario = data.get('scenario') or 'account_takeover'
+    target_account = data.get('target_account')
+    simulated_ip = data.get('simulated_ip')
+    sync_immediately = data.get('sync_immediately', True)
+
+    target = None
+    if target_id:
+        target = get_target_by_id(target_id)
+    else:
+        # Fallback to the first active target system
+        active_targets = list_active_targets()
+        if active_targets:
+            target = active_targets[0]
+            target_id = target.get('id')
+
+    if not target:
+        return jsonify({'error': 'No active target system found. Please configure a target in Settings.'}), 400
+
+    try:
+        resp_json, status_code = run_target_scenario(
+            scenario_name=scenario,
+            target_account=target_account,
+            base_url=target.get('base_url'),
+            key_id=target.get('key_id'),
+            secret=target.get('secret_key'),
+            simulated_ip=simulated_ip
+        )
+
+        # Audit
+        try:
+            log_action(g.user['id'], 'lab_scenario_triggered', 'target_system', target_id, {
+                'scenario': scenario, 'status_code': status_code
+            })
+        except Exception:
+            pass
+
+        # Trigger immediate pull sync to bring generated telemetry into ECS immediately
+        sync_result = None
+        if sync_immediately and target_id:
+            try:
+                sync_result = poll_target_once(target_id)
+            except Exception as sync_err:
+                logger.warning(f"Immediate sync after scenario failed: {sync_err}")
+
+        return jsonify({
+            'status': 'executed',
+            'scenario': scenario,
+            'target_name': target.get('name'),
+            'target_response': resp_json,
+            'sync_result': sync_result,
+            'status_code': status_code
+        }), 200 if status_code in (200, 201) else status_code
+
+    except Exception as e:
+        logger.error(f"Failed to execute lab scenario {scenario}: {e}")
+        return jsonify({'error': f"Failed to execute scenario on target: {str(e)}"}), 502
+
+
+@live_bp.route('/stream-events', methods=['GET'])
+@login_required
+def stream_events():
+    """
+    Returns latest canonical security_events for real-time threat streaming tables.
+    """
+    limit = min(int(request.args.get('limit', 50)), 200)
+    target_id = request.args.get('target_id')
+    event_type = request.args.get('event_type')
+
+    sb = get_service_supabase()
+    query = sb.table('security_events').select('*').order('occurred_at', desc=True).limit(limit)
+
+    if target_id:
+        query = query.eq('target_system_id', target_id)
+    if event_type:
+        query = query.eq('event_type', event_type)
+
+    try:
+        res = query.execute()
+        return jsonify(res.data or []), 200
+    except Exception as e:
+        logger.error(f"Error fetching stream events: {e}")
+        return jsonify([]), 200
+

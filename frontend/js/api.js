@@ -240,5 +240,66 @@ const API = {
     },
     resetPassword(token, password) {
         return this.request('POST', '/auth/reset-password', { token, password });
+    },
+
+    // Target Systems Management
+    getTargets() {
+        return this.request('GET', '/targets');
+    },
+    getTarget(id) {
+        return this.request('GET', `/targets/${id}`);
+    },
+    registerTarget(data) {
+        return this.request('POST', '/targets', data);
+    },
+    deleteTarget(id) {
+        return this.request('DELETE', `/targets/${id}`);
+    },
+    testTargetHealth(id) {
+        return this.request('POST', `/targets/${id}/test-health`);
+    },
+    pollTargetNow(id) {
+        return this.request('POST', `/targets/${id}/poll-now`);
+    },
+    getTargetStats(id) {
+        return this.request('GET', `/targets/${id}/stats`);
+    },
+
+    // Lab Scenario Orchestrator
+    getScenarios() {
+        return this.request('GET', '/live/scenarios');
+    },
+    triggerScenario(data) {
+        return this.request('POST', '/live/trigger-scenario', data);
+    },
+    getStreamEvents(params = {}) {
+        const q = new URLSearchParams(params).toString();
+        return this.request('GET', `/live/stream-events${q ? '?' + q : ''}`);
+    },
+
+    // Attack Graph & Incident Explainability
+    getIncidentAttackGraph(incidentId) {
+        return this.request('GET', `/incidents/${incidentId}/attack-graph`);
+    },
+    promoteAlertToIncident(alertId) {
+        return this.request('POST', `/incidents/promote-alert/${alertId}`);
+    },
+
+    // Response Actions & Mitigations
+    getResponseActions(params = {}) {
+        const q = new URLSearchParams(params).toString();
+        return this.request('GET', `/targets/actions${q ? '?' + q : ''}`);
+    },
+    executeTargetControl(targetId, data) {
+        return this.request('POST', `/targets/${targetId}/execute-control`, data);
+    },
+    revertAction(actionId, reason = 'Analyst rollback') {
+        return this.request('POST', `/targets/actions/${actionId}/revert`, { reason });
+    },
+    getAutoContainment() {
+        return this.request('GET', '/targets/settings/auto-containment');
+    },
+    setAutoContainment(enabled) {
+        return this.request('POST', '/targets/settings/auto-containment', { enabled });
     }
 };
