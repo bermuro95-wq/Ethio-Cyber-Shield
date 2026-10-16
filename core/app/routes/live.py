@@ -13,7 +13,9 @@ from datetime import datetime, timedelta, timezone
 from dateutil import parser
 import json
 import time
+import logging
 
+logger = logging.getLogger(__name__)
 live_bp = Blueprint('live', __name__)
 
 

@@ -12,7 +12,7 @@
 | Phase | Description | Status | Progress | Target Gate |
 | :--- | :--- | :--- | :--- | :--- |
 | **Phase 0** | **Validate, Obtain Texts, Freeze Scope** | **COMPLETED** | **100%** | **Gate 0 PASSED** |
-| **Phase 1** | **Independence, Tenancy & Hardening** | **In Progress** | **85%** | **Gate 1 Pending** |
+| **Phase 1** | **Independence, Tenancy & Hardening** | **In Progress** | **90%** | **Gate 1 Pending** |
 | **Phase 2** | Connectors, SDKs & Rich Event Model | Planned | 0% | Gate 2 Pending |
 | **Phase 3** | Detection Engine v2 (Rules-as-Data) | Planned | 0% | Gate 3 Pending |
 | **Phase 4** | Safe Response & Case Management | Planned | 0% | Gate 4 Pending |
@@ -49,5 +49,5 @@
 - [x] **1.5 Secrets encryption**: AES-256-GCM envelope encryption for target secret keys (`crypto_service.py`).
 - [x] **1.6 Identity & RBAC**: TOTP MFA (pyotp), session revocation blacklist, 5-tier roles (`admin`, `analyst`, `responder`, `viewer`, `auditor`), and scoped API tokens (`test_part9_identity_mfa_rbac.py`).
 - [x] **1.7 Tamper-evident audit**: Hash-chained audit logs with SHA-256 predecessor linking, integrity verification, and sealed anchor packages (`audit_service.py`, `test_part10_tamper_evident_audit.py`).
-- [ ] **1.8 CI/CD & Supply Chain**: Automated tests, linting, security scanning, `SECURITY.md`.
+- [x] **1.8 CI/CD & Supply Chain**: Automated multi-version CI (`.github/workflows/ci.yml`), syntax verification, Bandit security scan, `SECURITY.md`, and `docs/THREAT_MODEL.md`.
 - [ ] **1.9 UI Modernization**: Componentized frontend structure.
