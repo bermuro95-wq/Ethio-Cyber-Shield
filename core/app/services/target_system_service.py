@@ -168,10 +168,15 @@ def call_target(method: str, path: str, payload=None, base_url: str = None, key_
     """
     base = (base_url or TARGET_URL).rstrip('/')
     kid = key_id or TARGET_KEY_ID
-    sec = secret or TARGET_SECRET
+    from app.services.crypto_service import decrypt_secret
+    sec = decrypt_secret(secret or TARGET_SECRET)
 
     raw = json.dumps(payload, separators=(",", ":")).encode() if payload is not None else b""
     headers = sign_headers(kid, sec, method, path, raw)
+    from app.services.tenant_service import get_current_organization_id
+    org_id = get_current_organization_id()
+    if org_id:
+        headers["X-ECS-Tenant"] = org_id
     if extra_headers:
         headers.update(extra_headers)
 

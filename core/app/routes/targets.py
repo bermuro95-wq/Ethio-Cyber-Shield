@@ -31,18 +31,29 @@ targets_bp = Blueprint('targets', __name__)
 @login_required
 def get_targets():
     """
-    List all configured target systems with health and sync statistics.
+    List all configured target systems with health and sync statistics scoped to organization.
     """
     targets = []
     try:
+        from app.services.tenant_service import get_current_organization_id
+        org_id = get_current_organization_id()
         sb = get_service_supabase()
-        res = sb.table('target_systems').select('*').order('created_at', desc=True).execute()
+        query = sb.table('target_systems').select('*')
+        if org_id:
+            try:
+                query = query.eq('organization_id', org_id)
+            except Exception:
+                pass
+        res = query.order('created_at', desc=True).execute()
         targets = res.data or []
     except Exception as e:
         logger.debug(f"Target systems query fallback: {e}")
 
+    org_id = (g.user.get('organization_id') if hasattr(g, 'user') else None) or get_current_organization_id()
     if not targets:
-        targets = [dict(t) for t in list_active_targets()]
+        targets = [dict(t) for t in list_active_targets() if not t.get('organization_id') or str(t.get('organization_id')) == str(org_id)]
+    elif org_id:
+        targets = [dict(t) for t in targets if not t.get('organization_id') or str(t.get('organization_id')) == str(org_id)]
 
     # Mask secrets in API responses
     for t in targets:
@@ -64,8 +75,11 @@ def get_single_target(target_id):
     if not target:
         return jsonify({'error': 'Target system not found'}), 404
 
-    target.pop('secret_key', None)
-    return jsonify(target), 200
+    target_copy = dict(target)
+    sec = target_copy.get('secret_key') or ''
+    target_copy['secret_key_masked'] = f"{sec[:4]}...{sec[-4:]}" if len(sec) >= 8 else '****'
+    target_copy.pop('secret_key', None)
+    return jsonify(target_copy), 200
 
 
 @targets_bp.route('', methods=['POST'])
@@ -73,6 +87,7 @@ def get_single_target(target_id):
 def register_target():
     """
     Registers a new target system to be monitored and mitigated by ECS.
+    Encrypts secret_key using envelope encryption.
     """
     data = request.get_json() or {}
     name = (data.get('name') or '').strip()
@@ -89,16 +104,20 @@ def register_target():
         return jsonify({'error': 'sync_mode must be push, pull, or bidirectional'}), 400
 
     sb = get_service_supabase()
+    from app.services.crypto_service import encrypt_secret
+    from app.services.tenant_service import get_current_organization_id
+    org_id = get_current_organization_id()
 
     # Test health before creating
     health = check_target_health(base_url)
     health_status = 'healthy' if health.get('status') == 'healthy' else 'degraded'
 
     target_record = {
+        'organization_id': org_id,
         'name': name,
         'base_url': base_url,
         'key_id': key_id,
-        'secret_key': secret_key,
+        'secret_key': encrypt_secret(secret_key),
         'sync_mode': sync_mode,
         'poll_interval_seconds': poll_interval,
         'is_active': True,

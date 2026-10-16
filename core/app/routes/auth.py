@@ -22,7 +22,7 @@ def login():
         log_action(None, 'login_failed', details={'email': email})
         return jsonify({'error': 'Invalid credentials'}), 401
 
-    token = create_token(user['id'], user['email'], user['role'])
+    token = create_token(user['id'], user['email'], user['role'], user.get('organization_id'))
     log_action(user['id'], 'login_success', details={'email': email})
 
     return jsonify({
@@ -31,7 +31,8 @@ def login():
             'id': user['id'],
             'email': user['email'],
             'full_name': user['full_name'],
-            'role': user['role']
+            'role': user['role'],
+            'organization_id': user.get('organization_id')
         }
     })
 
@@ -45,7 +46,7 @@ def logout():
 @login_required
 def me():
     sb = get_service_supabase()
-    res = sb.table('users').select('id, email, full_name, role, created_at').eq('id', g.user['id']).execute()
+    res = sb.table('users').select('id, email, full_name, role, organization_id, created_at').eq('id', g.user['id']).execute()
     if not res.data:
         return jsonify({'error': 'User not found'}), 404
     return jsonify(res.data[0])

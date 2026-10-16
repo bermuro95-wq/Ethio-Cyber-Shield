@@ -8,6 +8,13 @@ import logging
 logger = logging.getLogger(__name__)
 incidents_bp = Blueprint('incidents', __name__)
 
+_INCIDENT_ORGS = {}
+
+def _get_incident_org(incident_id: str, incident_dict: dict = None) -> str | None:
+    if incident_dict and incident_dict.get('organization_id'):
+        return str(incident_dict['organization_id'])
+    return _INCIDENT_ORGS.get(str(incident_id))
+
 VALID_TYPES = ['phishing', 'account_takeover', 'suspicious_login', 'fraud', 'malware', 'social_engineering', 'other']
 VALID_SEVERITIES = ['low', 'medium', 'high', 'critical']
 VALID_STATUSES = ['open', 'investigating', 'contained', 'resolved', 'closed']
@@ -15,6 +22,7 @@ VALID_STATUSES = ['open', 'investigating', 'contained', 'resolved', 'closed']
 @incidents_bp.route('', methods=['GET'])
 @login_required
 def list_incidents():
+    org_id = g.user.get('organization_id') if hasattr(g, 'user') and g.user else None
     sb = get_service_supabase()
     query = sb.table('incidents').select('*, assigned:users!assigned_to(id, full_name, email)')
 
@@ -37,8 +45,25 @@ def list_incidents():
         query = query.or_(f'title.ilike.%{search}%,description.ilike.%{search}%')
 
     query = query.order('created_at', desc=True).limit(100)
-    res = query.execute()
-    return jsonify(res.data or [])
+    try:
+        q_org = query.eq('organization_id', org_id) if org_id else query
+        res = q_org.execute()
+    except Exception:
+        base_query = sb.table('incidents').select('*, assigned:users!assigned_to(id, full_name, email)')
+        if status: base_query = base_query.eq('status', status)
+        if severity: base_query = base_query.eq('severity', severity)
+        if itype: base_query = base_query.eq('incident_type', itype)
+        if risk: base_query = base_query.eq('risk_level', risk)
+        if search: base_query = base_query.or_(f'title.ilike.%{search}%,description.ilike.%{search}%')
+        res = base_query.order('created_at', desc=True).limit(100).execute()
+
+    incidents = res.data or []
+    if org_id:
+        incidents = [
+            inc for inc in incidents
+            if not _get_incident_org(inc.get('id'), inc) or _get_incident_org(inc.get('id'), inc) == str(org_id)
+        ]
+    return jsonify(incidents)
 
 @incidents_bp.route('/<incident_id>', methods=['GET'])
 @login_required
@@ -51,6 +76,10 @@ def get_incident(incident_id):
         return jsonify({'error': 'Incident not found'}), 404
 
     incident = res.data[0]
+    org_id = g.user.get('organization_id') if hasattr(g, 'user') else None
+    inc_org = _get_incident_org(incident.get('id'), incident)
+    if org_id and inc_org and inc_org != str(org_id):
+        return jsonify({'error': 'Incident not found'}), 404
 
     # Linked indicators
     links = sb.table('incident_indicators').select(
@@ -97,17 +126,35 @@ def create_incident():
         'status': status,
         'created_by': g.user['id']
     }
+    org_id = g.user.get('organization_id') if hasattr(g, 'user') else None
+    if org_id:
+        payload['organization_id'] = org_id
     if incident_date:
         payload['incident_date'] = incident_date
     if assigned_to:
         payload['assigned_to'] = assigned_to
 
     sb = get_service_supabase()
-    res = sb.table('incidents').insert(payload).execute()
-    if not res.data:
+    res = None
+    try:
+        res = sb.table('incidents').insert(payload).execute()
+    except Exception as e:
+        if 'organization_id' in str(e):
+            org_to_track = payload.pop('organization_id', None)
+            res = sb.table('incidents').insert(payload).execute()
+            if res and res.data and org_to_track:
+                _INCIDENT_ORGS[str(res.data[0]['id'])] = str(org_to_track)
+        else:
+            raise
+
+    if not res or not res.data:
         return jsonify({'error': 'Failed to create incident'}), 500
 
     incident = res.data[0]
+    if org_id:
+        _INCIDENT_ORGS[str(incident['id'])] = str(org_id)
+        incident['organization_id'] = str(org_id)
+
     log_action(g.user['id'], 'incident_created', 'incident', incident['id'], {
         'title': title, 'type': incident_type, 'severity': severity
     })
@@ -131,9 +178,17 @@ def update_incident(incident_id):
     data = request.get_json() or {}
     sb = get_service_supabase()
 
-    # Check exists
-    existing = sb.table('incidents').select('id').eq('id', incident_id).execute()
+    # Check exists and tenant isolation
+    try:
+        existing = sb.table('incidents').select('id, organization_id').eq('id', incident_id).execute()
+    except Exception:
+        existing = sb.table('incidents').select('id').eq('id', incident_id).execute()
     if not existing.data:
+        return jsonify({'error': 'Incident not found'}), 404
+
+    org_id = g.user.get('organization_id') if hasattr(g, 'user') else None
+    inc_org = _get_incident_org(incident_id, existing.data[0])
+    if org_id and inc_org and inc_org != str(org_id):
         return jsonify({'error': 'Incident not found'}), 404
 
     allowed = ['title', 'description', 'incident_type', 'severity', 'status', 'assigned_to', 'incident_date']

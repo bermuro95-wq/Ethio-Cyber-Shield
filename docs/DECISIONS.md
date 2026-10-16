@@ -142,3 +142,29 @@
   - The canonical product name is **Ethio-Cyber-Shield (ECS)**.
   - Positioning: *"An independent, explainable, self-hostable cybersecurity detection and incident-readiness platform for Ethiopian critical infrastructure and digital finance."*
   - Complete neutrality: No proprietary ties to any single regulator or vendor. Export adapters support EthioCERT formats and open security standards (STIX/TAXII, CEF, Syslog).
+
+---
+
+## ADR-011: Multi-Tenancy Boundary Isolation and Tenant Context Resolution
+
+* **Context**: ECS must support multi-tenant deployments without cross-tenant data leaks.
+* **Decision**:
+  - Every table must maintain `organization_id UUID NOT NULL` with foreign key to `organizations(id)`.
+  - All database queries, route handlers, and stream consumers must scope queries by `organization_id`.
+  - Tenant context resolution evaluates in priority order:
+    1. Explicit `X-ECS-Tenant` HTTP header (UUID).
+    2. Authenticated user's `organization_id` embedded in JWT claims.
+    3. Target system registered `organization_id` associated with API key ID (`X-ECS-Key-Id`).
+    4. Safe fallback to default organization in single-tenant / legacy environments.
+  - Cross-tenant read/write isolation is verified by automated integration test suites (`test_part7_multi_tenancy_isolation.py`).
+
+---
+
+## ADR-012: Envelope Encryption for Connector Secrets at Rest
+
+* **Context**: Storing plaintext target system secrets, API keys, or webhooks in the database violates hard engineering rules and banking compliance.
+* **Decision**:
+  - Implement envelope encryption via `app.services.crypto_service` using AES-256-GCM.
+  - Secret fields (`shared_secret`, `auth_token`, `credentials`) are serialized with random 96-bit IV, ciphertext, and 128-bit authentication tag prefixed as `enc:v1:<base64>`.
+  - Master key (`ECS_MASTER_ENCRYPTION_KEY`) is injected via environment variables and never logged or serialized to database tables.
+

@@ -19,11 +19,15 @@ def verify_password(password: str, password_hash: str) -> bool:
     except Exception:
         return False
 
-def create_token(user_id: str, email: str, role: str) -> str:
+from app.services.tenant_service import get_current_organization_id, set_current_organization_id, DEFAULT_ORGANIZATION_ID
+
+def create_token(user_id: str, email: str, role: str, organization_id: str = None) -> str:
+    org_id = organization_id or get_current_organization_id()
     payload = {
         'sub': user_id,
         'email': email,
         'role': role,
+        'organization_id': org_id,
         'iat': datetime.now(timezone.utc),
         'exp': datetime.now(timezone.utc) + timedelta(hours=Config.JWT_EXPIRY_HOURS)
     }
@@ -38,7 +42,7 @@ def decode_token(token: str) -> dict | None:
         return None
 
 def get_current_user():
-    """Extract and validate user from Authorization header"""
+    """Extract and validate user from Authorization header with tenant context"""
     auth_header = request.headers.get('Authorization', '')
     if not auth_header.startswith('Bearer '):
         return None
@@ -46,10 +50,13 @@ def get_current_user():
     payload = decode_token(token)
     if not payload:
         return None
+    org_id = payload.get('organization_id') or DEFAULT_ORGANIZATION_ID
+    set_current_organization_id(org_id)
     return {
         'id': payload.get('sub'),
         'email': payload.get('email'),
-        'role': payload.get('role')
+        'role': payload.get('role'),
+        'organization_id': org_id
     }
 
 def login_required(f):
@@ -59,6 +66,7 @@ def login_required(f):
         if not user:
             return jsonify({'error': 'Authentication required'}), 401
         g.user = user
+        g.organization_id = user['organization_id']
         return f(*args, **kwargs)
     return decorated
 
@@ -72,12 +80,13 @@ def role_required(*roles):
             if user['role'] not in roles:
                 return jsonify({'error': 'Insufficient permissions'}), 403
             g.user = user
+            g.organization_id = user['organization_id']
             return f(*args, **kwargs)
         return decorated
     return decorator
 
 def authenticate_user(email: str, password: str) -> dict | None:
-    """Authenticate user against database"""
+    """Authenticate user against database with organization context"""
     try:
         sb = get_service_supabase()
         result = sb.table('users').select('*').eq('email', email.lower().strip()).eq('is_active', True).execute()
@@ -86,28 +95,34 @@ def authenticate_user(email: str, password: str) -> dict | None:
         user = result.data[0]
         if not verify_password(password, user['password_hash']):
             return None
+        org_id = user.get('organization_id') or DEFAULT_ORGANIZATION_ID
+        set_current_organization_id(org_id)
         return {
             'id': user['id'],
             'email': user['email'],
             'full_name': user['full_name'],
-            'role': user['role']
+            'role': user['role'],
+            'organization_id': org_id
         }
     except Exception as e:
         logger.error(f"Auth error: {e}")
         return None
 
-def create_user(email: str, password: str, full_name: str, role: str = 'viewer') -> dict | None:
-    """Create a new user (admin only)"""
-    if role not in ('admin', 'analyst', 'viewer'):
+def create_user(email: str, password: str, full_name: str, role: str = 'viewer', organization_id: str = None) -> dict | None:
+    """Create a new user (admin only) with tenant scoping"""
+    valid_roles = ('admin', 'analyst', 'responder', 'viewer', 'auditor')
+    if role not in valid_roles:
         return None
     try:
         sb = get_service_supabase()
         password_hash = hash_password(password)
+        org_id = organization_id or get_current_organization_id()
         data = {
             'email': email.lower().strip(),
             'password_hash': password_hash,
             'full_name': full_name.strip(),
-            'role': role
+            'role': role,
+            'organization_id': org_id
         }
         result = sb.table('users').insert(data).execute()
         if result.data:

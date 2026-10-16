@@ -12,7 +12,7 @@
 | Phase | Description | Status | Progress | Target Gate |
 | :--- | :--- | :--- | :--- | :--- |
 | **Phase 0** | **Validate, Obtain Texts, Freeze Scope** | **COMPLETED** | **100%** | **Gate 0 PASSED** |
-| **Phase 1** | Independence, Tenancy & Hardening | Ready to Start | 0% | Gate 1 Pending |
+| **Phase 1** | **Independence, Tenancy & Hardening** | **In Progress** | **45%** | **Gate 1 Pending** |
 | **Phase 2** | Connectors, SDKs & Rich Event Model | Planned | 0% | Gate 2 Pending |
 | **Phase 3** | Detection Engine v2 (Rules-as-Data) | Planned | 0% | Gate 3 Pending |
 | **Phase 4** | Safe Response & Case Management | Planned | 0% | Gate 4 Pending |
@@ -32,7 +32,7 @@
 - [x] **Engineering Rule Guidelines**: Published `AGENTS.md` and `GEMINI.md` establishing mandatory tenancy, secrets encryption, explainable detection, and safe response rules.
 - [x] **Stakeholder Interview Protocol**: Formulated `docs/INTERVIEW_SCRIPT.md` targeting 12–15 cross-sector Ethiopian security and fraud leaders.
 - [x] **Incident Reporting Fallback Standard**: Formulated `docs/INCIDENT_REPORT_FALLBACK_SPEC.md` providing a structured, bilingual, hash-sealed 48-hour incident package standard.
-- [x] **Architecture Decisions & Scope Freeze**: Authored `docs/DECISIONS.md` formalizing ADR-001 through ADR-010, metrics targets, and non-goals.
+- [x] **Architecture Decisions & Scope Freeze**: Authored `docs/DECISIONS.md` formalizing ADR-001 through ADR-012, metrics targets, and non-goals.
 - [x] **Validation Report**: Synthesized comprehensive findings in `docs/VALIDATION_REPORT.md`.
 - [x] **Gate 0 Criteria**: 
   - [x] Focus wedge locked (G2 + G3 + G1).
@@ -41,12 +41,12 @@
 
 ---
 
-### Phase 1: Make ECS Independent (Next Up)
-- [ ] **1.1 Repository restructure**: `core/`, `connectors/`, `sdk/`, `ui/`, `deploy/`, `docs/`, `labs/`.
-- [ ] **1.2 Tenancy**: Add `organization_id` to all tables; implement Postgres RLS; add tenant-scoped queries; author cross-tenant test suite.
-- [ ] **1.3 Self-host stack**: Plain PostgreSQL 16 + Redis 7 in Docker Compose; remove Supabase client dependencies.
+### Phase 1: Make ECS Independent (In Progress)
+- [x] **1.1 Repository restructure**: `core/`, `connectors/`, `sdk/`, `ui/`, `deploy/`, `docs/`, `labs/`.
+- [x] **1.2 Tenancy**: Add `organization_id` to all tables; implement Postgres RLS schema; add tenant-scoped queries; author cross-tenant test suite (`test_part7_multi_tenancy_isolation.py`).
+- [ ] **1.3 Self-host stack**: Plain PostgreSQL 16 + Redis 7 in Docker Compose; direct psycopg2 / SQLAlchemy database layer.
 - [ ] **1.4 Durable ingest queue**: Redis Streams consumer queue with sliding-window support replacing in-memory ring buffer.
-- [ ] **1.5 Secrets encryption**: AES-256-GCM envelope encryption for target secret keys.
+- [x] **1.5 Secrets encryption**: AES-256-GCM envelope encryption for target secret keys (`crypto_service.py`).
 - [ ] **1.6 Identity & RBAC**: TOTP MFA, session management, roles (`admin`, `analyst`, `responder`, `viewer`, `auditor`).
 - [ ] **1.7 Tamper-evident audit**: Hash-chained audit logs with SHA-256 predecessor linking.
 - [ ] **1.8 CI/CD & Supply Chain**: Automated tests, linting, security scanning, `SECURITY.md`.

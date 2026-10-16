@@ -23,13 +23,16 @@ def _parse_time(ts_val) -> datetime:
         return datetime.now(timezone.utc)
 
 
-def find_active_incident_for_entity(entity_type: str, entity_value: str, window_hours: int = 4) -> dict | None:
+def find_active_incident_for_entity(entity_type: str, entity_value: str, window_hours: int = 4, organization_id: str = None) -> dict | None:
     """
     Checks if an open or investigating incident already exists for this entity
-    within the deduplication window (default 4 hours).
+    within the deduplication window (default 4 hours), scoped by organization_id.
     """
     if not entity_value:
         return None
+
+    from app.services.tenant_service import get_current_organization_id
+    org_id = organization_id or get_current_organization_id()
 
     sb = get_service_supabase()
     now = datetime.now(timezone.utc)
@@ -41,6 +44,12 @@ def find_active_incident_for_entity(entity_type: str, entity_value: str, window_
             .in_('status', ['open', 'investigating'])\
             .gte('incident_date', cutoff)\
             .order('incident_date', desc=True)
+
+        if org_id:
+            try:
+                query = query.eq('organization_id', org_id)
+            except Exception:
+                pass
 
         res = query.execute()
         incidents = res.data or []
@@ -66,6 +75,8 @@ def link_threat_indicators(incident_id: str, event: dict, detection_result: dict
     Also cross-references active watchlists.
     """
     sb = get_service_supabase()
+    from app.services.tenant_service import get_current_organization_id
+    org_id = event.get('organization_id') or get_current_organization_id()
     linked_ids = []
 
     source_ip = event.get('source_ip')
@@ -79,13 +90,19 @@ def link_threat_indicators(incident_id: str, event: dict, detection_result: dict
         try:
             # 1. Upsert indicator
             ind_row = {
+                'organization_id': org_id,
                 'indicator_type': 'ip',
                 'value': source_ip,
                 'status': status,
                 'description': f"Automated IOC observed in {event_type} ({event_id}) with risk score {risk_score}/100",
                 'source': f"Target Telemetry ({event.get('source_system') or 'Target'})",
             }
-            ind_res = sb.table('indicators').upsert(ind_row, on_conflict='indicator_type,value').execute()
+            try:
+                ind_res = sb.table('indicators').upsert(ind_row, on_conflict='organization_id,indicator_type,value').execute()
+            except Exception:
+                ind_row.pop('organization_id', None)
+                ind_res = sb.table('indicators').upsert(ind_row, on_conflict='indicator_type,value').execute()
+
             indicator_id = None
             if ind_res.data:
                 indicator_id = ind_res.data[0]['id']
@@ -145,6 +162,9 @@ def promote_alert_to_incident(alert: dict = None, event: dict = None, detection_
         return None
 
     sb = get_service_supabase()
+    from app.services.tenant_service import get_current_organization_id
+    org_id = event.get('organization_id') or get_current_organization_id()
+
     now_dt = datetime.now(timezone.utc)
     now_iso = now_dt.isoformat()
 
@@ -159,7 +179,8 @@ def promote_alert_to_incident(alert: dict = None, event: dict = None, detection_
     existing_incident = find_active_incident_for_entity(
         'account' if account else ('ip' if source_ip else 'user'),
         entity_val,
-        window_hours=4
+        window_hours=4,
+        organization_id=org_id
     )
 
     if existing_incident:
@@ -221,6 +242,7 @@ def promote_alert_to_incident(alert: dict = None, event: dict = None, detection_
     )
 
     incident_payload = {
+        'organization_id': org_id,
         'title': title,
         'description': description,
         'incident_type': incident_type,

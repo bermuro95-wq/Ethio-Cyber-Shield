@@ -43,8 +43,17 @@ def verify_incoming_hmac():
         return False, "Invalid timestamp", None
 
     # Resolve secret from target_systems registry or default
+    from app.services.crypto_service import decrypt_secret
+    from app.services.tenant_service import set_current_organization_id, resolve_tenant_from_request
+
     target = get_target_by_key_id(key_id)
-    secret = target.get('secret_key') if target else DEFAULT_SECRET
+    raw_secret = target.get('secret_key') if target else DEFAULT_SECRET
+    secret = decrypt_secret(raw_secret)
+
+    if target and target.get('organization_id'):
+        set_current_organization_id(target['organization_id'])
+    else:
+        resolve_tenant_from_request()
 
     raw_body = request.get_data()
     body_hash = hashlib.sha256(raw_body).hexdigest()
@@ -68,8 +77,8 @@ def verify_incoming_hmac():
 @events_bp.route('', methods=['POST'])
 def receive_event():
     """
-    Ingests an individual security event pushed from Target System outbox.
-    Delegates to event_service.ingest_event for canonical persistence & normalization.
+    Ingests an individual security event or batch of events pushed from Target System outbox.
+    Delegates to event_service.ingest_event / ingest_batch for canonical persistence & normalization.
     """
     is_valid, err, target = verify_incoming_hmac()
     if not is_valid:
@@ -80,8 +89,13 @@ def receive_event():
 
     data = request.get_json(silent=True) or {}
     try:
-        result = ingest_event(data, target=target)
-        return jsonify(result), 200
+        from app.services.event_service import ingest_batch
+        if 'events' in data and isinstance(data['events'], list):
+            count = ingest_batch(data['events'], target=target)
+            return jsonify({'status': 'ok', 'ingested': count}), 200
+        else:
+            result = ingest_event(data, target=target)
+            return jsonify(result), 200
     except ValueError as val_err:
         return jsonify({'error': str(val_err)}), 400
     except Exception as e:

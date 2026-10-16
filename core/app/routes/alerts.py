@@ -6,9 +6,17 @@ from datetime import datetime, timezone
 
 alerts_bp = Blueprint('alerts', __name__)
 
+_ALERT_ORGS = {}
+
+def _get_alert_org(alert_id: str, alert_dict: dict = None) -> str | None:
+    if alert_dict and alert_dict.get('organization_id'):
+        return str(alert_dict['organization_id'])
+    return _ALERT_ORGS.get(str(alert_id))
+
 @alerts_bp.route('', methods=['GET'])
 @login_required
 def list_alerts():
+    org_id = g.user.get('organization_id') if hasattr(g, 'user') and g.user else None
     sb = get_service_supabase()
     query = sb.table('alerts').select('*')
 
@@ -24,8 +32,22 @@ def list_alerts():
         query = query.eq('alert_type', alert_type)
 
     query = query.order('created_at', desc=True).limit(100)
-    res = query.execute()
-    return jsonify(res.data or [])
+    try:
+        q_org = query.eq('organization_id', org_id) if org_id else query
+        res = q_org.execute()
+    except Exception:
+        base_q = sb.table('alerts').select('*')
+        if status: base_q = base_q.eq('status', status)
+        if severity: base_q = base_q.eq('severity', severity)
+        if alert_type: base_q = base_q.eq('alert_type', alert_type)
+        res = base_q.order('created_at', desc=True).limit(100).execute()
+    alerts = res.data or []
+    if org_id:
+        alerts = [
+            a for a in alerts
+            if not _get_alert_org(a.get('id'), a) or _get_alert_org(a.get('id'), a) == str(org_id)
+        ]
+    return jsonify(alerts)
 
 @alerts_bp.route('/<alert_id>', methods=['GET'])
 @login_required
@@ -34,7 +56,12 @@ def get_alert(alert_id):
     res = sb.table('alerts').select('*').eq('id', alert_id).execute()
     if not res.data:
         return jsonify({'error': 'Alert not found'}), 404
-    return jsonify(res.data[0])
+    alert = res.data[0]
+    org_id = g.user.get('organization_id') if hasattr(g, 'user') else None
+    a_org = _get_alert_org(alert.get('id'), alert)
+    if org_id and a_org and a_org != str(org_id):
+        return jsonify({'error': 'Alert not found'}), 404
+    return jsonify(alert)
 
 @alerts_bp.route('/<alert_id>/acknowledge', methods=['POST'])
 @role_required('admin', 'analyst')
@@ -42,6 +69,11 @@ def acknowledge_alert(alert_id):
     sb = get_service_supabase()
     existing = sb.table('alerts').select('*').eq('id', alert_id).execute()
     if not existing.data:
+        return jsonify({'error': 'Alert not found'}), 404
+    alert = existing.data[0]
+    org_id = g.user.get('organization_id') if hasattr(g, 'user') else None
+    a_org = _get_alert_org(alert.get('id'), alert)
+    if org_id and a_org and a_org != str(org_id):
         return jsonify({'error': 'Alert not found'}), 404
 
     now = datetime.now(timezone.utc).isoformat()
@@ -65,6 +97,11 @@ def resolve_alert(alert_id):
     sb = get_service_supabase()
     existing = sb.table('alerts').select('*').eq('id', alert_id).execute()
     if not existing.data:
+        return jsonify({'error': 'Alert not found'}), 404
+    alert = existing.data[0]
+    org_id = g.user.get('organization_id') if hasattr(g, 'user') else None
+    a_org = _get_alert_org(alert.get('id'), alert)
+    if org_id and a_org and a_org != str(org_id):
         return jsonify({'error': 'Alert not found'}), 404
 
     now = datetime.now(timezone.utc).isoformat()

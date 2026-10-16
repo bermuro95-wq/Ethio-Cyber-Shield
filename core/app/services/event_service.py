@@ -79,10 +79,13 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
         amount_major = float(amount_minor) / 100.0
 
     sb = get_service_supabase()
+    from app.services.tenant_service import get_current_organization_id
+    org_id = (target.get('organization_id') if target else None) or data.get('organization_id') or get_current_organization_id()
     target_id = (target.get('id') if target else None) or target_system_id or data.get('target_system_id')
 
     canonical_event = {
         'event_id': event_id,
+        'organization_id': org_id,
         'event_type': event_type,
         'occurred_at': occurred_at,
         'source_system': source_system,
@@ -123,6 +126,7 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
     if event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED') and amount_major:
         try:
             tx_record = {
+                'organization_id': org_id,
                 'account_number': account_id_pub or 'ACC_UNKNOWN',
                 'amount': float(amount_major),
                 'currency': currency or 'ETB',
@@ -153,12 +157,13 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
     if source_ip and (lab_scenario or event_type in ('LOGIN_FAILED', 'AUTHZ_DENIED')):
         try:
             sb.table('indicators').upsert({
+                'organization_id': org_id,
                 'indicator_type': 'ip',
                 'value': source_ip,
                 'status': 'malicious' if lab_scenario else 'suspicious',
                 'description': f"Observed in event {event_type} ({lab_scenario or 'Target System'})",
                 'source': 'Target System Telemetry',
-            }, on_conflict='indicator_type,value').execute()
+            }, on_conflict='organization_id,indicator_type,value').execute()
         except Exception as e:
             logger.warning(f"Could not upsert indicator for {source_ip}: {e}")
 
@@ -212,7 +217,15 @@ def query_events(event_type: str = None, target_id: str = None, account: str = N
     Retrieves recent security events matching the given criteria.
     """
     sb = get_service_supabase()
+    from app.services.tenant_service import get_current_organization_id
+    org_id = get_current_organization_id()
     query = sb.table('security_events').select('*')
+
+    if org_id:
+        try:
+            query = query.eq('organization_id', org_id)
+        except Exception:
+            pass
 
     if event_type:
         query = query.eq('event_type', event_type)
