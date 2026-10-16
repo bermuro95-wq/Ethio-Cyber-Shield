@@ -12,8 +12,9 @@
 | Phase | Description | Status | Progress | Target Gate |
 | :--- | :--- | :--- | :--- | :--- |
 | **Phase 0** | **Validate, Obtain Texts, Freeze Scope** | **COMPLETED** | **100%** | **Gate 0 PASSED** |
-| **Phase 1** | **Independence, Tenancy & Hardening** | **In Progress** | **95%** | **Gate 1 Pending** |
-| **Phase 2** | Connectors, SDKs & Rich Event Model | Planned | 0% | Gate 2 Pending |
+| **Phase 0** | **Validate, Obtain Texts, Freeze Scope** | **COMPLETED** | **100%** | **Gate 0 PASSED** |
+| **Phase 1** | **Independence, Tenancy & Hardening** | **COMPLETED** | **100%** | **Gate 1 PASSED** |
+| **Phase 2** | **Connectors, SDKs & Rich Event Model** | **In Progress** | **0%** | **Gate 2 Pending** |
 | **Phase 3** | Detection Engine v2 (Rules-as-Data) | Planned | 0% | Gate 3 Pending |
 | **Phase 4** | Safe Response & Case Management | Planned | 0% | Gate 4 Pending |
 | **Phase 5** | Incident Readiness Engine (48h Clock) | Planned | 0% | Gate 5 Pending |
@@ -41,7 +42,7 @@
 
 ---
 
-### Phase 1: Make ECS Independent (In Progress)
+### Phase 1: Make ECS Independent (Completed)
 - [x] **1.1 Repository restructure**: `core/`, `connectors/`, `sdk/`, `ui/`, `deploy/`, `docs/`, `labs/`.
 - [x] **1.2 Tenancy**: Add `organization_id` to all tables; implement Postgres RLS schema; add tenant-scoped queries; author cross-tenant test suite (`test_part7_multi_tenancy_isolation.py`).
 - [x] **1.3 Self-host stack**: Plain PostgreSQL 16 + Redis 7 in Docker Compose; direct psycopg2 database layer abstraction in `db.py`; `/api/health` diagnostics; backup/restore scripts; documented hardened install in `docs/DEPLOYMENT.md`.
@@ -50,4 +51,22 @@
 - [x] **1.6 Identity & RBAC**: TOTP MFA (pyotp), session revocation blacklist, 5-tier roles (`admin`, `analyst`, `responder`, `viewer`, `auditor`), and scoped API tokens (`test_part9_identity_mfa_rbac.py`).
 - [x] **1.7 Tamper-evident audit**: Hash-chained audit logs with SHA-256 predecessor linking, integrity verification, and sealed anchor packages (`audit_service.py`, `test_part10_tamper_evident_audit.py`).
 - [x] **1.8 CI/CD & Supply Chain**: Automated multi-version CI (`.github/workflows/ci.yml`), syntax verification, Bandit security scan, `SECURITY.md`, and `docs/THREAT_MODEL.md`.
-- [ ] **1.9 UI Modernization**: Componentized frontend structure.
+- [x] **1.9 UI Modernization**: Role-aware navigation, organization selector, MFA flow, API token management, and audit verification UI.
+- [x] **Gate 1 Criteria**:
+  - [x] Clean machine self-host setup documented (<15 min).
+  - [x] Cross-tenant isolation verified with automated tests (reads and writes denied).
+  - [x] ECS survives restart with durable Redis stream queuing.
+  - [x] ShieldBank decoupled as an external demo lab under `labs/shieldbank`.
+
+---
+
+### Phase 2: Connectors, SDKs and a Richer Event Model (In Progress)
+- [ ] **2.1 ECS Event Contract v1.1**: OpenAPI 3.1 + JSON Schema specifications extending canonical events with channel awareness (`channel`, `payment_rail`, `counterparty_ref_hash`, `device_fingerprint`, `msisdn_hash`, `agent_id`, `national_id_hash`, `locale_tz`).
+- [ ] **2.2 Official Client SDKs**: Node/Express, Python (Flask/Django/FastAPI) with outbox pattern (retry, HMAC signing, idempotency).
+- [ ] **2.3 Generic Webhook Receiver & Field Mapper**: Configurable JSONPath mapping engine and test runner.
+- [ ] **2.4 Log Agent Collector**: Lightweight access/syslog/CEF collector for Nginx/Apache.
+- [ ] **2.5 Enrichment Service**: Offline GeoIP/ASN, Tor/VPN/hosting indicators, device-reputation cache.
+- [ ] **2.6 Unified Entity Graph**: Entity linkage (account, device, IP, session, beneficiary, phone-hash) with first/last seen.
+- [ ] **2.7 Health & Data-Quality Monitor**: Silent-source anomaly alerts and schema violation metrics.
+- [ ] **2.8 Multi-Target Connector Schedulers**: Independent scheduler per connector replacing single-target polling loop.
+
