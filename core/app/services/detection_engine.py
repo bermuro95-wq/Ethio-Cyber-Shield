@@ -37,7 +37,25 @@ def _get_sliding_window_events(account_id: str = None, source_ip: str = None,
     since = (now - timedelta(seconds=window_seconds)).isoformat()
     until = (now + timedelta(seconds=5)).isoformat()
 
-    # 1. Fast in-memory buffer check
+    # 1. High-performance StreamService sliding-window index
+    try:
+        from app.services.stream_service import get_stream_service
+        from app.services.tenant_service import get_current_organization_id
+        org_id = get_current_organization_id()
+        stream_matches = get_stream_service().get_sliding_window_events(
+            org_id=org_id,
+            account_id=account_id,
+            source_ip=source_ip,
+            device_id=device_id,
+            window_seconds=window_seconds,
+            current_time=now
+        )
+        if stream_matches:
+            return stream_matches
+    except Exception as e_stream:
+        logger.debug(f"StreamService sliding window check: {e_stream}")
+
+    # 2. Fast in-memory buffer check
     try:
         from app.services.event_service import get_recent_in_memory_events
         in_memory = get_recent_in_memory_events()

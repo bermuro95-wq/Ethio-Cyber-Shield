@@ -168,3 +168,15 @@
   - Secret fields (`shared_secret`, `auth_token`, `credentials`) are serialized with random 96-bit IV, ciphertext, and 128-bit authentication tag prefixed as `enc:v1:<base64>`.
   - Master key (`ECS_MASTER_ENCRYPTION_KEY`) is injected via environment variables and never logged or serialized to database tables.
 
+---
+
+## ADR-013: Durable Telemetry Streaming with Redis Streams and Resilient Fallback
+
+* **Context**: ECS v2.0 relied on an in-memory 5,000-event ring buffer (`deque`). A process restart or container termination caused catastrophic event loss, corrupting sliding windows and multi-stage correlation chains (e.g., ATO sequences).
+* **Decision**:
+  - Implement `app.services.stream_service.StreamService` utilizing Redis Streams (`XADD`, `XREADGROUP`, `XACK`) with consumer group `ecs_workers`.
+  - Maintain sliding-window state in Redis Sorted Sets (`ZADD`, `ZRANGEBYSCORE`) indexed by entity tuples (`{org_id}:account:{id}`, `{org_id}:ip:{ip}`, `{org_id}:device:{id}`) with automatic TTL expiry, providing $O(\log N)$ correlation lookups.
+  - Route messages that exceed retry limits (`max_retries=3`) to dead-letter queues (`ecs:dlq:{org_id}`).
+  - Maintain automatic fallback to thread-safe bounded in-memory sliding structures when Redis is temporarily offline or in single-process test runs, preventing application crashes.
+
+

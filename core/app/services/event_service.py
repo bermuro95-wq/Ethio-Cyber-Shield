@@ -8,9 +8,11 @@ from datetime import datetime, timezone
 from app.services.db import get_service_supabase
 from app.services.security_rules import analyze_transaction
 
+from app.services.stream_service import get_stream_service
+
 logger = logging.getLogger(__name__)
 
-# In-memory sliding buffer for real-time correlation and zero-latency lookups
+# Sliding buffer for real-time correlation and zero-latency lookups
 _RECENT_EVENTS_BUFFER = []
 MAX_BUFFER_SIZE = 1000
 
@@ -31,7 +33,7 @@ EVENT_TYPE_MAP = {
 
 
 def get_recent_in_memory_events() -> list:
-    """Returns a snapshot of the in-memory recent event buffer."""
+    """Returns a snapshot of recent events from the in-memory/sliding buffer."""
     return list(_RECENT_EVENTS_BUFFER)
 
 
@@ -167,7 +169,7 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
         except Exception as e:
             logger.warning(f"Could not upsert indicator for {source_ip}: {e}")
 
-    # 4. Record into in-memory sliding buffer for real-time correlation
+    # 4. Record into durable stream and sliding buffer for real-time correlation
     buffered_item = {
         **canonical_event,
         **extended_fields,
@@ -177,6 +179,13 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
     _RECENT_EVENTS_BUFFER.insert(0, buffered_item)
     if len(_RECENT_EVENTS_BUFFER) > MAX_BUFFER_SIZE:
         _RECENT_EVENTS_BUFFER.pop()
+
+    try:
+        stream_svc = get_stream_service()
+        stream_svc.enqueue_event(buffered_item, org_id=org_id)
+        stream_svc.index_sliding_window(buffered_item, org_id=org_id)
+    except Exception as e_stream:
+        logger.debug(f"Stream enqueue/index warning: {e_stream}")
 
     # 5. Multi-Layer Detection & Explainable Risk Engine evaluation (SRS §9, §21)
     detection_result = None
