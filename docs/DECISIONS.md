@@ -207,6 +207,19 @@
   - Implement verification API (`POST /api/audit/verify`) that recalculates the chain and pinpoints any tampered records.
   - Implement anchor export API (`POST /api/audit/anchor`) generating HMAC-SHA256 sealed statutory verification packages.
 
+---
+
+## ADR-016: Self-Hostable Database Abstraction Layer (Zero Supabase Lock-in)
+
+* **Context**: ECS v2.0 was hard-coded to Supabase cloud endpoints (`supabase-py`). National security operators in Ethiopia require total sovereign independence and must run ECS completely self-hosted on plain PostgreSQL without proprietary cloud APIs or third-party telemetry leakage.
+* **Decision**:
+  - Implement dual-backend database abstraction in `app.services.db`:
+    - Independent PostgreSQL mode (`PostgresDatabaseAdapter`) utilizing standard `psycopg2` when `DATABASE_URL` is configured.
+    - Supabase client mode when `SUPABASE_URL` is explicitly provided for legacy / cloud-hosted deployments.
+  - Expose deep component health diagnostics via `/api/health` checking database latency, driver, and stream engine status.
+  - Maintain automated backup and disaster recovery restore scripts with SHA-256 seal verification (`deploy/scripts/backup.sh`, `deploy/scripts/restore.sh`).
+
+
 
 
 

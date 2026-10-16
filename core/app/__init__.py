@@ -2,6 +2,7 @@ from flask import Flask
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
+from app.config import Config
 
 load_dotenv()
 
@@ -60,6 +61,30 @@ def create_app():
 
     @app.route('/api/health')
     def health():
-        return {'status': 'ok', 'service': 'Ethio-Cyber Shield API', 'version': '1.0.0'}
+        from app.services.db import check_db_health
+        from app.services.stream_service import get_stream_service
+        from datetime import datetime, timezone
+
+        db_health = check_db_health()
+        stream_svc = get_stream_service()
+        stream_stats = stream_svc.get_stream_stats("00000000-0000-0000-0000-000000000001")
+
+        is_healthy = db_health.get('status') == 'healthy'
+        status_label = 'ok' if is_healthy else 'degraded'
+
+        return {
+            'status': status_label,
+            'service': 'Ethio-Cyber-Shield (ECS)',
+            'version': Config.PLATFORM_VERSION,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'components': {
+                'database': db_health,
+                'stream_engine': {
+                    'backend': stream_stats.get('backend'),
+                    'stream_depth': stream_stats.get('stream_length', 0),
+                    'dlq_depth': stream_stats.get('dlq_length', 0)
+                }
+            }
+        }, 200
 
     return app
