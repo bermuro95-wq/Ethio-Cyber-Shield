@@ -21,34 +21,65 @@ function requireAuth(roles = null) {
 function renderNavbar(activePage = '') {
     const user = API.getUser();
     const name = user ? user.full_name : 'User';
-    const role = user ? user.role : '';
+    const role = (user && user.role) ? user.role.toLowerCase() : 'viewer';
+    const orgId = user && user.organization_id ? user.organization_id.slice(0, 8) + '...' : 'Default Org';
+
+    // Role-aware navigation permissions
+    const canViewSoc = ['admin', 'analyst', 'responder', 'viewer'].includes(role);
+    const canViewIncidents = ['admin', 'analyst', 'responder', 'auditor'].includes(role);
+    const canViewLive = ['admin', 'analyst', 'responder'].includes(role);
+    const canViewReports = ['admin', 'analyst', 'auditor'].includes(role);
+    const canViewAudit = ['admin', 'analyst', 'auditor'].includes(role);
+    const canViewAdmin = ['admin'].includes(role);
+
+    let linksHtml = '';
+    if (canViewSoc) {
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='dashboard'?'active':''}" href="dashboard.html">Dashboard</a></li>`;
+    }
+    if (canViewIncidents) {
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='incidents'?'active':''}" href="incidents.html">Incidents</a></li>`;
+    }
+    if (['admin', 'analyst', 'viewer'].includes(role)) {
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='indicators'?'active':''}" href="indicators.html">Indicators</a></li>`;
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='fraud'?'active':''}" href="fraud.html">Fraud</a></li>`;
+    }
+    if (canViewLive) {
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='live'?'active':''}" href="live-threats.html"><i class="bi bi-activity"></i> Live Threats</a></li>`;
+    }
+    if (['admin', 'analyst'].includes(role)) {
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='watchlists'?'active':''}" href="watchlists.html">Watchlists</a></li>`;
+    }
+    if (canViewSoc) {
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='alerts'?'active':''}" href="alerts.html">Alerts</a></li>`;
+    }
+    if (canViewReports) {
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='reports'?'active':''}" href="reports.html">Reports</a></li>`;
+    }
+    if (canViewAudit) {
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='audit'?'active':''}" href="audit.html"><i class="bi bi-shield-check"></i> Audit Log</a></li>`;
+    }
+    if (canViewAdmin) {
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='settings'?'active':''}" href="settings.html">Settings</a></li>`;
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='users'?'active':''}" href="users.html">Users</a></li>`;
+    }
 
     return `
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-success">
         <div class="container-fluid">
             <a class="navbar-brand fw-bold text-success d-flex align-items-center gap-2" href="dashboard.html">
                 <img src="assets/logo-shield.jpg" alt="ECS" class="navbar-logo" width="36" height="36">
-                <span>Ethio-Cyber Shield</span>
+                <span>Ethio-Cyber-Shield (ECS)</span>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navMain">
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link ${activePage==='dashboard'?'active':''}" href="dashboard.html">Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link ${activePage==='incidents'?'active':''}" href="incidents.html">Incidents</a></li>
-                    <li class="nav-item"><a class="nav-link ${activePage==='indicators'?'active':''}" href="indicators.html">Indicators</a></li>
-                    <li class="nav-item"><a class="nav-link ${activePage==='fraud'?'active':''}" href="fraud.html">Fraud</a></li>
-                    <li class="nav-item"><a class="nav-link ${activePage==='live'?'active':''}" href="live-threats.html"><i class="bi bi-activity"></i> Live Threats</a></li>
-                    <li class="nav-item"><a class="nav-link ${activePage==='watchlists'?'active':''}" href="watchlists.html">Watchlists</a></li>
-                    <li class="nav-item"><a class="nav-link ${activePage==='alerts'?'active':''}" href="alerts.html">Alerts</a></li>
-                    <li class="nav-item"><a class="nav-link ${activePage==='reports'?'active':''}" href="reports.html">Reports</a></li>
-                    <li class="nav-item"><a class="nav-link ${activePage==='settings'?'active':''}" href="settings.html">Settings</a></li>
-                    <li class="nav-item"><a class="nav-link ${activePage==='users'?'active':''}" href="users.html">Users</a></li>
-                    <li class="nav-item"><a class="nav-link ${activePage==='audit'?'active':''}" href="audit.html">Audit Log</a></li>
+                    ${linksHtml}
                 </ul>
                 <div class="d-flex align-items-center text-light">
-                    <span class="me-3 small"><i class="bi bi-person-badge"></i> ${name} <span class="badge bg-secondary">${role}</span></span>
+                    <span class="badge bg-dark border border-secondary text-light me-2"><i class="bi bi-building"></i> ${orgId}</span>
+                    <span class="me-3 small"><i class="bi bi-person-badge"></i> ${name} <span class="badge bg-secondary">${role.toUpperCase()}</span></span>
                     <button class="btn btn-outline-danger btn-sm" onclick="doLogout()">Logout</button>
                 </div>
             </div>

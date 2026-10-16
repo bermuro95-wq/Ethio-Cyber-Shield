@@ -30,6 +30,18 @@ const API = {
         return !!this.getToken();
     },
 
+    getTenant() {
+        return localStorage.getItem('ecs_tenant_id');
+    },
+
+    setTenant(tenantId) {
+        if (tenantId) {
+            localStorage.setItem('ecs_tenant_id', tenantId);
+        } else {
+            localStorage.removeItem('ecs_tenant_id');
+        }
+    },
+
     async request(method, path, body = null) {
         const headers = {
             'Content-Type': 'application/json'
@@ -37,6 +49,10 @@ const API = {
         const token = this.getToken();
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
+        }
+        const tenant = this.getTenant();
+        if (tenant) {
+            headers['X-ECS-Tenant'] = tenant;
         }
 
         const opts = { method, headers };
@@ -301,5 +317,39 @@ const API = {
     },
     setAutoContainment(enabled) {
         return this.request('POST', '/targets/settings/auto-containment', { enabled });
+    },
+
+    // Identity, MFA & Scoped API Tokens
+    verifyMfa(mfaToken, code) {
+        return this.request('POST', '/auth/mfa/verify', { mfa_token: mfaToken, code });
+    },
+    setupMfa() {
+        return this.request('POST', '/auth/mfa/setup');
+    },
+    enableMfa(secret, code) {
+        return this.request('POST', '/auth/mfa/enable', { secret, code });
+    },
+    listApiTokens() {
+        return this.request('GET', '/auth/api-tokens');
+    },
+    createApiToken(name, scopes = ['ingest:events'], expiresDays = 90) {
+        return this.request('POST', '/auth/api-tokens', { name, scopes, expires_days: expiresDays });
+    },
+    revokeApiToken(tokenId) {
+        return this.request('DELETE', `/auth/api-tokens/${tokenId}`);
+    },
+
+    // Tamper-Evident Audit & Verification
+    verifyAuditChain() {
+        return this.request('POST', '/audit/verify');
+    },
+    exportAuditAnchor() {
+        return this.request('POST', '/audit/anchor');
+    },
+
+    // System Health
+    getPlatformHealth() {
+        return this.request('GET', '/health');
     }
 };
+

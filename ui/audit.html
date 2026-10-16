@@ -12,8 +12,18 @@
 <body>
     <div id="navbar"></div>
     <div class="container-fluid py-4 px-4">
-        <h3 class="page-title mb-4"><i class="bi bi-journal-text me-2 text-success"></i>Audit Log</h3>
-        <p class="text-muted small">Immutable record of system actions. Users cannot edit these entries.</p>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h3 class="page-title mb-1"><i class="bi bi-journal-text me-2 text-success"></i>Tamper-Evident Audit Log</h3>
+                <p class="text-muted small mb-0">Cryptographically hash-chained (SHA-256) audit trail for statutory compliance and regulatory review.</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-success btn-sm" onclick="doVerifyChain()"><i class="bi bi-shield-check me-1"></i> Verify Chain Integrity</button>
+                <button class="btn btn-outline-primary btn-sm" onclick="doExportAnchor()"><i class="bi bi-box-arrow-up-right me-1"></i> Export Sealed Anchor</button>
+            </div>
+        </div>
+
+        <div id="verifyAlert" class="mb-3 d-none"></div>
 
         <div class="card">
             <div class="card-body p-0" id="tableArea">
@@ -27,8 +37,43 @@
     <script src="js/api.js"></script>
     <script src="js/common.js"></script>
     <script>
-        if (!requireAuth(['admin', 'analyst'])) { /* redirect */ }
+        if (!requireAuth(['admin', 'analyst', 'auditor'])) { /* redirect */ }
         document.getElementById('navbar').innerHTML = renderNavbar('audit');
+
+        async function doVerifyChain() {
+            const alertBox = document.getElementById('verifyAlert');
+            alertBox.className = 'alert alert-info py-2 small';
+            alertBox.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Recalculating and verifying cryptographic SHA-256 hash chain...';
+            alertBox.classList.remove('d-none');
+
+            try {
+                const res = await API.verifyAuditChain();
+                if (res.verified) {
+                    alertBox.className = 'alert alert-success py-2 small d-flex justify-content-between align-items-center';
+                    alertBox.innerHTML = `<span><i class="bi bi-check-circle-fill me-2"></i><strong>Chain Verified:</strong> All ${res.count} records untampered. Root Hash: <code>${(res.latest_hash || '').slice(0, 16)}...</code></span><button class="btn-close btn-close-sm" onclick="this.parentElement.classList.add('d-none')"></button>`;
+                } else {
+                    alertBox.className = 'alert alert-danger py-2 small';
+                    alertBox.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Integrity Warning:</strong> Chain mismatch detected at record #${res.tampered_index}! Expected: <code>${res.expected_hash}</code>`;
+                }
+            } catch (err) {
+                alertBox.className = 'alert alert-danger py-2 small';
+                alertBox.innerHTML = `<i class="bi bi-x-circle me-2"></i>Verification failed: ${escapeHtml(err.message)}`;
+            }
+        }
+
+        async function doExportAnchor() {
+            try {
+                const anchor = await API.exportAuditAnchor();
+                const blob = new Blob([JSON.stringify(anchor, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ecs_audit_anchor_${anchor.organization_id}_${Date.now()}.json`;
+                a.click();
+            } catch (err) {
+                alert('Export failed: ' + err.message);
+            }
+        }
 
         async function loadAudit() {
             loadingSpinner('tableArea');
@@ -46,12 +91,13 @@
                         <td class="small text-muted">${escapeHtml(a.entity_type || '-')}</td>
                         <td class="small text-muted text-truncate" style="max-width:200px">${escapeHtml(JSON.stringify(a.details || {}))}</td>
                         <td class="small text-muted">${escapeHtml(a.ip_address || '-')}</td>
+                        <td class="small"><code class="text-success" title="${a.entry_hash || ''}">${(a.entry_hash || 'genesis').slice(0, 10)}...</code></td>
                     </tr>
                 `).join('');
                 document.getElementById('tableArea').innerHTML = `
                     <table class="table table-sm table-hover mb-0">
                         <thead><tr>
-                            <th>Time</th><th>User</th><th>Action</th><th>Entity</th><th>Details</th><th>IP</th>
+                            <th>Time</th><th>User</th><th>Action</th><th>Entity</th><th>Details</th><th>IP</th><th>SHA-256 Seal</th>
                         </tr></thead>
                         <tbody>${rows}</tbody>
                     </table>`;
