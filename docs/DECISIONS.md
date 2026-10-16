@@ -195,5 +195,18 @@
   - Implement immediate token revocation / session blacklisting on logout and credential reset.
   - Implement Scoped API Tokens (`ecs_pat_...`) hashed with SHA-256 for non-interactive service-to-service connectors (`ingest:events`, `read:alerts`, `read:incidents`).
 
+---
+
+## ADR-015: Tamper-Evident SHA-256 Hash-Chained Audit Logs and Regulatory Anchors
+
+* **Context**: Financial institutions and critical infrastructure operators under Proclamation 1426/2026 and NBE directives must prove that incident evidence and operational actions have not been altered, deleted, or backdated.
+* **Decision**:
+  - Implement sequential Merkle/blockchain-style cryptographic hash chaining across `audit_logs`.
+  - Every row stores `prev_hash` (matching preceding entry's `entry_hash` or `0`*64 for genesis) and `entry_hash` (SHA-256 digest over predecessor hash, organization ID, user ID, action, entity type, entity ID, timestamp, and canonical details JSON).
+  - Each tenant maintains an independent, isolated cryptographic hash chain.
+  - Implement verification API (`POST /api/audit/verify`) that recalculates the chain and pinpoints any tampered records.
+  - Implement anchor export API (`POST /api/audit/anchor`) generating HMAC-SHA256 sealed statutory verification packages.
+
+
 
 

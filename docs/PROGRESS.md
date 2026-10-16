@@ -12,7 +12,7 @@
 | Phase | Description | Status | Progress | Target Gate |
 | :--- | :--- | :--- | :--- | :--- |
 | **Phase 0** | **Validate, Obtain Texts, Freeze Scope** | **COMPLETED** | **100%** | **Gate 0 PASSED** |
-| **Phase 1** | **Independence, Tenancy & Hardening** | **In Progress** | **75%** | **Gate 1 Pending** |
+| **Phase 1** | **Independence, Tenancy & Hardening** | **In Progress** | **85%** | **Gate 1 Pending** |
 | **Phase 2** | Connectors, SDKs & Rich Event Model | Planned | 0% | Gate 2 Pending |
 | **Phase 3** | Detection Engine v2 (Rules-as-Data) | Planned | 0% | Gate 3 Pending |
 | **Phase 4** | Safe Response & Case Management | Planned | 0% | Gate 4 Pending |
@@ -32,7 +32,7 @@
 - [x] **Engineering Rule Guidelines**: Published `AGENTS.md` and `GEMINI.md` establishing mandatory tenancy, secrets encryption, explainable detection, and safe response rules.
 - [x] **Stakeholder Interview Protocol**: Formulated `docs/INTERVIEW_SCRIPT.md` targeting 12–15 cross-sector Ethiopian security and fraud leaders.
 - [x] **Incident Reporting Fallback Standard**: Formulated `docs/INCIDENT_REPORT_FALLBACK_SPEC.md` providing a structured, bilingual, hash-sealed 48-hour incident package standard.
-- [x] **Architecture Decisions & Scope Freeze**: Authored `docs/DECISIONS.md` formalizing ADR-001 through ADR-014, metrics targets, and non-goals.
+- [x] **Architecture Decisions & Scope Freeze**: Authored `docs/DECISIONS.md` formalizing ADR-001 through ADR-015, metrics targets, and non-goals.
 - [x] **Validation Report**: Synthesized comprehensive findings in `docs/VALIDATION_REPORT.md`.
 - [x] **Gate 0 Criteria**: 
   - [x] Focus wedge locked (G2 + G3 + G1).
@@ -48,6 +48,6 @@
 - [x] **1.4 Durable ingest queue**: Redis Streams consumer queue with sliding-window support replacing in-memory ring buffer (`stream_service.py`, `test_part8_durable_stream.py`).
 - [x] **1.5 Secrets encryption**: AES-256-GCM envelope encryption for target secret keys (`crypto_service.py`).
 - [x] **1.6 Identity & RBAC**: TOTP MFA (pyotp), session revocation blacklist, 5-tier roles (`admin`, `analyst`, `responder`, `viewer`, `auditor`), and scoped API tokens (`test_part9_identity_mfa_rbac.py`).
-- [ ] **1.7 Tamper-evident audit**: Hash-chained audit logs with SHA-256 predecessor linking.
+- [x] **1.7 Tamper-evident audit**: Hash-chained audit logs with SHA-256 predecessor linking, integrity verification, and sealed anchor packages (`audit_service.py`, `test_part10_tamper_evident_audit.py`).
 - [ ] **1.8 CI/CD & Supply Chain**: Automated tests, linting, security scanning, `SECURITY.md`.
 - [ ] **1.9 UI Modernization**: Componentized frontend structure.
