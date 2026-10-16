@@ -16,7 +16,42 @@ logger = logging.getLogger(__name__)
 
 
 class CanonicalEventBuilder:
-    """Helper to build Canonical Event v1.1 telemetry objects."""
+    """Helper to build Canonical Event v1.1 telemetry objects with privacy-preserving hashing."""
+
+    @staticmethod
+    def hash_identifier(value: Optional[str], salt: str = "") -> Optional[str]:
+        if value is None:
+            return None
+        val_str = str(value).strip()
+        if not val_str:
+            return None
+        to_hash = f"{salt}:{val_str}" if salt else val_str
+        return hashlib.sha256(to_hash.encode('utf-8')).hexdigest()
+
+    @staticmethod
+    def hash_phone(phone: str, salt: str = "") -> Optional[str]:
+        """Normalizes and hashes MSISDN (e.g. +251... / 09...) to privacy-preserving SHA-256."""
+        if not phone:
+            return None
+        import re
+        digits = re.sub(r'[^0-9+]', '', str(phone).strip())
+        if digits.startswith('09') and len(digits) == 10:
+            digits = '+251' + digits[1:]
+        elif digits.startswith('9') and len(digits) == 9:
+            digits = '+251' + digits
+        elif digits.startswith('251') and len(digits) == 12:
+            digits = '+' + digits
+        return CanonicalEventBuilder.hash_identifier(digits, salt=salt)
+
+    @staticmethod
+    def hash_national_id(national_id: str, salt: str = "") -> Optional[str]:
+        """Hashes National ID / Fayda ID to SHA-256 to protect customer identity."""
+        return CanonicalEventBuilder.hash_identifier(national_id, salt=salt)
+
+    @staticmethod
+    def hash_counterparty(account_ref: str, salt: str = "") -> Optional[str]:
+        """Hashes destination beneficiary/counterparty account number to SHA-256."""
+        return CanonicalEventBuilder.hash_identifier(account_ref, salt=salt)
 
     @staticmethod
     def build(event_type: str, result: str, source_system: str,
@@ -26,6 +61,12 @@ class CanonicalEventBuilder:
               amount_minor: Optional[int] = None, currency: str = "ETB",
               beneficiary_id_pub: Optional[str] = None, transaction_id_pub: Optional[str] = None,
               channel: str = "web", payment_rail: Optional[str] = None,
+              counterparty_ref_hash: Optional[str] = None,
+              device_fingerprint: Optional[str] = None,
+              msisdn_hash: Optional[str] = None,
+              agent_id: Optional[str] = None,
+              national_id_hash: Optional[str] = None,
+              locale_tz: str = "Africa/Addis_Ababa",
               attributes: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         return {
             "event_id": f"evt-{uuid.uuid4().hex[:12]}",
@@ -45,6 +86,12 @@ class CanonicalEventBuilder:
             "transaction_id_pub": transaction_id_pub,
             "channel": channel,
             "payment_rail": payment_rail,
+            "counterparty_ref_hash": counterparty_ref_hash,
+            "device_fingerprint": device_fingerprint,
+            "msisdn_hash": msisdn_hash,
+            "agent_id": agent_id,
+            "national_id_hash": national_id_hash,
+            "locale_tz": locale_tz,
             "attributes": attributes or {}
         }
 

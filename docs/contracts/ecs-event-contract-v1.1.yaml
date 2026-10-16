@@ -1,0 +1,413 @@
+openapi: 3.1.0
+info:
+  title: Ethio-Cyber-Shield (ECS) Canonical Telemetry Event API
+  description: |
+    Independent, explainable cybersecurity detection, fraud prevention, and statutory 
+    readiness telemetry ingestion specification for Ethiopian critical infrastructure, 
+    digital finance, banking, and Payment System Operators (PSOs).
+    
+    Standard: ECS Event Contract v1.1
+    Complies with Proclamation No. 1426/2026, NBE Directives, and PDPP 1321/2024.
+  version: 1.1.0
+  contact:
+    name: Ethio-Cyber-Shield Architecture Team
+    url: https://github.com/Ethio-Cyber-Shield
+
+servers:
+  - url: /api
+    description: Local or In-Cluster ECS Ingestion Gateway
+
+security:
+  - HmacSignatureAuth: []
+  - BearerTokenAuth: []
+
+paths:
+  /events:
+    post:
+      summary: Ingest Canonical Security Telemetry Events
+      description: |
+        Ingests a single canonical event or a batch of canonical events.
+        Events are cryptographically authenticated via HMAC-SHA256 headers or scoped API token,
+        durable-streamed into Redis Streams, normalized, and evaluated by the explainable detection engine.
+        
+        Zero-PII Enforcement:
+        All phone numbers (MSISDN), National IDs (Fayda), and counterparty account numbers must be 
+        hashed with SHA-256 prior to or upon receipt. Raw unmasked PII is strictly prohibited.
+      operationId: ingestSecurityEvents
+      parameters:
+        - name: X-ECS-Key-Id
+          in: header
+          required: false
+          description: Registered Target Connector API Key ID.
+          schema:
+            type: string
+        - name: X-ECS-Timestamp
+          in: header
+          required: false
+          description: UNIX Epoch timestamp in seconds. Clock skew must be <= 300 seconds.
+          schema:
+            type: string
+        - name: X-ECS-Nonce
+          in: header
+          required: false
+          description: Cryptographic UUID nonce for replay attack prevention.
+          schema:
+            type: string
+            format: uuid
+        - name: X-ECS-Signature
+          in: header
+          required: false
+          description: Hex-encoded HMAC-SHA256 signature calculated over canonical string.
+          schema:
+            type: string
+        - name: X-ECS-Tenant
+          in: header
+          required: false
+          description: Explicit tenant Organization UUID override for multi-tenant gateways.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/CanonicalEventV11'
+                - $ref: '#/components/schemas/BatchEventsV11'
+            examples:
+              single_payment_event:
+                summary: Mobile Money Transfer Event
+                value:
+                  event_id: "evt-9a8b7c6d5e4f"
+                  event_type: "transaction.transfer.created"
+                  occurred_at: "2026-10-17T08:30:00Z"
+                  source_system: "cbe-mobile-banking"
+                  channel: "mobile"
+                  payment_rail: "wallet"
+                  user_id_pub: "USR_104928"
+                  account_id_pub: "ACC_9928172"
+                  amount_minor: 1500000
+                  currency: "ETB"
+                  counterparty_ref_hash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                  device_fingerprint: "fp_and_sdk_98a76b"
+                  msisdn_hash: "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+                  locale_tz: "Africa/Addis_Ababa"
+                  result: "SUCCESS"
+                  attributes:
+                    telecom_carrier: "Ethio Telecom"
+                    app_version: "3.4.1"
+              batch_ussd_events:
+                summary: Batch USSD Session Events
+                value:
+                  events:
+                    - event_id: "evt-ussd-001"
+                      event_type: "auth.login.failed"
+                      occurred_at: "2026-10-17T08:31:00Z"
+                      source_system: "ussd-gateway-01"
+                      channel: "ussd"
+                      account_id_pub: "ACC_772611"
+                      msisdn_hash: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+                      result: "FAILURE"
+                      attributes:
+                        ussd_shortcode: "*889#"
+      responses:
+        '200':
+          description: Event(s) successfully accepted and queued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionResponse'
+        '400':
+          description: Invalid payload or schema validation failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized; invalid HMAC signature or expired token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: Query Recent Telemetry Events
+      description: Retrieves security events scoped to the caller's organization.
+      operationId: querySecurityEvents
+      parameters:
+        - name: event_type
+          in: query
+          schema:
+            type: string
+        - name: channel
+          in: query
+          schema:
+            type: string
+        - name: payment_rail
+          in: query
+          schema:
+            type: string
+        - name: account
+          in: query
+          schema:
+            type: string
+        - name: user_id
+          in: query
+          schema:
+            type: string
+        - name: source_ip
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 500
+      responses:
+        '200':
+          description: List of security events matching filters.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CanonicalEventV11'
+
+  /events/contract:
+    get:
+      summary: Retrieve Canonical Contract v1.1 Schema
+      description: Returns the active JSON Schema definition for event contract validation.
+      operationId: getContractSchema
+      responses:
+        '200':
+          description: Contract schema object.
+          content:
+            application/json:
+              schema:
+                type: object
+
+components:
+  securitySchemes:
+    HmacSignatureAuth:
+      type: apiKey
+      name: X-ECS-Signature
+      in: header
+      description: HMAC-SHA256 signature verified against pre-shared connector secret.
+    BearerTokenAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    CanonicalEventV11:
+      type: object
+      required:
+        - event_id
+        - event_type
+        - occurred_at
+        - source_system
+        - result
+      properties:
+        event_id:
+          type: string
+          description: Globally unique identifier for idempotency.
+          example: "evt-3f82a901bcde"
+        event_type:
+          type: string
+          description: Standardized telemetry dot-notation event action.
+          example: "transaction.transfer.created"
+        occurred_at:
+          type: string
+          format: date-time
+          description: Timestamp when the event occurred in ISO 8601 UTC.
+          example: "2026-10-17T08:30:00Z"
+        source_system:
+          type: string
+          description: Identifier of the originating application, cluster, or node.
+          example: "mobile-banking-backend"
+        organization_id:
+          type: string
+          format: uuid
+          description: Tenant organization UUID. Inferred from auth if omitted.
+        channel:
+          type: string
+          description: Origination channel for the transaction or session.
+          enum:
+            - web
+            - mobile
+            - ussd
+            - api
+            - agent
+            - branch
+            - atm
+            - pos
+            - system
+          default: web
+          example: "mobile"
+        payment_rail:
+          type: string
+          description: Generic payment rail classification (abstracted from specific brand names).
+          enum:
+            - p2p
+            - card
+            - wallet
+            - bill_pay
+            - interbank
+            - rtgs
+            - ach
+          example: "wallet"
+        counterparty_ref_hash:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+          description: SHA-256 hash of destination beneficiary account / wallet number. Raw numbers prohibited.
+          example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        device_fingerprint:
+          type: string
+          maxLength: 128
+          description: Client hardware/browser fingerprint or hardware token identifier.
+          example: "dfp_a98f12c401"
+        msisdn_hash:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+          description: SHA-256 hash of telephone number in E.164 format (e.g. +251911223344). Raw numbers prohibited.
+          example: "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+        agent_id:
+          type: string
+          maxLength: 100
+          description: Identifier for agent banking or branch operator.
+          example: "AGT-ADDIS-042"
+        national_id_hash:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+          description: SHA-256 hash of citizen National ID / Fayda ID. Raw numbers prohibited.
+          example: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        locale_tz:
+          type: string
+          description: Local timezone for the event context. Defaults to Africa/Addis_Ababa (UTC+3).
+          default: "Africa/Addis_Ababa"
+          example: "Africa/Addis_Ababa"
+        user_id_pub:
+          type: string
+          maxLength: 100
+          description: Public or pseudonymized customer user reference.
+          example: "USR_78912"
+        account_id_pub:
+          type: string
+          maxLength: 100
+          description: Public or masked account reference.
+          example: "ACC_55441"
+        session_id_pub:
+          type: string
+          maxLength: 100
+          description: Pseudonymized session identifier.
+          example: "SES_99212"
+        device_id_pub:
+          type: string
+          maxLength: 100
+          description: Pseudonymized device reference.
+          example: "DEV_88123"
+        source_ip:
+          type: string
+          description: IPv4 or IPv6 client origination address.
+          example: "196.188.12.44"
+        endpoint:
+          type: string
+          maxLength: 255
+          description: API path or route invoked.
+          example: "/api/v1/transfer"
+        result:
+          type: string
+          description: Outcome of the requested action.
+          enum:
+            - SUCCESS
+            - FAILURE
+            - DENIED
+            - HELD
+            - CHALLENGE_REQUIRED
+          default: SUCCESS
+          example: "SUCCESS"
+        amount_minor:
+          type: integer
+          minimum: 0
+          description: Financial transaction amount expressed in minor currency units (santim / cents).
+          example: 250000
+        currency:
+          type: string
+          maxLength: 10
+          default: "ETB"
+          description: ISO 4217 3-letter currency code. Defaults to ETB.
+          example: "ETB"
+        beneficiary_id_pub:
+          type: string
+          maxLength: 100
+          description: Identifier for the beneficiary record.
+          example: "BEN_00192"
+        transaction_id_pub:
+          type: string
+          maxLength: 100
+          description: Originating core banking transaction reference.
+          example: "TXN_7728192"
+        attributes:
+          type: object
+          description: Arbitrary extensible attributes and contextual key-values.
+          additionalProperties: true
+          example:
+            transfer_reason: "Family remittance"
+            terminal_id: "POS-44"
+
+    BatchEventsV11:
+      type: object
+      required:
+        - events
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/CanonicalEventV11'
+          description: Sequence of canonical events to ingest atomically or in bulk.
+
+    IngestionResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "received"
+        event_id:
+          type: string
+          example: "evt-3f82a901bcde"
+        event_type:
+          type: string
+          example: "TRANSFER_CREATED"
+        ingested:
+          type: integer
+          example: 1
+        detection:
+          type: object
+          description: Explainable risk evaluation output.
+          properties:
+            risk_score:
+              type: integer
+              example: 45
+            severity:
+              type: string
+              example: "MEDIUM"
+            matched_rules:
+              type: array
+              items:
+                type: string
+              example: ["AUTH-001", "PAY-002"]
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          example: "Invalid event schema"
+        detail:
+          type: string
+          example: "Field 'channel' must be one of ['web', 'mobile', 'ussd', 'api', 'agent', 'branch', 'atm', 'pos', 'system']"

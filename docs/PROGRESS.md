@@ -14,7 +14,7 @@
 | **Phase 0** | **Validate, Obtain Texts, Freeze Scope** | **COMPLETED** | **100%** | **Gate 0 PASSED** |
 | **Phase 0** | **Validate, Obtain Texts, Freeze Scope** | **COMPLETED** | **100%** | **Gate 0 PASSED** |
 | **Phase 1** | **Independence, Tenancy & Hardening** | **COMPLETED** | **100%** | **Gate 1 PASSED** |
-| **Phase 2** | **Connectors, SDKs & Rich Event Model** | **In Progress** | **0%** | **Gate 2 Pending** |
+| **Phase 2** | **Connectors, SDKs & Rich Event Model** | **In Progress** | **15%** | **Gate 2 Pending** |
 | **Phase 3** | Detection Engine v2 (Rules-as-Data) | Planned | 0% | Gate 3 Pending |
 | **Phase 4** | Safe Response & Case Management | Planned | 0% | Gate 4 Pending |
 | **Phase 5** | Incident Readiness Engine (48h Clock) | Planned | 0% | Gate 5 Pending |
@@ -61,7 +61,8 @@
 ---
 
 ### Phase 2: Connectors, SDKs and a Richer Event Model (In Progress)
-- [ ] **2.1 ECS Event Contract v1.1**: OpenAPI 3.1 + JSON Schema specifications extending canonical events with channel awareness (`channel`, `payment_rail`, `counterparty_ref_hash`, `device_fingerprint`, `msisdn_hash`, `agent_id`, `national_id_hash`, `locale_tz`).
+- [x] **2.1 ECS Event Contract v1.1**: OpenAPI 3.1 (`docs/contracts/ecs-event-contract-v1.1.yaml`) + JSON Schema (`docs/contracts/ecs-event-v1.1.schema.json`) specifications extending canonical events with channel awareness (`channel`, `payment_rail`, `counterparty_ref_hash`, `device_fingerprint`, `msisdn_hash`, `agent_id`, `national_id_hash`, `locale_tz`), dynamic Ethiopian brand-to-rail mapping, automatic PII scrubbing/hashing, and runtime schema endpoint (`GET /api/events/contract`).
+
 - [ ] **2.2 Official Client SDKs**: Node/Express, Python (Flask/Django/FastAPI) with outbox pattern (retry, HMAC signing, idempotency).
 - [ ] **2.3 Generic Webhook Receiver & Field Mapper**: Configurable JSONPath mapping engine and test runner.
 - [ ] **2.4 Log Agent Collector**: Lightweight access/syslog/CEF collector for Nginx/Apache.

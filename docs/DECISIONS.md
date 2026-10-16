@@ -219,6 +219,24 @@
   - Expose deep component health diagnostics via `/api/health` checking database latency, driver, and stream engine status.
   - Maintain automated backup and disaster recovery restore scripts with SHA-256 seal verification (`deploy/scripts/backup.sh`, `deploy/scripts/restore.sh`).
 
+---
+
+## ADR-017: ECS Canonical Event Contract v1.1 Schema and Privacy-Preserving Hashing
+
+* **Context**:
+  - Telemetry ingestion in ECS v1.0 lacked generic channel awareness (`channel`, `payment_rail`) and privacy protections needed by Ethiopian financial operators, PSOs, and national critical infrastructure under Proclamation No. 1426/2026, NBE Directives, and PDPP 1321/2024.
+  - Operators frequently pass brand-specific rails (e.g. "Telebirr", "CBE Birr", "EthSwitch") or unmasked PII (phone numbers, National IDs, account numbers).
+  - Hard rules mandate zero secrets/PII in logs/code, multi-tenancy, and Ethiopian operational context (ETB, Addis Ababa UTC+3).
+* **Decision**:
+  - Publish **ECS Event Contract v1.1** as an OpenAPI 3.1.0 specification (`docs/contracts/ecs-event-contract-v1.1.yaml`) and JSON Schema (`docs/contracts/ecs-event-v1.1.schema.json`).
+  - Introduce generic channel enums (`web`, `mobile`, `ussd`, `api`, `agent`, `branch`, `atm`, `pos`, `system`) and payment rail enums (`p2p`, `card`, `wallet`, `bill_pay`, `interbank`, `rtgs`, `ach`).
+  - Implement dynamic Ethiopian brand mapping (`BRAND_TO_RAIL_MAP` and `CHANNEL_ALIASES`) normalizing local brand names to generic canonical rails without hardcoding vendor logic in core detection.
+  - Implement privacy-preserving cryptographic SHA-256 hashing for sensitive customer identifiers (`msisdn_hash`, `national_id_hash`, `counterparty_ref_hash`). If raw unmasked identifiers are transmitted, the ingestion gateway automatically scrubs raw PII and computes one-way SHA-256 digests.
+  - Set default timezone context to `Africa/Addis_Ababa` (UTC+3) and currency to `ETB`.
+  - Expose runtime contract inspection via `GET /api/events/contract`.
+  - Equip client SDKs (Python, Node/TypeScript) with client-side hashing helpers (`hash_phone`, `hash_national_id`, `hash_counterparty`) so operators can enforce data privacy before network egress.
+
+
 
 
 

@@ -14,8 +14,13 @@ DEFAULT_ORGANIZATION_ID = "00000000-0000-0000-0000-000000000001"
 DEFAULT_ORGANIZATION_NAME = "Commercial Bank of Ethiopia (Primary)"
 
 
+_EXPLICIT_ORGANIZATION_ID = None
+
+
 def set_current_organization_id(org_id: str):
-    """Explicitly sets the active organization ID in Flask application context."""
+    """Explicitly sets the active organization ID in Flask application context or worker thread."""
+    global _EXPLICIT_ORGANIZATION_ID
+    _EXPLICIT_ORGANIZATION_ID = str(org_id) if org_id else None
     if has_app_context():
         g.organization_id = str(org_id) if org_id else DEFAULT_ORGANIZATION_ID
 
@@ -23,22 +28,23 @@ def set_current_organization_id(org_id: str):
 def get_current_organization_id() -> str:
     """
     Returns the currently active organization_id from context.
-    Falls back to DEFAULT_ORGANIZATION_ID if not explicitly bound or outside app context.
+    Falls back to _EXPLICIT_ORGANIZATION_ID or DEFAULT_ORGANIZATION_ID.
     """
-    if not has_app_context():
-        return DEFAULT_ORGANIZATION_ID
+    if has_app_context():
+        try:
+            if hasattr(g, 'organization_id') and g.organization_id:
+                return g.organization_id
 
-    try:
-        if hasattr(g, 'organization_id') and g.organization_id:
-            return g.organization_id
+            # Fallback: check if authenticated user context is set
+            current_user = getattr(g, 'current_user', None)
+            if isinstance(current_user, dict) and current_user.get('organization_id'):
+                g.organization_id = str(current_user['organization_id'])
+                return g.organization_id
+        except RuntimeError:
+            pass
 
-        # Fallback: check if authenticated user context is set
-        current_user = getattr(g, 'current_user', None)
-        if isinstance(current_user, dict) and current_user.get('organization_id'):
-            g.organization_id = str(current_user['organization_id'])
-            return g.organization_id
-    except RuntimeError:
-        pass
+    if _EXPLICIT_ORGANIZATION_ID:
+        return _EXPLICIT_ORGANIZATION_ID
 
     # Fallback to default
     return DEFAULT_ORGANIZATION_ID

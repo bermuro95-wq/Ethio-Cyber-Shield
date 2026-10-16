@@ -103,17 +103,66 @@ def receive_event():
         return jsonify({'error': 'Internal ingestion error', 'detail': str(e)}), 500
 
 
+@events_bp.route('/contract', methods=['GET'])
+def get_contract():
+    """
+    Returns the canonical JSON schema and metadata for ECS Event Contract v1.1.
+    """
+    import json
+    candidate_paths = [
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '..', 'docs', 'contracts', 'ecs-event-v1.1.schema.json'),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'docs', 'contracts', 'ecs-event-v1.1.schema.json'),
+        os.path.join(os.getcwd(), 'docs', 'contracts', 'ecs-event-v1.1.schema.json')
+    ]
+    schema_dict = None
+    for p in candidate_paths:
+        norm_p = os.path.normpath(p)
+        if os.path.exists(norm_p):
+            try:
+                with open(norm_p, 'r', encoding='utf-8') as f:
+                    schema_dict = json.load(f)
+                break
+            except Exception:
+                pass
+
+    if not schema_dict:
+        schema_dict = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "CanonicalEventV11",
+            "properties": {
+                "event_id": {"type": "string"},
+                "event_type": {"type": "string"},
+                "channel": {"type": "string"},
+                "payment_rail": {"type": "string"},
+                "counterparty_ref_hash": {"type": "string"},
+                "msisdn_hash": {"type": "string"},
+                "device_fingerprint": {"type": "string"},
+                "national_id_hash": {"type": "string"},
+                "locale_tz": {"type": "string"},
+            }
+        }
+
+    return jsonify({
+        'version': '1.1.0',
+        'standard': 'ECS Event Contract v1.1',
+        'schema': schema_dict
+    }), 200
+
+
 @events_bp.route('', methods=['GET'])
 def list_events():
     """
     Query recent security events stream for live SOC ticker.
-    Supports filtering by event_type, target_system_id, account, user_id, source_ip, limit.
+    Supports filtering by event_type, target_system_id, account, user_id, source_ip,
+    channel, payment_rail, limit.
     """
     event_type = request.args.get('event_type')
     target_id = request.args.get('target_system_id')
     account = request.args.get('account')
     user_id = request.args.get('user_id')
     source_ip = request.args.get('source_ip')
+    channel = request.args.get('channel')
+    payment_rail = request.args.get('payment_rail')
     limit = int(request.args.get('limit', 50))
 
     events = query_events(
@@ -122,6 +171,8 @@ def list_events():
         account=account,
         user_id=user_id,
         source_ip=source_ip,
+        channel=channel,
+        payment_rail=payment_rail,
         limit=limit
     )
 

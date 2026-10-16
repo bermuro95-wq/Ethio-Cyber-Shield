@@ -39,51 +39,52 @@ def get_recent_in_memory_events() -> list:
 
 def ingest_event(data: dict, target: dict = None, target_system_id: str = None, **kwargs) -> dict:
     """
-    Ingests a single v1.0 security event.
+    Ingests a single v1.0 / v1.1 security event.
     Guarantees idempotency via event_id and normalizes into entity tables.
     """
-    event_id = data.get('event_id')
-    raw_event_type = data.get('event_type')
-
-    if not event_id or not raw_event_type:
-        raise ValueError("event_id and event_type are required fields")
-
-    # Normalize canonical dot-notation or custom names to standard upper-case
-    event_type = EVENT_TYPE_MAP.get(str(raw_event_type).lower(), str(raw_event_type).upper())
-
-    occurred_at = data.get('occurred_at') or datetime.now(timezone.utc).isoformat()
-    source_system = data.get('source_system') or (target.get('name') if target else 'shieldbank-testbed')
-    user_id_pub = data.get('user_id') or data.get('user_id_pub')
-    account_id_pub = data.get('account_id') or data.get('account_id_pub')
-    session_id_pub = data.get('session_id') or data.get('session_id_pub')
-    device_id_pub = data.get('device_id') or data.get('device_id_pub')
-    source_ip = data.get('source_ip')
-    endpoint = data.get('endpoint')
-    result = data.get('result', 'SUCCESS')
-    currency = data.get('currency', 'ETB')
-    beneficiary_id_pub = data.get('beneficiary_id') or data.get('beneficiary_id_pub')
-    transaction_id_pub = data.get('transaction_id') or data.get('transaction_id_pub')
-    attributes = data.get('attributes') or {}
-    lab_scenario = attributes.get('lab_scenario_id')
-
-    # Compute amount minor / major (checks top-level and attributes)
-    amount_minor = data.get('amount_minor')
-    amount_major = data.get('amount')
-    if amount_major is None and isinstance(attributes, dict) and 'amount' in attributes:
-        amount_major = attributes.get('amount')
-
-    if amount_minor is None and amount_major is not None:
-        try:
-            amount_minor = int(round(float(amount_major) * 100))
-        except (ValueError, TypeError):
-            amount_minor = None
-    elif amount_minor is not None and amount_major is None:
-        amount_major = float(amount_minor) / 100.0
+    from app.schemas.event_contract import validate_and_normalize_event
+    from app.services.tenant_service import get_current_organization_id
 
     sb = get_service_supabase()
-    from app.services.tenant_service import get_current_organization_id
     org_id = (target.get('organization_id') if target else None) or data.get('organization_id') or get_current_organization_id()
     target_id = (target.get('id') if target else None) or target_system_id or data.get('target_system_id')
+
+    # Prepare payload with target fallback for source_system
+    payload = dict(data)
+    if not payload.get('source_system') and target:
+        payload['source_system'] = target.get('name')
+
+    is_valid, norm_event, errors = validate_and_normalize_event(payload, default_org_id=org_id)
+    if not is_valid:
+        raise ValueError(f"Schema validation error: {'; '.join(errors)}")
+
+    event_id = norm_event['event_id']
+    raw_event_type = norm_event['event_type']
+    event_type = EVENT_TYPE_MAP.get(str(raw_event_type).lower(), str(raw_event_type).upper())
+    occurred_at = norm_event['occurred_at']
+    source_system = norm_event['source_system']
+    user_id_pub = norm_event['user_id_pub']
+    account_id_pub = norm_event['account_id_pub']
+    session_id_pub = norm_event['session_id_pub']
+    device_id_pub = norm_event['device_id_pub']
+    source_ip = norm_event['source_ip']
+    endpoint = norm_event['endpoint']
+    result = norm_event['result']
+    currency = norm_event['currency']
+    beneficiary_id_pub = norm_event['beneficiary_id_pub']
+    transaction_id_pub = norm_event['transaction_id_pub']
+    amount_minor = norm_event['amount_minor']
+    amount_major = norm_event['amount']
+    channel = norm_event['channel']
+    payment_rail = norm_event['payment_rail']
+    counterparty_ref_hash = norm_event['counterparty_ref_hash']
+    device_fingerprint = norm_event['device_fingerprint']
+    msisdn_hash = norm_event['msisdn_hash']
+    agent_id = norm_event['agent_id']
+    national_id_hash = norm_event['national_id_hash']
+    locale_tz = norm_event['locale_tz']
+    attributes = norm_event['attributes']
+    lab_scenario = attributes.get('lab_scenario_id')
 
     canonical_event = {
         'event_id': event_id,
@@ -101,7 +102,7 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
         'attributes': attributes,
     }
     extended_fields = {
-        'seq': data.get('seq'),
+        'seq': norm_event.get('seq'),
         'user_id_pub': user_id_pub,
         'account_id_pub': account_id_pub,
         'session_id_pub': session_id_pub,
@@ -110,6 +111,14 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
         'currency': currency,
         'beneficiary_id_pub': beneficiary_id_pub,
         'transaction_id_pub': transaction_id_pub,
+        'channel': channel,
+        'payment_rail': payment_rail,
+        'counterparty_ref_hash': counterparty_ref_hash,
+        'device_fingerprint': device_fingerprint,
+        'msisdn_hash': msisdn_hash,
+        'agent_id': agent_id,
+        'national_id_hash': national_id_hash,
+        'locale_tz': locale_tz,
         'delivery_status': 'DELIVERED',
         'raw_payload': data,
     }
@@ -221,9 +230,12 @@ def ingest_batch(events_list: list, target: dict = None) -> int:
 
 
 def query_events(event_type: str = None, target_id: str = None, account: str = None,
-                 user_id: str = None, source_ip: str = None, limit: int = 50) -> list:
+                 user_id: str = None, source_ip: str = None, channel: str = None,
+                 payment_rail: str = None, limit: int = 50) -> list:
     """
     Retrieves recent security events matching the given criteria.
+    Supports filtering by event_type, target_system_id, account, user_id, source_ip,
+    channel, payment_rail, and limit.
     """
     sb = get_service_supabase()
     from app.services.tenant_service import get_current_organization_id
@@ -246,7 +258,42 @@ def query_events(event_type: str = None, target_id: str = None, account: str = N
         query = query.eq('user_id_pub', user_id)
     if source_ip:
         query = query.eq('source_ip', source_ip)
+    if channel:
+        query = query.eq('channel', channel)
+    if payment_rail:
+        query = query.eq('payment_rail', payment_rail)
 
     max_limit = min(max(1, limit), 500)
-    res = query.order('occurred_at', desc=True).limit(max_limit).execute()
-    return res.data or []
+    events = []
+    try:
+        res = query.order('occurred_at', desc=True).limit(max_limit).execute()
+        events = res.data or []
+    except Exception as e:
+        logger.debug(f"Database query error in query_events, falling back: {e}")
+
+    # If database returned no records or errored, evaluate sliding buffer fallback
+    if not events:
+        matched = []
+        for ev in _RECENT_EVENTS_BUFFER:
+            if org_id and ev.get('organization_id') and str(ev.get('organization_id')) != str(org_id):
+                continue
+            if event_type and ev.get('event_type') != event_type and ev.get('raw_event_type') != event_type:
+                continue
+            if target_id and ev.get('target_system_id') != target_id:
+                continue
+            if account and ev.get('account_id_pub') != account and ev.get('account_id') != account:
+                continue
+            if user_id and ev.get('user_id_pub') != user_id and ev.get('user_id') != user_id:
+                continue
+            if source_ip and ev.get('source_ip') != source_ip:
+                continue
+            if channel and ev.get('channel') != channel:
+                continue
+            if payment_rail and ev.get('payment_rail') != payment_rail:
+                continue
+            matched.append(ev)
+            if len(matched) >= max_limit:
+                break
+        return matched
+
+    return events

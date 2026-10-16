@@ -93,6 +93,12 @@ CREATE TABLE IF NOT EXISTS security_events (
     transaction_id_pub VARCHAR(100),
     channel VARCHAR(50) DEFAULT 'web',
     payment_rail VARCHAR(50),
+    counterparty_ref_hash VARCHAR(64),
+    device_fingerprint VARCHAR(128),
+    msisdn_hash VARCHAR(64),
+    agent_id VARCHAR(100),
+    national_id_hash VARCHAR(64),
+    locale_tz VARCHAR(64) DEFAULT 'Africa/Addis_Ababa',
     delivery_status VARCHAR(50) DEFAULT 'DELIVERED',
     attributes JSONB NOT NULL DEFAULT '{}',
     raw_payload JSONB,
@@ -104,6 +110,10 @@ CREATE INDEX IF NOT EXISTS idx_security_events_type_time ON security_events(orga
 CREATE INDEX IF NOT EXISTS idx_security_events_source_ip ON security_events(organization_id, source_ip);
 CREATE INDEX IF NOT EXISTS idx_security_events_account ON security_events(organization_id, account_id_pub);
 CREATE INDEX IF NOT EXISTS idx_security_events_device ON security_events(organization_id, device_id_pub);
+CREATE INDEX IF NOT EXISTS idx_security_events_channel ON security_events(organization_id, channel);
+CREATE INDEX IF NOT EXISTS idx_security_events_msisdn ON security_events(organization_id, msisdn_hash);
+CREATE INDEX IF NOT EXISTS idx_security_events_counterparty ON security_events(organization_id, counterparty_ref_hash);
+CREATE INDEX IF NOT EXISTS idx_security_events_device_fp ON security_events(organization_id, device_fingerprint);
 
 -- =========================================================================
 -- 5. INCIDENTS (Statutory Readiness)

@@ -20,10 +20,46 @@ export interface CanonicalEvent {
   currency?: string;
   beneficiary_id_pub?: string;
   transaction_id_pub?: string;
-  channel?: 'web' | 'mobile' | 'ussd' | 'api' | 'branch';
-  payment_rail?: 'p2p' | 'card' | 'wallet' | 'bill_pay' | 'interbank';
+  channel?: 'web' | 'mobile' | 'ussd' | 'api' | 'agent' | 'branch' | 'atm' | 'pos' | 'system';
+  payment_rail?: 'p2p' | 'card' | 'wallet' | 'bill_pay' | 'interbank' | 'rtgs' | 'ach';
+  counterparty_ref_hash?: string;
+  device_fingerprint?: string;
+  msisdn_hash?: string;
+  agent_id?: string;
+  national_id_hash?: string;
+  locale_tz?: string;
   attributes?: Record<string, any>;
 }
+
+export function hashIdentifier(value?: string, salt?: string): string | undefined {
+  if (!value) return undefined;
+  const val = value.trim();
+  if (!val) return undefined;
+  const toHash = salt ? `${salt}:${val}` : val;
+  return crypto.createHash('sha256').update(toHash, 'utf-8').digest('hex');
+}
+
+export function hashPhone(phone: string, salt?: string): string | undefined {
+  if (!phone) return undefined;
+  let digits = phone.replace(/[^0-9+]/g, '').trim();
+  if (digits.startsWith('09') && digits.length === 10) {
+    digits = '+251' + digits.slice(1);
+  } else if (digits.startsWith('9') && digits.length === 9) {
+    digits = '+251' + digits;
+  } else if (digits.startsWith('251') && digits.length === 12) {
+    digits = '+' + digits;
+  }
+  return hashIdentifier(digits, salt);
+}
+
+export function hashNationalId(id: string, salt?: string): string | undefined {
+  return hashIdentifier(id, salt);
+}
+
+export function hashCounterparty(accountRef: string, salt?: string): string | undefined {
+  return hashIdentifier(accountRef, salt);
+}
+
 
 export interface ECSClientOptions {
   ecsUrl: string;
