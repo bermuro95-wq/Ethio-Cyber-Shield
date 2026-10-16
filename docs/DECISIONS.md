@@ -179,4 +179,21 @@
   - Route messages that exceed retry limits (`max_retries=3`) to dead-letter queues (`ecs:dlq:{org_id}`).
   - Maintain automatic fallback to thread-safe bounded in-memory sliding structures when Redis is temporarily offline or in single-process test runs, preventing application crashes.
 
+---
+
+## ADR-014: Identity, Multi-Tenant RBAC, TOTP MFA, and Scoped API Tokens
+
+* **Context**: Secure access to ECS requires multi-factor authentication, granular role separation across security operations personas, token revocation, and scoped tokens for automated connectors.
+* **Decision**:
+  - Implement RFC 6238 Time-based One-Time Password (TOTP) MFA via `pyotp` with encrypted secret storage (`mfa_secret`).
+  - Expand RBAC roles to five distinct tiers:
+    - `admin`: Platform settings, user lifecycle, connector credentials, rules management.
+    - `analyst`: Alert triage, incident promotion, indicator linkage, rule tuning.
+    - `responder`: Containment actions, rollback, execution approvals.
+    - `auditor`: Read-only access to hash-sealed logs, statutory reports, and evidence packages.
+    - `viewer`: Read-only operational dashboard and telemetry monitoring.
+  - Implement immediate token revocation / session blacklisting on logout and credential reset.
+  - Implement Scoped API Tokens (`ecs_pat_...`) hashed with SHA-256 for non-interactive service-to-service connectors (`ingest:events`, `read:alerts`, `read:incidents`).
+
+
 

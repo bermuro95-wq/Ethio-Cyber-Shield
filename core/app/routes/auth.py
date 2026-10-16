@@ -1,11 +1,20 @@
 from flask import Blueprint, request, jsonify, g
+import jwt
+import logging
+from datetime import datetime, timezone, timedelta
+from app.config import Config
 from app.services.auth_service import (
     authenticate_user, create_token, login_required, role_required,
-    create_user, get_current_user
+    create_user, get_current_user, revoke_token,
+    generate_totp_secret, get_totp_uri, verify_totp_code,
+    create_scoped_api_token, verify_scoped_api_token, revoke_api_token,
+    VALID_ROLES, _USER_MFA_SECRETS
 )
+from app.services.crypto_service import encrypt_secret, decrypt_secret
 from app.services.audit_service import log_action
 from app.services.db import get_service_supabase
 
+logger = logging.getLogger(__name__)
 auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/login', methods=['POST'])
@@ -22,6 +31,22 @@ def login():
         log_action(None, 'login_failed', details={'email': email})
         return jsonify({'error': 'Invalid credentials'}), 401
 
+    # Check if MFA is required for this user
+    if user.get('mfa_enabled'):
+        challenge_token = jwt.encode({
+            'sub': user['id'],
+            'email': user['email'],
+            'role': user['role'],
+            'organization_id': user.get('organization_id'),
+            'mfa_pending': True,
+            'exp': datetime.now(timezone.utc) + timedelta(minutes=5)
+        }, Config.JWT_SECRET, algorithm='HS256')
+        return jsonify({
+            'mfa_required': True,
+            'mfa_token': challenge_token,
+            'message': 'Two-factor authentication code required'
+        })
+
     token = create_token(user['id'], user['email'], user['role'], user.get('organization_id'))
     log_action(user['id'], 'login_success', details={'email': email})
 
@@ -36,9 +61,95 @@ def login():
         }
     })
 
+@auth_bp.route('/mfa/verify', methods=['POST'])
+def verify_mfa_login():
+    """Validates 6-digit TOTP challenge during login and issues full JWT token."""
+    data = request.get_json() or {}
+    mfa_token = data.get('mfa_token')
+    code = data.get('code')
+
+    if not mfa_token or not code:
+        return jsonify({'error': 'mfa_token and code are required'}), 400
+
+    try:
+        payload = jwt.decode(mfa_token, Config.JWT_SECRET, algorithms=['HS256'])
+        if not payload.get('mfa_pending'):
+            return jsonify({'error': 'Invalid challenge token'}), 400
+    except Exception:
+        return jsonify({'error': 'Challenge expired or invalid'}), 401
+
+    sb = get_service_supabase()
+    res = sb.table('users').select('*').eq('id', payload['sub']).execute()
+    if not res.data:
+        return jsonify({'error': 'User not found'}), 404
+
+    user = res.data[0]
+    secret = user.get('mfa_secret')
+    if secret and secret.startswith('enc:'):
+        secret = decrypt_secret(secret)
+
+    if not verify_totp_code(secret, code):
+        return jsonify({'error': 'Invalid authentication code'}), 401
+
+    full_token = create_token(user['id'], user['email'], user['role'], user.get('organization_id'))
+    log_action(user['id'], 'mfa_login_success', details={'email': user['email']})
+    return jsonify({
+        'token': full_token,
+        'user': {
+            'id': user['id'],
+            'email': user['email'],
+            'full_name': user['full_name'],
+            'role': user['role'],
+            'organization_id': user.get('organization_id')
+        }
+    })
+
+@auth_bp.route('/mfa/setup', methods=['POST'])
+@login_required
+def setup_mfa():
+    """Generates a new TOTP secret and provisioning URI for the authenticated user."""
+    secret = generate_totp_secret()
+    uri = get_totp_uri(secret, g.user['email'])
+    return jsonify({
+        'secret': secret,
+        'uri': uri,
+        'issuer': 'Ethio-Cyber-Shield'
+    })
+
+@auth_bp.route('/mfa/enable', methods=['POST'])
+@login_required
+def enable_mfa():
+    """Verifies initial code and saves encrypted TOTP secret to user profile."""
+    data = request.get_json() or {}
+    secret = data.get('secret')
+    code = data.get('code')
+
+    if not secret or not code:
+        return jsonify({'error': 'secret and code are required'}), 400
+
+    if not verify_totp_code(secret, code):
+        return jsonify({'error': 'Verification failed: invalid code'}), 400
+
+    encrypted = encrypt_secret(secret)
+    _USER_MFA_SECRETS[str(g.user['id'])] = encrypted
+    sb = get_service_supabase()
+    try:
+        sb.table('users').update({
+            'mfa_enabled': True,
+            'mfa_secret': encrypted
+        }).eq('id', g.user['id']).execute()
+    except Exception as e:
+        logger.debug(f"MFA profile save fallback: {e}")
+
+    log_action(g.user['id'], 'mfa_enabled')
+    return jsonify({'message': 'MFA successfully enabled'})
+
 @auth_bp.route('/logout', methods=['POST'])
 @login_required
 def logout():
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        revoke_token(auth_header[7:].strip())
     log_action(g.user['id'], 'logout')
     return jsonify({'message': 'Logged out successfully'})
 
@@ -64,8 +175,8 @@ def create_new_user():
         return jsonify({'error': 'email, password and full_name are required'}), 400
     if len(password) < 8:
         return jsonify({'error': 'Password must be at least 8 characters'}), 400
-    if role not in ('admin', 'analyst', 'viewer'):
-        return jsonify({'error': 'Invalid role'}), 400
+    if role not in VALID_ROLES:
+        return jsonify({'error': f'Invalid role. Allowed: {VALID_ROLES}'}), 400
 
     user = create_user(email, password, full_name, role)
     if not user:
@@ -83,8 +194,78 @@ def create_new_user():
 @role_required('admin', 'analyst')
 def list_users():
     sb = get_service_supabase()
-    res = sb.table('users').select('id, email, full_name, role, is_active, created_at').order('created_at', desc=True).execute()
-    return jsonify(res.data or [])
+    org_id = g.user.get('organization_id')
+    query = sb.table('users').select('id, email, full_name, role, is_active, created_at, organization_id')
+    try:
+        if org_id:
+            res = query.eq('organization_id', org_id).order('created_at', desc=True).execute()
+        else:
+            res = query.order('created_at', desc=True).execute()
+    except Exception:
+        res = sb.table('users').select('id, email, full_name, role, is_active, created_at').order('created_at', desc=True).execute()
+    users = res.data or []
+    if org_id:
+        users = [u for u in users if not u.get('organization_id') or str(u.get('organization_id')) == str(org_id)]
+    return jsonify(users)
+
+@auth_bp.route('/api-tokens', methods=['POST'])
+@role_required('admin')
+def create_api_token_endpoint():
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    scopes = data.get('scopes') or ['ingest:events']
+    expires_days = int(data.get('expires_days', 90))
+
+    if not name:
+        return jsonify({'error': 'name is required'}), 400
+
+    token_info = create_scoped_api_token(
+        name=name,
+        organization_id=g.user.get('organization_id'),
+        scopes=scopes,
+        expires_days=expires_days
+    )
+    log_action(g.user['id'], 'api_token_created', 'api_token', token_info['token_id'], {'name': name, 'scopes': scopes})
+    return jsonify(token_info), 201
+
+@auth_bp.route('/api-tokens', methods=['GET'])
+@role_required('admin')
+def list_api_tokens_endpoint():
+    from app.services.auth_service import _API_TOKENS
+    org_id = g.user.get('organization_id')
+    sb = get_service_supabase()
+    tokens = []
+    try:
+        q = sb.table('api_tokens').select('id, name, scopes, created_at, expires_at, revoked, organization_id')
+        if org_id:
+            q = q.eq('organization_id', org_id)
+        res = q.order('created_at', desc=True).execute()
+        tokens = res.data or []
+    except Exception:
+        pass
+
+    if not tokens:
+        tokens = [
+            {
+                'id': rec['id'],
+                'name': rec['name'],
+                'scopes': rec['scopes'],
+                'created_at': rec['created_at'],
+                'expires_at': rec['expires_at'],
+                'revoked': rec.get('revoked', False),
+                'organization_id': rec['organization_id']
+            }
+            for rec in _API_TOKENS.values()
+            if not org_id or str(rec.get('organization_id')) == str(org_id)
+        ]
+    return jsonify(tokens)
+
+@auth_bp.route('/api-tokens/<token_id>', methods=['DELETE'])
+@role_required('admin')
+def revoke_api_token_endpoint(token_id):
+    revoke_api_token(token_id, g.user.get('organization_id'))
+    log_action(g.user['id'], 'api_token_revoked', 'api_token', token_id)
+    return jsonify({'message': 'API token revoked successfully'})
 
 
 @auth_bp.route('/forgot-password', methods=['POST'])
