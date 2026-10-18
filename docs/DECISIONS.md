@@ -304,6 +304,24 @@
   - Provide canonical event enrichment pipeline hook (`enrich_canonical_event`) injecting structured `geo`, `asn`, `threat_intel`, and `device` context into event attributes without altering raw payloads.
   - Expose REST API endpoints `GET /api/enrichment/ip/<ip>`, `GET /api/enrichment/device/<device_id>`, and `POST /api/enrichment/event`.
 
+---
+
+## ADR-022: Unified Entity Graph, Linkage Model, and Transitive Fraud Detection
+
+* **Context**:
+  - Complex cyber attacks and fraud schemes in Ethiopian digital banking (e.g., credential stuffing, automated account takeover, and pass-through money mule syndicates) span multiple interconnected entities: accounts, devices, IP addresses, session tokens, beneficiaries, and hashed identity attributes.
+  - Storing telemetry solely in isolated tabular logs impedes multi-hop relational investigation and delays incident containment.
+  - Multi-tenancy and data protection regulations (PDPP 1321/2024, NBE Directives) require strict organizational data boundaries and privacy-preserving hashing for all personal identifiers.
+* **Decision**:
+  - Add `entities` and `entity_links` relational schema to PostgreSQL (`deploy/postgres/init.sql`) with mandatory `organization_id UUID NOT NULL` scoping and composite uniqueness constraints.
+  - Automatically extract and upsert participating entity nodes and semantic relationships (`used_device`, `connected_from_ip`, `transferred_to`, `active_session`, `registered_phone`, `verified_identity`) upon every event ingested via `app.services.event_service.ingest_event`.
+  - Track `first_seen_at`, `last_seen_at`, `event_count`, and `link_count` counters continuously to power behavioral baselines.
+  - Implement breadth-first graph traversal (`get_entity_graph`) producing Cytoscape/Vis.js compatible node and edge structures up to exploration depth 2.
+  - Implement shared entity detection (`find_shared_entities`) uncovering multi-account device usage (credential stuffing) and multi-sender beneficiary accumulation (mule account rings).
+  - Implement transitive risk synthesis (`calculate_graph_risk`) propagating risk scores and explanatory rationales across adjacent graph connections.
+  - Expose REST API endpoints `GET /api/entities/<type>/<value>`, `/links`, `/graph`, `/shared`, `/risk`, and `POST /tag`.
+
+
 
 
 

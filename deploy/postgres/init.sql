@@ -201,6 +201,51 @@ CREATE TABLE IF NOT EXISTS indicators (
 CREATE INDEX IF NOT EXISTS idx_indicators_org_type_val ON indicators(organization_id, indicator_type, value);
 
 -- =========================================================================
+-- 6b. UNIFIED ENTITY GRAPH & LINKAGE MODEL
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS entities (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    entity_type VARCHAR(50) NOT NULL CHECK (entity_type IN ('account', 'device', 'ip', 'session', 'beneficiary', 'phone_hash', 'national_id_hash')),
+    entity_value TEXT NOT NULL,
+    first_seen_at TIMESTAMPTZ DEFAULT NOW(),
+    last_seen_at TIMESTAMPTZ DEFAULT NOW(),
+    event_count BIGINT DEFAULT 1,
+    risk_score INTEGER DEFAULT 0,
+    risk_level VARCHAR(50) DEFAULT 'low' CHECK (risk_level IN ('low', 'medium', 'high', 'critical')),
+    tags TEXT[] DEFAULT '{}',
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id, entity_type, entity_value)
+);
+
+CREATE INDEX IF NOT EXISTS idx_entities_org_lookup ON entities(organization_id, entity_type, entity_value);
+CREATE INDEX IF NOT EXISTS idx_entities_org_risk ON entities(organization_id, risk_score DESC);
+CREATE INDEX IF NOT EXISTS idx_entities_last_seen ON entities(organization_id, last_seen_at DESC);
+
+CREATE TABLE IF NOT EXISTS entity_links (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    source_type VARCHAR(50) NOT NULL,
+    source_value TEXT NOT NULL,
+    target_type VARCHAR(50) NOT NULL,
+    target_value TEXT NOT NULL,
+    link_type VARCHAR(50) NOT NULL,
+    first_linked_at TIMESTAMPTZ DEFAULT NOW(),
+    last_linked_at TIMESTAMPTZ DEFAULT NOW(),
+    link_count BIGINT DEFAULT 1,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id, source_type, source_value, target_type, target_value, link_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_entity_links_source ON entity_links(organization_id, source_type, source_value);
+CREATE INDEX IF NOT EXISTS idx_entity_links_target ON entity_links(organization_id, target_type, target_value);
+CREATE INDEX IF NOT EXISTS idx_entity_links_type ON entity_links(organization_id, link_type);
+
+-- =========================================================================
 -- 7. TRANSACTIONS
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS transactions (

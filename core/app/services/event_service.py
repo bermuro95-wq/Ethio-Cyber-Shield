@@ -196,6 +196,13 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
     except Exception as e_stream:
         logger.debug(f"Stream enqueue/index warning: {e_stream}")
 
+    # 4b. Unified Entity Graph update (Phase 2.6)
+    try:
+        from app.services.entity_graph_service import record_event_entities
+        record_event_entities(buffered_item)
+    except Exception as e_graph:
+        logger.debug(f"Entity graph update warning: {e_graph}")
+
     # 5. Multi-Layer Detection & Explainable Risk Engine evaluation (SRS §9, §21)
     detection_result = None
     try:
