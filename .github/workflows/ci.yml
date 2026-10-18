@@ -50,11 +50,13 @@ jobs:
       run: |
         bandit -r core/app -ll -ii --exclude core/venv || true
 
-    - name: Run Test Suite (Parts 1-10 & Isolation)
+    - name: Run Test Suite (Parts 1-12 & Isolation)
       env:
         REDIS_URL: redis://localhost:6379/0
         JWT_SECRET: ci-test-secret-key-32-chars-long-2026
         ECS_MASTER_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+        PYTHONPATH: ..
       run: |
         cd core
         python -m unittest discover tests
+

@@ -140,3 +140,7 @@ export class ECSClient {
     }
   }
 }
+
+export * from './outbox';
+export * from './middleware';
+

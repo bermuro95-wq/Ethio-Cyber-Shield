@@ -185,6 +185,10 @@ def validate_and_normalize_event(raw_data: Dict[str, Any], default_org_id: Optio
 
     # 5. Result Normalization
     result = str(data.get('result') or 'SUCCESS').upper().strip()
+    if result == 'FAILED':
+        result = 'FAILURE'
+    elif result in ('SUCCESSFUL', 'SUCCEEDED', 'OK'):
+        result = 'SUCCESS'
     if result not in ALLOWED_RESULTS:
         errors.append(f"Invalid result '{result}'. Allowed values: {sorted(list(ALLOWED_RESULTS))}")
 

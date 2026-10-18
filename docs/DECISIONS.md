@@ -236,6 +236,29 @@
   - Expose runtime contract inspection via `GET /api/events/contract`.
   - Equip client SDKs (Python, Node/TypeScript) with client-side hashing helpers (`hash_phone`, `hash_national_id`, `hash_counterparty`) so operators can enforce data privacy before network egress.
 
+---
+
+## ADR-018: Official Client SDKs with Transactional Outbox Pattern and Framework Middleware
+
+* **Context**:
+  - Financial, telecom, and critical infrastructure target systems (banks, MFIs, PSOs, USSD switches) must stream security and fraud telemetry into ECS without risking transaction latency, thread pool starvation, or event loss during network partitions or ECS maintenance.
+  - Telemetry generation must be safe, asynchronous, and reliable across various languages used by Ethiopian operators (Python, Node/TypeScript, PHP/Laravel).
+* **Decision**:
+  - Implement the **Transactional Outbox Pattern** across all client SDKs (`sdk/python/outbox.py`, `sdk/node/outbox.ts`, `sdk/php/src/TransactionalOutbox.php`).
+  - Use thread-safe SQLite in WAL mode as the default persistent zero-dependency storage engine for Python and PHP outboxes, and in-memory/pluggable engine for Node.js.
+  - Implement progressive exponential backoff retry:
+    $T_{\text{backoff}} = \min(T_{\text{max}}, T_{\text{initial}} \times 2^{\text{attempts}-1})$, capped at 300 seconds, with up to 8 delivery attempts.
+  - Automatically escalate unresolvable events to `DEAD_LETTER` status after exceeding maximum attempts to alert SOC engineers without dropping the event payload.
+  - Generate fresh cryptographic HMAC-SHA256 signatures, timestamps, and UUID nonces on every outbox flush attempt to prevent replay rejection.
+  - Provide plug-and-play middleware for mainstream frameworks:
+    - Flask (`ECSFlaskMiddleware`)
+    - FastAPI / Starlette (`ECSFastAPIMiddleware`)
+    - Django (`ECSDjangoMiddleware`)
+    - Express.js (`ecsExpressMiddleware`)
+    - Laravel (`ECSMiddleware`)
+  - Enforce client-side PII scrubbing in SDK event builders (`hash_phone`, `hash_national_id`, `hash_counterparty`) to prevent raw personal identifiers from crossing network boundaries.
+
+
 
 
 
