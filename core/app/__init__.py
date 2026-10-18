@@ -45,6 +45,7 @@ def create_app():
     from app.routes.targets import targets_bp
     from app.routes.webhooks import webhooks_bp
     from app.routes.log_agent import log_agent_bp
+    from app.routes.enrichment import enrichment_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(incidents_bp, url_prefix='/api/incidents')
@@ -62,6 +63,7 @@ def create_app():
     app.register_blueprint(targets_bp, url_prefix='/api/targets')
     app.register_blueprint(webhooks_bp, url_prefix='/api/webhooks')
     app.register_blueprint(log_agent_bp, url_prefix='/api/log-agent')
+    app.register_blueprint(enrichment_bp, url_prefix='/api/enrichment')
 
     @app.route('/api/health')
     def health():

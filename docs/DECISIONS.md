@@ -290,6 +290,21 @@
   - Provide an interactive parsing and preview endpoint `POST /api/log-agent/parse` allowing SOC analysts to test-run log parsing on sample lines before deploying collectors.
   - Provide standalone CLI daemon `connectors/log_agent/cli.py` for headless node deployment with HMAC-SHA256 authenticated delivery to the ECS Ingestion Gateway.
 
+---
+
+## ADR-021: Offline-First GeoIP/ASN Network Registry, Threat Intel Caching, and Behavioral Device Reputation Engine
+
+* **Context**:
+  - Ethiopian critical infrastructure operators (banks, telecom providers, government gateways, payment switches) often operate in low-bandwidth, air-gapped, or strictly partitioned internal environments where external cloud GeoIP or Threat Intelligence (TI) lookups are prohibited, unreliable, or risk leaking customer transaction IPs.
+  - Security analysts require instantaneous classification of domestic networks (Ethio Telecom AS24757, Safaricom Ethiopia AS329340, EthERNet AS37108), datacenter/cloud hosting indicators (AWS, DigitalOcean, Hetzner, GCP, Azure), Tor exit nodes, and device risk scoring without external network dependencies.
+* **Decision**:
+  - Implement a zero-dependency offline CIDR network registry in `app.services.enrichment_service` pre-seeded with Ethiopian ISP CIDRs, RFC1918 private subnets, and major hosting and anonymizer networks.
+  - Maintain an in-memory Threat Intelligence (TI) indicator cache layer providing sub-millisecond evaluation with severity, confidence, and categorization flags.
+  - Implement an explainable, multi-tenant-isolated device reputation scoring engine (`calculate_device_reputation`) evaluating 24-hour behavioral baselines: multi-account access frequency (credential stuffing / mule indicator), authentication failure rates, and incident correlation.
+  - Provide canonical event enrichment pipeline hook (`enrich_canonical_event`) injecting structured `geo`, `asn`, `threat_intel`, and `device` context into event attributes without altering raw payloads.
+  - Expose REST API endpoints `GET /api/enrichment/ip/<ip>`, `GET /api/enrichment/device/<device_id>`, and `POST /api/enrichment/event`.
+
+
 
 
 
