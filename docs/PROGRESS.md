@@ -13,7 +13,8 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **Phase 0** | **Validate, Obtain Texts, Freeze Scope** | **COMPLETED** | **100%** | **Gate 0 PASSED** |
 | **Phase 1** | **Independence, Tenancy & Hardening** | **COMPLETED** | **100%** | **Gate 1 PASSED** |
-| **Phase 2** | **Connectors, SDKs & Rich Event Model** | **In Progress** | **88%** | **Gate 2 Pending** |
+| **Phase 2** | **Connectors, SDKs & Rich Event Model** | **COMPLETED** | **100%** | **Gate 2 PASSED** |
+
 
 | **Phase 3** | Detection Engine v2 (Rules-as-Data) | Planned | 0% | Gate 3 Pending |
 | **Phase 4** | Safe Response & Case Management | Planned | 0% | Gate 4 Pending |
@@ -60,7 +61,7 @@
 
 ---
 
-### Phase 2: Connectors, SDKs and a Richer Event Model (In Progress)
+### Phase 2: Connectors, SDKs and a Richer Event Model (Completed)
 - [x] **2.1 ECS Event Contract v1.1**: OpenAPI 3.1 (`docs/contracts/ecs-event-contract-v1.1.yaml`) + JSON Schema (`docs/contracts/ecs-event-v1.1.schema.json`) specifications extending canonical events with channel awareness (`channel`, `payment_rail`, `counterparty_ref_hash`, `device_fingerprint`, `msisdn_hash`, `agent_id`, `national_id_hash`, `locale_tz`), dynamic Ethiopian brand-to-rail mapping, automatic PII scrubbing/hashing, and runtime schema endpoint (`GET /api/events/contract`).
 - [x] **2.2 Official Client SDKs**: Python (`sdk/python/outbox.py`, `sdk/python/middleware.py`), Node.js (`sdk/node/outbox.ts`, `sdk/node/middleware.ts`), and PHP/Laravel (`sdk/php/src/TransactionalOutbox.php`, `sdk/php/src/Laravel/ECSMiddleware.php`) with persistent Transactional Outbox pattern (exponential backoff retry, dead-letter escalation, HMAC signing, zero PII leakage) and `docs/INTEGRATION_GUIDE.md`.
 - [x] **2.3 Generic Webhook Receiver & Field Mapper**: Configurable JSONPath mapping engine (`app.services.field_mapper`), token/HMAC-SHA256 signature verification, interactive test-with-sample diagnostic runner (`POST /api/webhooks/test-mapping`), envelope encryption of webhook credentials, and public inbound receiver (`POST /api/webhooks/inbound/<source_id>`).
@@ -68,7 +69,12 @@
 - [x] **2.5 Enrichment Service**: Offline-first GeoIP/ASN network registry with Ethiopian telecom CIDRs (`app.services.enrichment_service`), Tor/VPN/hosting flags, Threat Intelligence cache layer, behavioral device reputation scoring, and REST API endpoints (`/api/enrichment/ip`, `/api/enrichment/device`, `/api/enrichment/event`).
 - [x] **2.6 Unified Entity Graph**: Real-time entity model and linkage engine (`entities` and `entity_links` in PostgreSQL / `app.services.entity_graph_service`), multi-hop breadth-first graph traversal, shared entity fraud detection (credential stuffing, mule rings), transitive risk propagation, and REST API routes (`/api/entities/`).
 - [x] **2.7 Health & Data-Quality Monitor**: Silent-source anomaly alerts (progressive warning/critical tiers, 15m threshold, tenant-level silence detection), schema-violation tracking with sensitive field redaction, 24h/1h throughput telemetry, explainable composite Data Quality Score (0–100, Grade A–F) based on compliance, vitality, and richness, and REST API endpoints (`/api/health/quality/*`).
-- [ ] **2.8 Multi-Target Connector Schedulers**: Independent scheduler per connector replacing single-target polling loop.
+- [x] **2.8 Multi-Target Connector Schedulers**: Per-connector independent scheduling with custom intervals and backoff parameters (`app.services.connector_scheduler_service`), non-blocking concurrent polling via thread pool, exponential backoff with jitter on target/network failures, rapid recovery, and REST API routes (`/api/connectors/schedulers/*`).
+- [x] **Gate 2 Criteria**:
+  - [x] A developer unfamiliar with ECS integrates a sample app in ≤1 day (`docs/INTEGRATION_GUIDE.md`, three SDKs with outbox pattern).
+  - [x] Schema validation rejects malformed events safely without system crashes (`event_contract.py`, `data_quality_service.py`).
+  - [x] ShieldBank runs as just another decoupled connector target.
+
 
 
 

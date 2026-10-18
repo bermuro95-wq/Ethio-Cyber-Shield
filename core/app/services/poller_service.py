@@ -147,13 +147,18 @@ class TargetPollerDaemon:
         self._last_health_time = 0
 
     def _run_loop(self):
-        logger.info(f"TargetPollerDaemon started (poll_interval={self.poll_interval}s, health_interval={self.health_interval}s)")
+        from app.services.connector_scheduler_service import get_connector_scheduler_manager
+        mgr = get_connector_scheduler_manager()
+        logger.info(f"TargetPollerDaemon started with per-connector schedulers (health_interval={self.health_interval}s)")
         while not self._stop_event.is_set():
             try:
-                # 1. Poll active targets for new security events
-                poll_all_active_targets()
+                # 1. Synchronize active targets with per-connector schedulers
+                mgr.sync_with_target_systems()
 
-                # 2. Check health if health interval elapsed
+                # 2. Trigger due connectors concurrently
+                mgr.trigger_all_due()
+
+                # 3. Check health if health interval elapsed
                 now = time.time()
                 if now - self._last_health_time >= self.health_interval:
                     check_and_update_all_targets_health()
@@ -162,13 +167,14 @@ class TargetPollerDaemon:
             except Exception as e:
                 logger.error(f"Error in poller daemon loop: {e}")
 
-            # Sleep in increments so stop_event is responsive
-            for _ in range(self.poll_interval * 2):
+            # Responsive sleep interval
+            for _ in range(2):
                 if self._stop_event.is_set():
                     break
                 time.sleep(0.5)
 
         logger.info("TargetPollerDaemon stopped.")
+
 
     def start(self):
         if self._thread and self._thread.is_alive():

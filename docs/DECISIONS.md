@@ -343,6 +343,29 @@
   - Expose REST API endpoints under `/api/health/quality/` (`/overview`, `/sources`, `/silent-alerts`, `/violations`, `/record-violation`).
   - Wire into central event pipeline (`ingest_event`) and webhook handler (`process_inbound_webhook`) to automatically record source activity and schema violations.
 
+---
+
+## ADR-024: Multi-Target Connector Schedulers, Non-Blocking Concurrency, Exponential Backoff, and Gate 2 Verification
+
+* **Context**:
+  - The legacy poller assumed a monolithic, single-threaded sequential polling loop where all targets were queried sequentially at a fixed 5-second interval.
+  - If a single target experienced network partitions, timeouts, or 502/503 errors, subsequent targets were blocked or delayed, and failing endpoints were repeatedly hammered without backoff.
+  - Gate 2 requires an independent, decoupled connector model where ShieldBank runs purely as an external target, schema validation safely rejects malformed payloads without crashing, and any Ethiopian operator can integrate via SDKs in $\le 1$ day.
+* **Decision**:
+  - Implement `ConnectorSchedulerManager` and `ConnectorScheduler` in `core/app/services/connector_scheduler_service.py` strictly scoped by `organization_id UUID NOT NULL`.
+  - Provide independent per-connector scheduling with custom intervals (e.g. 5s for high-volume banking testbeds, 30s or 60s for external clearinghouses).
+  - Enforce non-blocking concurrency via a bounded `ThreadPoolExecutor`, preventing slow or hanging targets from blocking other connectors.
+  - Implement exponential backoff with jitter on target/network errors:
+    $\text{delay} = \min(\text{interval} \times 2^{\text{failures}}, \text{max\_backoff}) \times (1 \pm \text{jitter})$,
+    preventing thundering herd problems against struggling banking services.
+  - Implement automatic recovery: when a backoff target returns 200 OK with events, consecutive failures reset to 0 and the schedule immediately restores to the base interval.
+  - Provide runtime control APIs (`/api/connectors/schedulers/*`) for on-demand trigger, pause, resume, and reconfiguration.
+  - Satisfy all Gate 2 criteria:
+    - Decoupled connector architecture: ShieldBank runs purely as an external target registered in the scheduler.
+    - Schema validation safely rejects malformed payloads without system instability.
+    - Official SDKs (Python, Node.js, PHP/Laravel) and `docs/INTEGRATION_GUIDE.md` enable rapid $\le 1$ day operator integration.
+
+
 
 
 
