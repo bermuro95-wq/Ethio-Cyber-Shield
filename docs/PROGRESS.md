@@ -13,7 +13,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **Phase 0** | **Validate, Obtain Texts, Freeze Scope** | **COMPLETED** | **100%** | **Gate 0 PASSED** |
 | **Phase 1** | **Independence, Tenancy & Hardening** | **COMPLETED** | **100%** | **Gate 1 PASSED** |
-| **Phase 2** | **Connectors, SDKs & Rich Event Model** | **In Progress** | **38%** | **Gate 2 Pending** |
+| **Phase 2** | **Connectors, SDKs & Rich Event Model** | **In Progress** | **50%** | **Gate 2 Pending** |
 | **Phase 3** | Detection Engine v2 (Rules-as-Data) | Planned | 0% | Gate 3 Pending |
 | **Phase 4** | Safe Response & Case Management | Planned | 0% | Gate 4 Pending |
 | **Phase 5** | Incident Readiness Engine (48h Clock) | Planned | 0% | Gate 5 Pending |
@@ -63,7 +63,7 @@
 - [x] **2.1 ECS Event Contract v1.1**: OpenAPI 3.1 (`docs/contracts/ecs-event-contract-v1.1.yaml`) + JSON Schema (`docs/contracts/ecs-event-v1.1.schema.json`) specifications extending canonical events with channel awareness (`channel`, `payment_rail`, `counterparty_ref_hash`, `device_fingerprint`, `msisdn_hash`, `agent_id`, `national_id_hash`, `locale_tz`), dynamic Ethiopian brand-to-rail mapping, automatic PII scrubbing/hashing, and runtime schema endpoint (`GET /api/events/contract`).
 - [x] **2.2 Official Client SDKs**: Python (`sdk/python/outbox.py`, `sdk/python/middleware.py`), Node.js (`sdk/node/outbox.ts`, `sdk/node/middleware.ts`), and PHP/Laravel (`sdk/php/src/TransactionalOutbox.php`, `sdk/php/src/Laravel/ECSMiddleware.php`) with persistent Transactional Outbox pattern (exponential backoff retry, dead-letter escalation, HMAC signing, zero PII leakage) and `docs/INTEGRATION_GUIDE.md`.
 - [x] **2.3 Generic Webhook Receiver & Field Mapper**: Configurable JSONPath mapping engine (`app.services.field_mapper`), token/HMAC-SHA256 signature verification, interactive test-with-sample diagnostic runner (`POST /api/webhooks/test-mapping`), envelope encryption of webhook credentials, and public inbound receiver (`POST /api/webhooks/inbound/<source_id>`).
-- [ ] **2.4 Log Agent Collector**: Lightweight access/syslog/CEF collector for Nginx/Apache.
+- [x] **2.4 Log Agent Collector**: Lightweight access/syslog/CEF collector (`connectors/log_agent/`), continuous file tailing with state checkpointing, bounded CPU/RAM guardrails, SHA-256 evidence sealing, interactive preview endpoint (`POST /api/log-agent/parse`), and standalone CLI daemon.
 - [ ] **2.5 Enrichment Service**: Offline GeoIP/ASN, Tor/VPN/hosting indicators, device-reputation cache.
 - [ ] **2.6 Unified Entity Graph**: Entity linkage (account, device, IP, session, beneficiary, phone-hash) with first/last seen.
 - [ ] **2.7 Health & Data-Quality Monitor**: Silent-source anomaly alerts and schema violation metrics.

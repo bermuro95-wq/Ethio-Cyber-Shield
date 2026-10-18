@@ -274,6 +274,23 @@
   - Implement a public inbound receiver endpoint `POST /api/webhooks/inbound/<source_id>` supporting constant-time token comparison (`hmac.compare_digest`) and raw-payload HMAC-SHA256 signature verification (`X-Signature-SHA256`).
   - Seamlessly ingest validated canonical events directly into the ECS Redis Streams queue and real-time detection engine.
 
+---
+
+## ADR-020: Lightweight Log Agent Collector Architecture, Normalization, and Bounded Resource Safeguards
+
+* **Context**:
+  - Ethiopian critical infrastructure operators (banks, telecom providers, government gateways, payment switches) operate edge web servers (Nginx, Apache), network firewalls, and appliances emitting syslog or Common Event Format (CEF) streams.
+  - High log ingestion volumes risk CPU spikes and Out-of-Memory (OOM) crashes on production edge nodes if memory queues are unbounded or multi-gigabyte log files are read in bulk.
+  - Telemetry from log streams must be normalized into canonical ECS Event Contract v1.1 events with verifiable evidentiary seals (SHA-256 digests of raw lines) and reliable offset recovery across agent restarts.
+* **Decision**:
+  - Implement zero-dependency log parsers for Nginx/Apache Combined & Common access logs, Nginx/Apache error logs, Syslog (RFC 3164 & RFC 5424), and Common Event Format (CEF) in `connectors/log_agent/parser.py`.
+  - Maintain evidentiary chain of custody by computing a SHA-256 digest (`raw_log_hash`) for each raw log line, stored directly in canonical event attributes.
+  - Implement `LogAgentCollector` in `connectors/log_agent/collector.py` with persistent byte-offset state checkpointing (`CollectorCheckpoint`), detecting file rotation and truncation automatically.
+  - Enforce strict bounded memory and CPU resource guards: configurable maximum batch size (`batch_size`) and in-memory queue depth (`max_queue_size`), preventing OOM crashes on high-load bursts and tracking `dropped_lines` metrics.
+  - Provide an interactive parsing and preview endpoint `POST /api/log-agent/parse` allowing SOC analysts to test-run log parsing on sample lines before deploying collectors.
+  - Provide standalone CLI daemon `connectors/log_agent/cli.py` for headless node deployment with HMAC-SHA256 authenticated delivery to the ECS Ingestion Gateway.
+
+
 
 
 
