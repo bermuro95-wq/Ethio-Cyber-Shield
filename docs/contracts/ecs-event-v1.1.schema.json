@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ethio-cyber-shield.org/schemas/ecs-event-v1.1.json",
+  "title": "CanonicalEventV11",
+  "description": "Ethio-Cyber-Shield (ECS) Canonical Telemetry Event Contract v1.1",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "source_system",
+    "result"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Unique identifier for idempotency."
+    },
+    "event_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Standardized event dot-notation type (e.g., auth.login.failed, transaction.transfer.created)."
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp."
+    },
+    "source_system": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Identifier of originating service or application."
+    },
+    "organization_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Tenant organization UUID."
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "web",
+        "mobile",
+        "ussd",
+        "api",
+        "agent",
+        "branch",
+        "atm",
+        "pos",
+        "system"
+      ],
+      "default": "web",
+      "description": "Delivery channel for the session or transaction."
+    },
+    "payment_rail": {
+      "type": "string",
+      "enum": [
+        "p2p",
+        "card",
+        "wallet",
+        "bill_pay",
+        "interbank",
+        "rtgs",
+        "ach"
+      ],
+      "description": "Generic payment rail classification."
+    },
+    "counterparty_ref_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash of destination beneficiary identifier."
+    },
+    "device_fingerprint": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "Client hardware/browser fingerprint."
+    },
+    "msisdn_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash of telephone number in E.164 format."
+    },
+    "agent_id": {
+      "type": "string",
+      "maxLength": 100,
+      "description": "Identifier for agent banking or teller operator."
+    },
+    "national_id_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash of citizen National ID / Fayda ID."
+    },
+    "locale_tz": {
+      "type": "string",
+      "default": "Africa/Addis_Ababa",
+      "description": "Timezone string."
+    },
+    "user_id_pub": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "account_id_pub": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "session_id_pub": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "device_id_pub": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "source_ip": {
+      "type": "string"
+    },
+    "endpoint": {
+      "type": "string",
+      "maxLength": 255
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "SUCCESS",
+        "FAILURE",
+        "DENIED",
+        "HELD",
+        "CHALLENGE_REQUIRED"
+      ],
+      "default": "SUCCESS"
+    },
+    "amount_minor": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "currency": {
+      "type": "string",
+      "maxLength": 10,
+      "default": "ETB"
+    },
+    "beneficiary_id_pub": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "transaction_id_pub": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "attributes": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,24 @@
+id: TX-003
+name: Off-Hours High-Value Transfer
+description: High-value transaction transfer initiated during off-hours (00:00 - 05:00 Addis Ababa local time).
+layer: L2
+pack: fraud_payments
+severity: high
+weight: 25
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - fraud.off_hours
+  - tz.addis_ababa
+  - anomaly.temporal
+remediation_hints: Hold transfer for daytime analyst review or customer verification.
+detection:
+  selection:
+    event_type:
+      - TRANSFER_CREATED
+      - TRANSFER_INITIATED
+    off_hours: true
+  thresholds:
+    amount_threshold_etb: 100000.0
+    start_hour_addis: 0
+    end_hour_addis: 5

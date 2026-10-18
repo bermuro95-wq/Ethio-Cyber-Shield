@@ -1,0 +1,22 @@
+id: API-001
+name: Authorization Denial Burst
+description: Repeated authorization denials or rate limiting hits within 60s from a single source.
+layer: L1
+pack: web_api
+severity: medium
+weight: 25
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - attack.t1110
+  - api.rate_limiting
+remediation_hints: Throttling source IP and audit user permissions.
+detection:
+  selection:
+    event_type:
+      - AUTHZ_DENIED
+      - RATE_LIMITED
+  window_seconds: 60
+  group_by: source_ip
+  thresholds:
+    denial_count: 4

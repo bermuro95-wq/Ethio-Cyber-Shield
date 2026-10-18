@@ -1,0 +1,21 @@
+id: AUTH-001
+name: Login Failure Burst
+description: Rapid consecutive login failures targeting a specific account within a 60-second window.
+layer: L1
+pack: fraud_payments
+severity: medium
+weight: 25
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - attack.t1110
+  - attack.credential_access
+  - nbe.auth_failure
+remediation_hints: Require step-up MFA or temporary account cooldown.
+detection:
+  selection:
+    event_type: LOGIN_FAILED
+  window_seconds: 60
+  group_by: account_id
+  thresholds:
+    burst_count: 5

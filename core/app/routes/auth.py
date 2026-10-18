@@ -1,0 +1,406 @@
+from flask import Blueprint, request, jsonify, g
+import jwt
+import logging
+from datetime import datetime, timezone, timedelta
+from app.config import Config
+from app.services.auth_service import (
+    authenticate_user, create_token, login_required, role_required,
+    create_user, get_current_user, revoke_token,
+    generate_totp_secret, get_totp_uri, verify_totp_code,
+    create_scoped_api_token, verify_scoped_api_token, revoke_api_token,
+    VALID_ROLES, _USER_MFA_SECRETS
+)
+from app.services.crypto_service import encrypt_secret, decrypt_secret
+from app.services.audit_service import log_action
+from app.services.db import get_service_supabase
+
+logger = logging.getLogger(__name__)
+auth_bp = Blueprint('auth', __name__)
+
+@auth_bp.route('/login', methods=['POST'])
+def login():
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
+
+    if not email or not password:
+        return jsonify({'error': 'Email and password are required'}), 400
+
+    user = authenticate_user(email, password)
+    if not user:
+        log_action(None, 'login_failed', details={'email': email})
+        return jsonify({'error': 'Invalid credentials'}), 401
+
+    # Check if MFA is required for this user
+    if user.get('mfa_enabled'):
+        challenge_token = jwt.encode({
+            'sub': user['id'],
+            'email': user['email'],
+            'role': user['role'],
+            'organization_id': user.get('organization_id'),
+            'mfa_pending': True,
+            'exp': datetime.now(timezone.utc) + timedelta(minutes=5)
+        }, Config.JWT_SECRET, algorithm='HS256')
+        return jsonify({
+            'mfa_required': True,
+            'mfa_token': challenge_token,
+            'message': 'Two-factor authentication code required'
+        })
+
+    token = create_token(user['id'], user['email'], user['role'], user.get('organization_id'))
+    log_action(user['id'], 'login_success', details={'email': email})
+
+    return jsonify({
+        'token': token,
+        'user': {
+            'id': user['id'],
+            'email': user['email'],
+            'full_name': user['full_name'],
+            'role': user['role'],
+            'organization_id': user.get('organization_id')
+        }
+    })
+
+@auth_bp.route('/mfa/verify', methods=['POST'])
+def verify_mfa_login():
+    """Validates 6-digit TOTP challenge during login and issues full JWT token."""
+    data = request.get_json() or {}
+    mfa_token = data.get('mfa_token')
+    code = data.get('code')
+
+    if not mfa_token or not code:
+        return jsonify({'error': 'mfa_token and code are required'}), 400
+
+    try:
+        payload = jwt.decode(mfa_token, Config.JWT_SECRET, algorithms=['HS256'])
+        if not payload.get('mfa_pending'):
+            return jsonify({'error': 'Invalid challenge token'}), 400
+    except Exception:
+        return jsonify({'error': 'Challenge expired or invalid'}), 401
+
+    sb = get_service_supabase()
+    res = sb.table('users').select('*').eq('id', payload['sub']).execute()
+    if not res.data:
+        return jsonify({'error': 'User not found'}), 404
+
+    user = res.data[0]
+    secret = user.get('mfa_secret')
+    if secret and secret.startswith('enc:'):
+        secret = decrypt_secret(secret)
+
+    if not verify_totp_code(secret, code):
+        return jsonify({'error': 'Invalid authentication code'}), 401
+
+    full_token = create_token(user['id'], user['email'], user['role'], user.get('organization_id'))
+    log_action(user['id'], 'mfa_login_success', details={'email': user['email']})
+    return jsonify({
+        'token': full_token,
+        'user': {
+            'id': user['id'],
+            'email': user['email'],
+            'full_name': user['full_name'],
+            'role': user['role'],
+            'organization_id': user.get('organization_id')
+        }
+    })
+
+@auth_bp.route('/mfa/setup', methods=['POST'])
+@login_required
+def setup_mfa():
+    """Generates a new TOTP secret and provisioning URI for the authenticated user."""
+    secret = generate_totp_secret()
+    uri = get_totp_uri(secret, g.user['email'])
+    return jsonify({
+        'secret': secret,
+        'uri': uri,
+        'issuer': 'Ethio-Cyber-Shield'
+    })
+
+@auth_bp.route('/mfa/enable', methods=['POST'])
+@login_required
+def enable_mfa():
+    """Verifies initial code and saves encrypted TOTP secret to user profile."""
+    data = request.get_json() or {}
+    secret = data.get('secret')
+    code = data.get('code')
+
+    if not secret or not code:
+        return jsonify({'error': 'secret and code are required'}), 400
+
+    if not verify_totp_code(secret, code):
+        return jsonify({'error': 'Verification failed: invalid code'}), 400
+
+    encrypted = encrypt_secret(secret)
+    _USER_MFA_SECRETS[str(g.user['id'])] = encrypted
+    sb = get_service_supabase()
+    try:
+        sb.table('users').update({
+            'mfa_enabled': True,
+            'mfa_secret': encrypted
+        }).eq('id', g.user['id']).execute()
+    except Exception as e:
+        logger.debug(f"MFA profile save fallback: {e}")
+
+    log_action(g.user['id'], 'mfa_enabled')
+    return jsonify({'message': 'MFA successfully enabled'})
+
+@auth_bp.route('/logout', methods=['POST'])
+@login_required
+def logout():
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        revoke_token(auth_header[7:].strip())
+    log_action(g.user['id'], 'logout')
+    return jsonify({'message': 'Logged out successfully'})
+
+@auth_bp.route('/me', methods=['GET'])
+@login_required
+def me():
+    sb = get_service_supabase()
+    res = sb.table('users').select('id, email, full_name, role, organization_id, created_at').eq('id', g.user['id']).execute()
+    if not res.data:
+        return jsonify({'error': 'User not found'}), 404
+    return jsonify(res.data[0])
+
+@auth_bp.route('/users', methods=['POST'])
+@role_required('admin')
+def create_new_user():
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
+    full_name = (data.get('full_name') or '').strip()
+    role = data.get('role', 'viewer')
+
+    if not email or not password or not full_name:
+        return jsonify({'error': 'email, password and full_name are required'}), 400
+    if len(password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
+    if role not in VALID_ROLES:
+        return jsonify({'error': f'Invalid role. Allowed: {VALID_ROLES}'}), 400
+
+    user = create_user(email, password, full_name, role)
+    if not user:
+        return jsonify({'error': 'Could not create user (email may already exist)'}), 400
+
+    log_action(g.user['id'], 'user_created', 'user', user['id'], {'email': email, 'role': role})
+    return jsonify({
+        'id': user['id'],
+        'email': user['email'],
+        'full_name': user['full_name'],
+        'role': user['role']
+    }), 201
+
+@auth_bp.route('/users', methods=['GET'])
+@role_required('admin', 'analyst')
+def list_users():
+    sb = get_service_supabase()
+    org_id = g.user.get('organization_id')
+    query = sb.table('users').select('id, email, full_name, role, is_active, created_at, organization_id')
+    try:
+        if org_id:
+            res = query.eq('organization_id', org_id).order('created_at', desc=True).execute()
+        else:
+            res = query.order('created_at', desc=True).execute()
+    except Exception:
+        res = sb.table('users').select('id, email, full_name, role, is_active, created_at').order('created_at', desc=True).execute()
+    users = res.data or []
+    if org_id:
+        users = [u for u in users if not u.get('organization_id') or str(u.get('organization_id')) == str(org_id)]
+    return jsonify(users)
+
+@auth_bp.route('/api-tokens', methods=['POST'])
+@role_required('admin')
+def create_api_token_endpoint():
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    scopes = data.get('scopes') or ['ingest:events']
+    expires_days = int(data.get('expires_days', 90))
+
+    if not name:
+        return jsonify({'error': 'name is required'}), 400
+
+    token_info = create_scoped_api_token(
+        name=name,
+        organization_id=g.user.get('organization_id'),
+        scopes=scopes,
+        expires_days=expires_days
+    )
+    log_action(g.user['id'], 'api_token_created', 'api_token', token_info['token_id'], {'name': name, 'scopes': scopes})
+    return jsonify(token_info), 201
+
+@auth_bp.route('/api-tokens', methods=['GET'])
+@role_required('admin')
+def list_api_tokens_endpoint():
+    from app.services.auth_service import _API_TOKENS
+    org_id = g.user.get('organization_id')
+    sb = get_service_supabase()
+    tokens = []
+    try:
+        q = sb.table('api_tokens').select('id, name, scopes, created_at, expires_at, revoked, organization_id')
+        if org_id:
+            q = q.eq('organization_id', org_id)
+        res = q.order('created_at', desc=True).execute()
+        tokens = res.data or []
+    except Exception:
+        pass
+
+    if not tokens:
+        tokens = [
+            {
+                'id': rec['id'],
+                'name': rec['name'],
+                'scopes': rec['scopes'],
+                'created_at': rec['created_at'],
+                'expires_at': rec['expires_at'],
+                'revoked': rec.get('revoked', False),
+                'organization_id': rec['organization_id']
+            }
+            for rec in _API_TOKENS.values()
+            if not org_id or str(rec.get('organization_id')) == str(org_id)
+        ]
+    return jsonify(tokens)
+
+@auth_bp.route('/api-tokens/<token_id>', methods=['DELETE'])
+@role_required('admin')
+def revoke_api_token_endpoint(token_id):
+    revoke_api_token(token_id, g.user.get('organization_id'))
+    log_action(g.user['id'], 'api_token_revoked', 'api_token', token_id)
+    return jsonify({'message': 'API token revoked successfully'})
+
+
+@auth_bp.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    """Request a password reset token. Stores token in Supabase. For MVP, returns reset link in response for testing."""
+    import secrets
+    from datetime import datetime, timedelta, timezone
+    from app.services.auth_service import hash_password  # noqa: F401 - not used here
+
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+
+    sb = get_service_supabase()
+    result = sb.table('users').select('id, email, is_active').eq('email', email).eq('is_active', True).execute()
+
+    # Always return same message to avoid email enumeration
+    generic_msg = 'If an account exists with that email, a password reset link has been generated.'
+
+    if not result.data:
+        log_action(None, 'forgot_password_unknown', details={'email': email})
+        return jsonify({'message': generic_msg, 'reset_token': None})
+
+    user = result.data[0]
+    token = secrets.token_urlsafe(32)
+    expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+
+    # Invalidate previous unused tokens for this user
+    try:
+        sb.table('password_reset_tokens').delete().eq('user_id', user['id']).is_('used_at', 'null').execute()
+    except Exception:
+        pass
+
+    sb.table('password_reset_tokens').insert({
+        'user_id': user['id'],
+        'token': token,
+        'expires_at': expires
+    }).execute()
+
+    log_action(user['id'], 'forgot_password_requested', details={'email': email})
+
+    # MVP: return token so frontend can show reset link (production would email it)
+    return jsonify({
+        'message': generic_msg,
+        'reset_token': token,
+        'expires_in_minutes': 60
+    })
+
+
+@auth_bp.route('/reset-password', methods=['POST'])
+def reset_password():
+    """Reset password using a valid token stored in Supabase."""
+    from datetime import datetime, timezone
+    from app.services.auth_service import hash_password
+
+    data = request.get_json() or {}
+    token = (data.get('token') or '').strip()
+    new_password = data.get('password') or ''
+
+    if not token:
+        return jsonify({'error': 'Reset token is required'}), 400
+    if len(new_password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
+
+    sb = get_service_supabase()
+    res = sb.table('password_reset_tokens').select('*').eq('token', token).execute()
+    if not res.data:
+        return jsonify({'error': 'Invalid or expired reset token'}), 400
+
+    row = res.data[0]
+    if row.get('used_at'):
+        return jsonify({'error': 'This reset link has already been used'}), 400
+
+    expires = row.get('expires_at')
+    if expires:
+        from dateutil import parser
+        exp_dt = parser.isoparse(expires)
+        if exp_dt.tzinfo is None:
+            exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) > exp_dt:
+            return jsonify({'error': 'Reset token has expired. Please request a new one.'}), 400
+
+    password_hash = hash_password(new_password)
+    sb.table('users').update({'password_hash': password_hash}).eq('id', row['user_id']).execute()
+    sb.table('password_reset_tokens').update({
+        'used_at': datetime.now(timezone.utc).isoformat()
+    }).eq('id', row['id']).execute()
+
+    log_action(row['user_id'], 'password_reset_success')
+    return jsonify({'message': 'Password has been reset successfully. You can now log in.'})
+
+
+@auth_bp.route('/users/<user_id>', methods=['PUT'])
+@role_required('admin')
+def update_user(user_id):
+    data = request.get_json() or {}
+    sb = get_service_supabase()
+    existing = sb.table('users').select('*').eq('id', user_id).execute()
+    if not existing.data:
+        return jsonify({'error': 'User not found'}), 404
+    updates = {}
+    if 'full_name' in data and str(data['full_name']).strip():
+        updates['full_name'] = str(data['full_name']).strip()[:255]
+    if 'role' in data:
+        if data['role'] not in ('admin', 'analyst', 'viewer'):
+            return jsonify({'error': 'Invalid role. Use admin, analyst, or viewer'}), 400
+        updates['role'] = data['role']
+    if 'is_active' in data:
+        updates['is_active'] = bool(data['is_active'])
+    if 'password' in data and data['password']:
+        if len(data['password']) < 8:
+            return jsonify({'error': 'Password must be at least 8 characters'}), 400
+        from app.services.auth_service import hash_password
+        updates['password_hash'] = hash_password(data['password'])
+    if not updates:
+        return jsonify({'error': 'No valid fields'}), 400
+    res = sb.table('users').update(updates).eq('id', user_id).execute()
+    log_action(g.user['id'], 'user_updated', 'user', user_id, {k: updates[k] for k in updates if k != 'password_hash'})
+    u = res.data[0] if res.data else existing.data[0]
+    return jsonify({
+        'id': u['id'], 'email': u['email'], 'full_name': u.get('full_name'),
+        'role': u.get('role'), 'is_active': u.get('is_active')
+    })
+
+@auth_bp.route('/users/<user_id>', methods=['DELETE'])
+@role_required('admin')
+def delete_user(user_id):
+    if user_id == g.user['id']:
+        return jsonify({'error': 'Cannot delete your own account'}), 400
+    sb = get_service_supabase()
+    existing = sb.table('users').select('id').eq('id', user_id).execute()
+    if not existing.data:
+        return jsonify({'error': 'User not found'}), 404
+    # Soft delete
+    sb.table('users').update({'is_active': False}).eq('id', user_id).execute()
+    log_action(g.user['id'], 'user_deactivated', 'user', user_id)
+    return jsonify({'message': 'User deactivated'})

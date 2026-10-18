@@ -1,0 +1,18 @@
+id: PRIV-001
+name: Unauthorized Privilege Abuse Attempt
+description: Non-administrative customer identifier attempting administrative operations or protected endpoints.
+layer: L2
+pack: insider_admin
+severity: high
+weight: 40
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - attack.t1078.004
+  - attack.privilege_escalation
+  - compliance.insa
+remediation_hints: Terminate session, lock administrative role, and notify SOC lead.
+detection:
+  selection:
+    event_type: AUTHZ_DENIED
+    admin_endpoint: true

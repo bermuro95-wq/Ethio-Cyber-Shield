@@ -1,0 +1,19 @@
+id: TX-004
+name: Untrusted Device Transfer
+description: High-value or anomalous transfer initiated from an untrusted or newly registered client device.
+layer: L2
+pack: fraud_payments
+severity: high
+weight: 25
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - device.untrusted
+  - fraud.payment
+remediation_hints: Enforce step-up authorization on primary registered device.
+detection:
+  selection:
+    event_type:
+      - TRANSFER_CREATED
+      - TRANSFER_INITIATED
+    device_trusted: false

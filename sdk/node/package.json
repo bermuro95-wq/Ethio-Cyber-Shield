@@ -1,0 +1,25 @@
+{
+  "name": "@ethio-cyber-shield/sdk",
+  "version": "1.1.0",
+  "description": "Official Node.js & TypeScript SDK with Transactional Outbox for Ethio-Cyber-Shield (ECS)",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [
+    "cybersecurity",
+    "ethiopia",
+    "fraud-detection",
+    "outbox",
+    "telemetry",
+    "nbe",
+    "insa"
+  ],
+  "author": "Ethio-Cyber-Shield Platform Team",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

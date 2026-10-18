@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecs-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ecs_db}
+      POSTGRES_USER: ${POSTGRES_USER:-ecs_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ChangeMeSecurePass2026!}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ecs_admin} -d ${POSTGRES_DB:-ecs_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecs-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ecs-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-RedisSecurePass2026!}"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-RedisSecurePass2026!}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecs-network
+
+  ecs-core:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.core
+    container_name: ecs-core
+    restart: always
+    environment:
+      PORT: 5000
+      FLASK_ENV: ${FLASK_ENV:-production}
+      FLASK_DEBUG: 0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ecs_admin}:${POSTGRES_PASSWORD:-ChangeMeSecurePass2026!}@postgres:5432/${POSTGRES_DB:-ecs_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-RedisSecurePass2026!}@redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-e7c4a91f2b8d3e6a0f5c9b2d7e1a4f8c3b6d0e9a2f5c8b1d4e7a0f3c6b9d2e5}
+      ECS_MASTER_ENCRYPTION_KEY: ${ECS_MASTER_ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      ALLOWED_ORIGINS: "*"
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - ecs-network
+
+  ecs-ui:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.ui
+    container_name: ecs-ui
+    restart: always
+    ports:
+      - "5500:80"
+    depends_on:
+      - ecs-core
+    networks:
+      - ecs-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  ecs-network:
+    driver: bridge

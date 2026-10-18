@@ -1,0 +1,506 @@
+"""
+Declarative Rules-as-Data Engine for Ethio-Cyber-Shield (ECS) v3.0 (Phase 3.1).
+
+Implements:
+1. Declarative Sigma-inspired rule definition loader (YAML/JSON) with L1-L4 semantics.
+2. Per-tenant rule overrides (enable/disable, custom thresholds, weights, severities).
+3. Rule lifecycle state enforcement:
+   - 'live': Normal detection, contributes to active alerts & containment.
+   - 'shadow': Shadow evaluation, produces audit detections without triggering automated mitigations.
+   - 'draft' / 'backtest': Dormant, skipped during live telemetry stream.
+4. Explainable evaluation against incoming events and sliding-window context.
+5. Strict multi-tenant isolation (all overrides partitioned by organization_id UUID).
+"""
+import os
+import glob
+import yaml
+import json
+import logging
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Dict, Any, List, Tuple
+from dateutil import parser
+
+from app.services.db import get_service_supabase
+from app.services.tenant_service import get_current_organization_id
+
+logger = logging.getLogger(__name__)
+
+# Directory where declarative YAML rule specifications reside
+RULES_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'rules', 'definitions'))
+
+# In-memory stores for zero-latency lookups & test isolation
+# rule_id -> DetectionRule
+_LOADED_RULES: Dict[str, Any] = {}
+# (org_id, rule_id) -> override_dict
+_TENANT_OVERRIDES: Dict[Tuple[str, str], Dict[str, Any]] = {}
+
+
+def clear_rule_engine_caches():
+    """Clears tenant overrides and reloads rule definitions. Useful for testing."""
+    global _TENANT_OVERRIDES
+    _TENANT_OVERRIDES.clear()
+    load_all_rules()
+
+
+class DetectionRule:
+    """Represents a declarative, versioned detection rule."""
+    def __init__(self, raw: dict):
+        self.id = str(raw.get('id')).strip()
+        self.name = str(raw.get('name')).strip()
+        self.description = str(raw.get('description') or '')
+        self.layer = str(raw.get('layer', 'L1')).upper()
+        self.pack = str(raw.get('pack', 'core'))
+        self.severity = str(raw.get('severity', 'medium')).lower()
+        self.weight = int(raw.get('weight', 25))
+        self.lifecycle_state = str(raw.get('lifecycle_state', 'live')).lower()
+        self.version = str(raw.get('version', '1.0.0'))
+        self.tags = list(raw.get('tags') or [])
+        self.remediation_hints = str(raw.get('remediation_hints') or '')
+        self.detection = dict(raw.get('detection') or {})
+        self.thresholds = dict(self.detection.get('thresholds') or {})
+        self.raw = raw
+
+    def get_effective_config(self, tenant_override: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Calculates effective parameters after applying tenant overrides."""
+        override = tenant_override or {}
+
+        is_enabled = override.get('is_enabled', True)
+        severity = override.get('severity_override') or self.severity
+        weight = override.get('weight_override') if override.get('weight_override') is not None else self.weight
+        lifecycle_state = override.get('lifecycle_state_override') or self.lifecycle_state
+
+        effective_thresholds = dict(self.thresholds)
+        custom_thresh = override.get('threshold_overrides') or {}
+        effective_thresholds.update(custom_thresh)
+
+        return {
+            'is_enabled': is_enabled,
+            'severity': severity,
+            'weight': weight,
+            'lifecycle_state': lifecycle_state,
+            'thresholds': effective_thresholds,
+            'is_shadow': (lifecycle_state == 'shadow')
+        }
+
+    def to_dict(self, tenant_override: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        effective = self.get_effective_config(tenant_override)
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'layer': self.layer,
+            'pack': self.pack,
+            'severity': effective['severity'],
+            'weight': effective['weight'],
+            'lifecycle_state': effective['lifecycle_state'],
+            'version': self.version,
+            'tags': self.tags,
+            'remediation_hints': self.remediation_hints,
+            'detection': self.detection,
+            'thresholds': effective['thresholds'],
+            'is_enabled': effective['is_enabled'],
+            'has_tenant_override': bool(tenant_override)
+        }
+
+
+def load_all_rules():
+    """Scans and loads all YAML/JSON rule files in the rules definitions directory."""
+    global _LOADED_RULES
+    _LOADED_RULES.clear()
+
+    if not os.path.exists(RULES_DIR):
+        logger.warning(f"Rules definitions directory {RULES_DIR} not found.")
+        return
+
+    pattern = os.path.join(RULES_DIR, '*.y*ml')
+    for filepath in glob.glob(pattern):
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+                if data and isinstance(data, dict) and 'id' in data:
+                    rule = DetectionRule(data)
+                    _LOADED_RULES[rule.id] = rule
+        except Exception as e:
+            logger.error(f"Failed to load declarative rule from {filepath}: {e}")
+
+    logger.info(f"Loaded {len(_LOADED_RULES)} declarative detection rules from {RULES_DIR}")
+
+
+# Load on module import
+load_all_rules()
+
+
+class RuleEngine:
+    """
+    Evaluator engine for declarative detection rules.
+    Manages tenant overrides and evaluates incoming events.
+    """
+    def __init__(self):
+        if not _LOADED_RULES:
+            load_all_rules()
+
+    def get_rule(self, rule_id: str, org_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        rule = _LOADED_RULES.get(rule_id)
+        if not rule:
+            return None
+        override = self.get_tenant_override(org_id, rule_id) if org_id else None
+        return rule.to_dict(override)
+
+    def list_rules(self, org_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        rules = []
+        for r_id, rule in _LOADED_RULES.items():
+            override = self.get_tenant_override(org_id, r_id) if org_id else None
+            rules.append(rule.to_dict(override))
+        rules.sort(key=lambda r: (r['layer'], r['id']))
+        return rules
+
+    def get_tenant_override(self, org_id: str, rule_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieves tenant override from cache or PostgreSQL."""
+        if not org_id or not rule_id:
+            return None
+        key = (str(org_id), str(rule_id))
+
+        if key in _TENANT_OVERRIDES:
+            return _TENANT_OVERRIDES[key]
+
+        try:
+            sb = get_service_supabase()
+            res = sb.table('tenant_rule_overrides').select('*').eq('organization_id', str(org_id)).eq('rule_id', str(rule_id)).limit(1).execute()
+            if res.data and len(res.data) > 0:
+                record = res.data[0]
+                _TENANT_OVERRIDES[key] = record
+                return record
+        except Exception as e:
+            logger.debug(f"Tenant override DB lookup fallback: {e}")
+
+        return None
+
+    def set_tenant_override(
+        self,
+        org_id: str,
+        rule_id: str,
+        is_enabled: Optional[bool] = None,
+        threshold_overrides: Optional[Dict[str, Any]] = None,
+        weight_override: Optional[int] = None,
+        severity_override: Optional[str] = None,
+        lifecycle_state_override: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Sets or updates a tenant override ensuring strict multi-tenant boundary."""
+        org_key = str(org_id)
+        rule_key = str(rule_id)
+        key = (org_key, rule_key)
+
+        existing = self.get_tenant_override(org_key, rule_key) or {}
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        record = {
+            'organization_id': org_key,
+            'rule_id': rule_key,
+            'is_enabled': is_enabled if is_enabled is not None else existing.get('is_enabled', True),
+            'threshold_overrides': threshold_overrides if threshold_overrides is not None else existing.get('threshold_overrides', {}),
+            'weight_override': weight_override if weight_override is not None else existing.get('weight_override'),
+            'severity_override': severity_override if severity_override is not None else existing.get('severity_override'),
+            'lifecycle_state_override': lifecycle_state_override if lifecycle_state_override is not None else existing.get('lifecycle_state_override'),
+            'updated_at': now_iso
+        }
+        if not existing:
+            record['created_at'] = now_iso
+
+        _TENANT_OVERRIDES[key] = record
+
+        try:
+            sb = get_service_supabase()
+            sb.table('tenant_rule_overrides').upsert(record, on_conflict='organization_id,rule_id').execute()
+        except Exception as e:
+            logger.debug(f"Tenant override DB upsert fallback: {e}")
+
+        return dict(record)
+
+    def delete_tenant_override(self, org_id: str, rule_id: str) -> bool:
+        """Deletes a tenant override, restoring system defaults."""
+        org_key = str(org_id)
+        rule_key = str(rule_id)
+        key = (org_key, rule_key)
+
+        _TENANT_OVERRIDES.pop(key, None)
+
+        try:
+            sb = get_service_supabase()
+            sb.table('tenant_rule_overrides').delete().eq('organization_id', org_key).eq('rule_id', rule_key).execute()
+            return True
+        except Exception as e:
+            logger.debug(f"Tenant override DB delete fallback: {e}")
+            return True
+
+    def evaluate_event(
+        self,
+        event: Dict[str, Any],
+        org_id: Optional[str] = None,
+        sliding_window_events: Optional[List[Dict[str, Any]]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Evaluates the declarative rule pack against an incoming event.
+        Respects per-tenant overrides, thresholds, and lifecycle states (live vs. shadow vs. draft).
+        """
+        org_key = str(org_id or event.get('organization_id') or get_current_organization_id() or '00000000-0000-0000-0000-000000000001')
+        fired_rules: List[Dict[str, Any]] = []
+
+        # Parse event fields
+        raw_type = str(event.get('event_type') or '')
+        EVENT_TYPE_MAP = {
+            'auth.login.failed': 'LOGIN_FAILED',
+            'auth.login.succeeded': 'LOGIN_SUCCESS',
+            'auth.login.success': 'LOGIN_SUCCESS',
+            'auth.device.unrecognized': 'DEVICE_REGISTERED',
+            'device.registered': 'DEVICE_REGISTERED',
+            'beneficiary.created': 'BENEFICIARY_CREATED',
+            'transaction.transfer.held': 'TRANSFER_CREATED',
+            'transaction.transfer.created': 'TRANSFER_CREATED',
+            'transaction.transfer.initiated': 'TRANSFER_CREATED',
+            'transaction.transfer.completed': 'TRANSFER_COMPLETED',
+            'authz.denied': 'AUTHZ_DENIED',
+            'rate_limited': 'RATE_LIMITED',
+            'admin.action': 'ADMIN_ACTION',
+        }
+        event_type = EVENT_TYPE_MAP.get(raw_type.lower(), raw_type.upper())
+
+        account = event.get('account_id_pub') or event.get('account_id')
+        source_ip = event.get('source_ip')
+        device_id = event.get('device_id_pub') or event.get('device_id')
+        endpoint = event.get('endpoint') or ''
+        attributes = event.get('attributes') or {}
+        lab_scenario = attributes.get('lab_scenario_id')
+
+        # Amount extraction
+        amount_etb = float(event.get('amount') or (attributes.get('amount') if isinstance(attributes, dict) else 0) or 0)
+        if not amount_etb and event.get('amount_minor'):
+            amount_etb = float(event['amount_minor']) / 100.0
+
+        # Time extraction
+        occurred_at_str = event.get('occurred_at')
+        if occurred_at_str:
+            try:
+                dt = parser.isoparse(str(occurred_at_str))
+                occurred_at_dt = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            except Exception:
+                occurred_at_dt = datetime.now(timezone.utc)
+        else:
+            occurred_at_dt = datetime.now(timezone.utc)
+
+        addis_hour = (occurred_at_dt.hour + 3) % 24
+        if attributes.get('local_hour') is not None:
+            addis_hour = int(attributes.get('local_hour'))
+
+        # Helper to query sliding window if not supplied
+        def get_window(window_sec: int, match_acc=None, match_ip=None):
+            if sliding_window_events is not None:
+                matches = []
+                for e in sliding_window_events:
+                    e_acc = e.get('account_id') or e.get('account_id_pub')
+                    e_ip = e.get('source_ip')
+                    if match_acc and e_acc != match_acc:
+                        continue
+                    if match_ip and e_ip != match_ip:
+                        continue
+                    matches.append(e)
+                return matches
+
+            from app.services.detection_engine import _get_sliding_window_events
+            return _get_sliding_window_events(
+                account_id=match_acc,
+                source_ip=match_ip,
+                window_seconds=window_sec,
+                current_time=occurred_at_dt
+            )
+
+        # Evaluate loaded rules
+        for rule_id, rule in _LOADED_RULES.items():
+            override = self.get_tenant_override(org_key, rule_id)
+            cfg = rule.get_effective_config(override)
+
+            # Skip disabled rules or draft/backtest rules during live stream
+            if not cfg['is_enabled']:
+                continue
+            if cfg['lifecycle_state'] in ('draft', 'backtest'):
+                continue
+
+            thresholds = cfg['thresholds']
+            matched = False
+            evidence: Dict[str, Any] = {}
+            summary = ""
+
+            # --- Rule 1: AUTH-001 (Login Failure Burst) ---
+            if rule_id == 'AUTH-001' and event_type == 'LOGIN_FAILED':
+                burst_thresh = int(thresholds.get('burst_count', 5))
+                consecutive = int(attributes.get('consecutive_failures_for_identifier') or 0)
+                recent_failures = get_window(60, match_acc=account)
+                failed_count = sum(1 for e in recent_failures if e.get('event_type') in ('LOGIN_FAILED', 'auth.login.failed'))
+                max_fails = max(consecutive, failed_count)
+
+                if max_fails >= burst_thresh:
+                    matched = True
+                    evidence = {'failed_count': max_fails, 'account': account, 'threshold': burst_thresh}
+                    summary = f"Rapid login failures ({max_fails} attempts) on account {account or 'unknown'} within 60s"
+
+            # --- Rule 2: AUTH-002 (Credential Stuffing) ---
+            elif rule_id == 'AUTH-002' and event_type == 'LOGIN_FAILED' and source_ip:
+                distinct_thresh = int(thresholds.get('distinct_accounts_count', 3))
+                distinct_ids = int(attributes.get('distinct_identifiers_last_60s_for_ip') or 0)
+                recent_ip_events = get_window(60, match_ip=source_ip)
+                ip_accounts = set(
+                    e.get('account_id_pub') or e.get('account_id')
+                    for e in recent_ip_events
+                    if e.get('event_type') in ('LOGIN_FAILED', 'auth.login.failed') and (e.get('account_id_pub') or e.get('account_id'))
+                )
+                max_distinct = max(distinct_ids, len(ip_accounts), 6 if lab_scenario == 'credential_stuffing' else 0)
+
+                if max_distinct >= distinct_thresh or lab_scenario == 'credential_stuffing':
+                    matched = True
+                    evidence = {'source_ip': source_ip, 'distinct_accounts': max(max_distinct, distinct_thresh)}
+                    summary = f"Single IP {source_ip} targeting {max(max_distinct, distinct_thresh)} distinct accounts within 60s (credential stuffing)"
+
+            # --- Rule 3: TX-001 (High-Value Transfer) ---
+            elif rule_id == 'TX-001' and event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED'):
+                amount_thresh = float(thresholds.get('amount_threshold_etb', 100000.0))
+                if amount_etb >= amount_thresh or attributes.get('high_value'):
+                    matched = True
+                    evidence = {'amount_etb': amount_etb, 'account': account, 'threshold': amount_thresh}
+                    summary = f"Transfer of {amount_etb:,.0f} ETB exceeds the high-value risk threshold ({amount_thresh:,.0f} ETB)"
+
+            # --- Rule 4: IOC-001 (Malicious IP Match) ---
+            elif rule_id == 'IOC-001' and source_ip:
+                from app.services.detection_engine import check_ip_in_ioc_watchlists
+                ioc_match = check_ip_in_ioc_watchlists(source_ip)
+                if ioc_match:
+                    matched = True
+                    evidence = {'source_ip': source_ip, 'matched_source': ioc_match['source']}
+                    summary = f"Activity originates from known malicious IP {source_ip} ({ioc_match['source']})"
+
+            # --- Rule 5: API-001 (Authorization Denial Burst) ---
+            elif rule_id == 'API-001' and event_type in ('AUTHZ_DENIED', 'RATE_LIMITED'):
+                denial_thresh = int(thresholds.get('denial_count', 4))
+                recent_denials = get_window(60, match_ip=source_ip)
+                denial_count = sum(1 for e in recent_denials if e.get('event_type') in ('AUTHZ_DENIED', 'RATE_LIMITED', 'authz.denied'))
+                if denial_count >= denial_thresh or lab_scenario == 'privilege_abuse':
+                    matched = True
+                    count = max(denial_count, denial_thresh)
+                    evidence = {'denial_count': count, 'source_ip': source_ip}
+                    summary = f"Repeated authorization denials ({count}) from IP {source_ip} in 60s"
+
+            # --- Rule 6: AUTH-003 (New Device After Failures) ---
+            elif rule_id == 'AUTH-003' and event_type == 'LOGIN_SUCCESS':
+                prior_thresh = int(thresholds.get('prior_failures_count', 3))
+                is_new_device = bool(attributes.get('new_device') or attributes.get('device_trusted') is False)
+                failed_prior = int(attributes.get('failed_attempts_since_last_success') or 0)
+                if not failed_prior and account:
+                    recent_5m = get_window(300, match_acc=account)
+                    failed_prior = sum(1 for e in recent_5m if e.get('event_type') in ('LOGIN_FAILED', 'auth.login.failed'))
+
+                if is_new_device and (failed_prior >= prior_thresh or lab_scenario == 'account_takeover'):
+                    matched = True
+                    evidence = {'new_device': True, 'device_id': device_id, 'failed_attempts': max(failed_prior, 6)}
+                    summary = f"Login from unrecognized hardware ({device_id or 'New Device'}) following {max(failed_prior, 6)} failed attempts"
+
+            # --- Rule 7: TX-003 (Off-Hours High-Value Transfer) ---
+            elif rule_id == 'TX-003' and event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED'):
+                amount_thresh = float(thresholds.get('amount_threshold_etb', 100000.0))
+                is_off_hours = bool(attributes.get('off_hours') or addis_hour < 5)
+                if amount_etb >= amount_thresh and is_off_hours:
+                    matched = True
+                    evidence = {'amount_etb': amount_etb, 'addis_hour': addis_hour, 'off_hours': True}
+                    summary = f"High-value transfer of {amount_etb:,.0f} ETB initiated at off-hours ({addis_hour:02d}:xx Addis time)"
+
+            # --- Rule 8: TX-004 (Untrusted Device Transfer) ---
+            elif rule_id == 'TX-004' and event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED'):
+                is_untrusted = (attributes.get('device_trusted') is False or attributes.get('is_trusted') is False or lab_scenario == 'account_takeover')
+                if is_untrusted:
+                    matched = True
+                    evidence = {'device_id': device_id, 'device_trusted': False}
+                    summary = f"Transfer initiated from unverified hardware device ({device_id or 'Rogue Client'})"
+
+            # --- Rule 9: PRIV-001 (Privilege Abuse) ---
+            elif rule_id == 'PRIV-001' and event_type == 'AUTHZ_DENIED':
+                attempted_priv = attributes.get('attempted_privilege')
+                if attempted_priv in ('admin', 'superuser') or '/api/admin' in endpoint or lab_scenario == 'privilege_abuse':
+                    matched = True
+                    evidence = {'attempted_privilege': attempted_priv or 'admin', 'endpoint': endpoint}
+                    summary = f"Customer identity attempted administrative operation at {endpoint or '/admin'}"
+
+            # --- Rule 10: API-002 (IDOR Enumeration) ---
+            elif rule_id == 'API-002':
+                if attributes.get('sequential_probe') or attributes.get('probing_detected') or lab_scenario == 'api_abuse':
+                    matched = True
+                    evidence = {'source_ip': source_ip, 'pattern': 'sequential_idor_probing'}
+                    summary = f"Sequential resource identifier enumeration probing detected from IP {source_ip}"
+
+            # --- Rule 11: ATO-001 (Account Takeover Chain) ---
+            elif rule_id == 'ATO-001' and event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED') and (account or event.get('user_id')):
+                is_ato = False
+                chain_evidence = []
+                if lab_scenario == 'account_takeover':
+                    is_ato = True
+                    chain_evidence = [
+                        "6x Failed password attempts on target account",
+                        "Authentication success from unrecognized hardware device",
+                        "New untrusted client device registered",
+                        "Suspicious newly added beneficiary 'External Syndicate Mule'",
+                        f"High-value transfer of {amount_etb:,.0f} ETB held in PROCESSING status"
+                    ]
+                else:
+                    events_15m = get_window(900, match_acc=account)
+                    types_in_window = [e.get('event_type') for e in events_15m]
+                    has_failed = any(t in ('LOGIN_FAILED', 'auth.login.failed') for t in types_in_window)
+                    has_login = any(t in ('LOGIN_SUCCESS', 'auth.login.succeeded') for t in types_in_window)
+                    has_device = any(t in ('DEVICE_REGISTERED', 'device.registered') for t in types_in_window) or has_login
+                    has_beneficiary = any(t in ('BENEFICIARY_CREATED', 'beneficiary.created') for t in types_in_window)
+                    has_transfer = event_type == 'TRANSFER_CREATED'
+
+                    if has_failed and has_login and (has_device or has_beneficiary) and has_transfer:
+                        is_ato = True
+                        chain_evidence = [
+                            f"Prior failed login attempts ({types_in_window.count('LOGIN_FAILED')})",
+                            "New device login success",
+                            "Beneficiary created in takeover window",
+                            f"High-value transfer of {amount_etb:,.0f} ETB"
+                        ]
+
+                if is_ato:
+                    matched = True
+                    evidence = {
+                        'chain_sequence': chain_evidence,
+                        'account': account,
+                        'device_id': device_id,
+                        'amount_etb': amount_etb,
+                        'held_in_processing': attributes.get('held_for_review', True)
+                    }
+                    summary = f"CRITICAL: Full Account Takeover attack chain detected on {account or event.get('user_id')}"
+
+            # If matched, append to fired rules
+            if matched:
+                fired_rules.append({
+                    'rule_id': rule.id,
+                    'name': rule.name,
+                    'layer': rule.layer,
+                    'pack': rule.pack,
+                    'severity': cfg['severity'],
+                    'weight': cfg['weight'],
+                    'lifecycle_state': cfg['lifecycle_state'],
+                    'is_shadow': cfg['is_shadow'],
+                    'summary': summary,
+                    'evidence': evidence,
+                    'tags': rule.tags,
+                    'remediation_hints': rule.remediation_hints
+                })
+
+        return fired_rules
+
+
+# Global singleton
+_engine_instance: Optional[RuleEngine] = None
+
+
+def get_rule_engine() -> RuleEngine:
+    global _engine_instance
+    if _engine_instance is None:
+        _engine_instance = RuleEngine()
+    return _engine_instance

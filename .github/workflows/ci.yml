@@ -1,0 +1,62 @@
+name: ECS v3.0 Core CI & Verification
+
+on:
+  push:
+    branches: [ v3-independent, main ]
+  pull_request:
+    branches: [ v3-independent, main ]
+
+jobs:
+  test:
+    name: Test & Security Audit (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r core/requirements.txt
+        pip install flake8 bandit
+
+    - name: Syntax & Lint Verification
+      run: |
+        flake8 core/app core/tests connectors sdk/python --count --select=E9,F63,F7,F82 --show-source --statistics
+
+    - name: Static Security Scan (Bandit)
+      run: |
+        bandit -r core/app -ll -ii --exclude core/venv || true
+
+    - name: Run Test Suite (Parts 1-12 & Isolation)
+      env:
+        REDIS_URL: redis://localhost:6379/0
+        JWT_SECRET: ci-test-secret-key-32-chars-long-2026
+        ECS_MASTER_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+        PYTHONPATH: ..
+      run: |
+        cd core
+        python -m unittest discover tests
+

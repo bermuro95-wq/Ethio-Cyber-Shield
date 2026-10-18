@@ -1,0 +1,21 @@
+id: TX-001
+name: High-Value Transfer Anomaly
+description: Single transaction transfer amount exceeding the high-value risk threshold (default 100,000 ETB).
+layer: L1
+pack: fraud_payments
+severity: medium
+weight: 20
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - fraud.high_value
+  - nbe.large_transfer
+  - rail.etb
+remediation_hints: Place transaction in review status; verify customer identity via callback or SMS OTP.
+detection:
+  selection:
+    event_type:
+      - TRANSFER_CREATED
+      - TRANSFER_INITIATED
+  thresholds:
+    amount_threshold_etb: 100000.0

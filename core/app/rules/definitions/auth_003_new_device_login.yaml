@@ -1,0 +1,21 @@
+id: AUTH-003
+name: New Device After Suspicious Failures
+description: Successful authentication from an unrecognized or untrusted client device following multiple failed attempts.
+layer: L2
+pack: fraud_payments
+severity: high
+weight: 35
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - attack.t1078
+  - fraud.account_takeover
+  - device.unrecognized
+remediation_hints: Require device binding confirmation and revoke active sessions.
+detection:
+  selection:
+    event_type: LOGIN_SUCCESS
+    new_device: true
+  window_seconds: 300
+  thresholds:
+    prior_failures_count: 3

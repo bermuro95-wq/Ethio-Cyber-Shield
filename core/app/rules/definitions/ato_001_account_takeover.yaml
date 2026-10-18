@@ -1,0 +1,22 @@
+id: ATO-001
+name: Account Takeover Chain (ATO)
+description: Multi-event attack correlation chain (failed logins -> login success -> beneficiary added -> transfer hold).
+layer: L3
+pack: fraud_payments
+severity: critical
+weight: 80
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - attack.t1078
+  - fraud.account_takeover
+  - pattern.ato_chain
+remediation_hints: Immediately freeze outgoing transfer, lock victim account, and revoke all sessions.
+detection:
+  chain:
+    - LOGIN_FAILED
+    - LOGIN_SUCCESS
+    - BENEFICIARY_CREATED
+    - TRANSFER_CREATED
+  window_seconds: 900
+  group_by: account_id

@@ -1,0 +1,16 @@
+id: IOC-001
+name: Malicious Source IP Match
+description: Inbound telemetry activity originating from an IP matching threat intelligence indicators or watchlists.
+layer: L1
+pack: web_api
+severity: high
+weight: 40
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - attack.t1071
+  - ti.ioc_match
+remediation_hints: Disallow session creation and enforce firewall perimeter drop.
+detection:
+  selection:
+    check_ioc_ip: true
