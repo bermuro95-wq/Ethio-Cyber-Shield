@@ -69,6 +69,31 @@ CREATE INDEX IF NOT EXISTS idx_target_systems_org ON target_systems(organization
 CREATE INDEX IF NOT EXISTS idx_target_systems_key_id ON target_systems(key_id);
 
 -- =========================================================================
+-- 3b. INBOUND WEBHOOK SOURCES & FIELD MAPPINGS
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS webhook_sources (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    source_id VARCHAR(100) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    secret_token TEXT,
+    encrypted_secret_token BYTEA,
+    auth_type VARCHAR(50) NOT NULL DEFAULT 'token' CHECK (auth_type IN ('token', 'hmac_sha256', 'none')),
+    signature_header VARCHAR(100) DEFAULT 'X-Webhook-Secret',
+    mapping_rules JSONB NOT NULL DEFAULT '{}',
+    sample_payload JSONB,
+    is_active BOOLEAN DEFAULT TRUE,
+    total_received BIGINT DEFAULT 0,
+    last_received_at TIMESTAMPTZ,
+    last_error TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_sources_org ON webhook_sources(organization_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_sources_source_id ON webhook_sources(source_id);
+
+-- =========================================================================
 -- 4. TELEMETRY & SECURITY EVENTS
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS security_events (

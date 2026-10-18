@@ -258,6 +258,23 @@
     - Laravel (`ECSMiddleware`)
   - Enforce client-side PII scrubbing in SDK event builders (`hash_phone`, `hash_national_id`, `hash_counterparty`) to prevent raw personal identifiers from crossing network boundaries.
 
+---
+
+## ADR-019: Generic Inbound Webhook Receiver and Declarative JSONPath Field Mapper Engine
+
+* **Context**:
+  - Ethiopian digital finance operators and external payment gateways (e.g., Chapa, Telebirr merchant callbacks, CBE Birr, EthSwitch, and internal core banking webhooks) dispatch notification payloads in diverse, non-standardized JSON structures.
+  - Requiring custom backend code deployments for each external integration introduces friction, slows onboarding, and creates maintenance overhead.
+  - Webhooks must be verified cryptographically (via shared tokens or HMAC-SHA256 signatures) and mapped into canonical ECS Event Contract v1.1 events without leaking secrets or violating multi-tenancy.
+* **Decision**:
+  - Implement a zero-dependency JSONPath extraction and transformation engine (`core/app/services/field_mapper.py`).
+  - Support dot and bracket indexing notations (`$.data.customer.phones[0]`, `data.id`), type casting (`amount_to_minor`, `minor_to_amount`, `to_float`, `timestamp_iso`), cryptographic phone hashing (`normalize_phone_hash`), and value mapping tables (`value_map`).
+  - Provide an interactive test-with-sample dry-run runner (`test_mapping` and `POST /api/webhooks/test-mapping`) returning detailed diagnostic reports, mapped field counts, and schema validation checks before saving configurations.
+  - Implement tenant-isolated Webhook Sources management (`webhook_sources` table and `core/app/services/webhook_service.py`), storing webhook secrets under AES-256-GCM envelope encryption (`enc:v1:...`) at rest and strictly masking them in all API responses.
+  - Implement a public inbound receiver endpoint `POST /api/webhooks/inbound/<source_id>` supporting constant-time token comparison (`hmac.compare_digest`) and raw-payload HMAC-SHA256 signature verification (`X-Signature-SHA256`).
+  - Seamlessly ingest validated canonical events directly into the ECS Redis Streams queue and real-time detection engine.
+
+
 
 
 
