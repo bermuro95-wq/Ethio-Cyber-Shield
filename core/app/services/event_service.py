@@ -56,7 +56,21 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
 
     is_valid, norm_event, errors = validate_and_normalize_event(payload, default_org_id=org_id)
     if not is_valid:
-        raise ValueError(f"Schema validation error: {'; '.join(errors)}")
+        err_msg = f"Schema validation error: {'; '.join(errors)}"
+        try:
+            from app.services.data_quality_service import record_schema_violation
+            record_schema_violation(
+                org_id=org_id or '00000000-0000-0000-0000-000000000001',
+                source_id=payload.get('source_system') or target_id or 'unknown',
+                source_name=payload.get('source_system') or (target.get('name') if target else None) or 'unknown',
+                violation_type='SCHEMA_VALIDATION_ERROR',
+                error_message=err_msg,
+                raw_sample=payload
+            )
+        except Exception:
+            pass
+        raise ValueError(err_msg)
+
 
     event_id = norm_event['event_id']
     raw_event_type = norm_event['event_type']
@@ -202,6 +216,20 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
         record_event_entities(buffered_item)
     except Exception as e_graph:
         logger.debug(f"Entity graph update warning: {e_graph}")
+
+    # 4c. Data Quality & Health Monitor update (Phase 2.7)
+    try:
+        from app.services.data_quality_service import touch_source_activity
+        touch_source_activity(
+            org_id=org_id,
+            source_id=source_system or 'unknown',
+            source_name=source_system or 'unknown',
+            event_id=event_id,
+            attributes=buffered_item
+        )
+    except Exception as e_dq:
+        logger.debug(f"Data quality monitor touch warning: {e_dq}")
+
 
     # 5. Multi-Layer Detection & Explainable Risk Engine evaluation (SRS §9, §21)
     detection_result = None

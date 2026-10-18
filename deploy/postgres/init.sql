@@ -246,6 +246,43 @@ CREATE INDEX IF NOT EXISTS idx_entity_links_target ON entity_links(organization_
 CREATE INDEX IF NOT EXISTS idx_entity_links_type ON entity_links(organization_id, link_type);
 
 -- =========================================================================
+-- 6c. DATA QUALITY & HEALTH MONITOR
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS data_quality_sources (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    source_id VARCHAR(100) NOT NULL,
+    source_name VARCHAR(255) NOT NULL,
+    source_type VARCHAR(50) NOT NULL DEFAULT 'webhook',
+    silence_threshold_seconds INTEGER DEFAULT 900,
+    last_event_at TIMESTAMPTZ,
+    total_events BIGINT DEFAULT 0,
+    total_violations BIGINT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id, source_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_dq_sources_org ON data_quality_sources(organization_id, source_id);
+CREATE INDEX IF NOT EXISTS idx_dq_sources_last_event ON data_quality_sources(organization_id, last_event_at);
+
+CREATE TABLE IF NOT EXISTS schema_violations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    source_id VARCHAR(100),
+    source_name VARCHAR(255),
+    violation_type VARCHAR(100) NOT NULL,
+    error_message TEXT NOT NULL,
+    raw_snippet JSONB DEFAULT '{}',
+    occurred_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_schema_violations_org_time ON schema_violations(organization_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_schema_violations_org_type ON schema_violations(organization_id, violation_type);
+
+
+-- =========================================================================
 -- 7. TRANSACTIONS
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS transactions (

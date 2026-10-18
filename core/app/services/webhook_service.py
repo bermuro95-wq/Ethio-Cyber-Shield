@@ -336,6 +336,18 @@ def process_inbound_webhook(
     is_authenticated, auth_err = verify_webhook_auth(source, headers, raw_body)
     if not is_authenticated:
         _update_source_stats(source_id, success=False, error=auth_err)
+        try:
+            from app.services.data_quality_service import record_schema_violation
+            record_schema_violation(
+                org_id=source.get('organization_id') or '00000000-0000-0000-0000-000000000001',
+                source_id=source_id,
+                source_name=source.get('name') or source_id,
+                violation_type='CRYPTO_SIGNATURE_FAILURE',
+                error_message=auth_err or 'Webhook authentication failed',
+                raw_sample={'source_id': source_id}
+            )
+        except Exception:
+            pass
         return 401, {'error': auth_err}
 
     # Map payload
@@ -353,10 +365,23 @@ def process_inbound_webhook(
     if not is_valid:
         err_msg = f"Mapping validation failed: {'; '.join(errors)}"
         _update_source_stats(source_id, success=False, error=err_msg)
+        try:
+            from app.services.data_quality_service import record_schema_violation
+            record_schema_violation(
+                org_id=org_id,
+                source_id=source_id,
+                source_name=source_name,
+                violation_type='MAPPING_FAILURE',
+                error_message=err_msg,
+                raw_sample=json_payload
+            )
+        except Exception:
+            pass
         return 422, {
             'error': "Webhook payload mapping/validation failed",
             'details': errors
         }
+
 
     # Ingest event into ECS pipeline
     try:

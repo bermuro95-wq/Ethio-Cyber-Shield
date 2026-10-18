@@ -321,6 +321,29 @@
   - Implement transitive risk synthesis (`calculate_graph_risk`) propagating risk scores and explanatory rationales across adjacent graph connections.
   - Expose REST API endpoints `GET /api/entities/<type>/<value>`, `/links`, `/graph`, `/shared`, `/risk`, and `POST /tag`.
 
+---
+
+## ADR-023: Health & Data-Quality Monitoring Architecture, Silent-Source Anomaly Detection, and Explainable Quality Scoring
+
+* **Context**:
+  - In production deployments across Ethiopian financial operators and critical infrastructure, telemetry connectors (webhooks, syslog agents, transactional outbox SDKs) can silently degrade or fail due to network partitions, configuration errors, certificate expiry, or upstream schema shifts.
+  - When an ingestion source stops emitting events, downstream detection rules silently miss threats without raising operational alerts ("silent failure mode").
+  - Malformed or rejected events must be actively tracked, categorized, and diagnosed without leaking sensitive customer PII or authentication secrets.
+  - Security and fraud operations leaders require an explainable, composite Data Quality Score (0–100) reflecting schema compliance, source vitality, and field richness rather than an opaque heuristic.
+* **Decision**:
+  - Implement `app.services.data_quality_service` strictly partitioned by `organization_id UUID NOT NULL` with persistent schema in PostgreSQL (`data_quality_sources`, `schema_violations`) and in-memory cache resilience.
+  - Implement silent-source anomaly detection (`check_silent_sources`) with configurable per-source silence thresholds (default 15 minutes / 900 seconds) and progressive severity tiers (`warning` for $1\times \le \text{silence} \le 2\times \text{threshold}$; `critical` for $\text{silence} > 2\times \text{threshold}$).
+  - Implement tenant-level silence anomaly alerts flagging when an entire organization has emitted zero telemetry for over 15 minutes ("no events from tenant X in 15 min").
+  - Implement schema violation tracking (`record_schema_violation`) with automatic recursive credential redaction (`sanitize_payload`) for passwords, tokens, API keys, and PANs.
+  - Track real-time ingestion throughput telemetry (1m, 5m, 15m, 1h, 24h event counters and rates).
+  - Calculate an explainable composite Data Quality Score (0–100) and letter grade (A–F) based on transparent weights:
+    - 40% Schema Compliance ($\frac{\text{valid}}{\text{valid} + \text{violations}}$)
+    - 35% Source Vitality ($\frac{\text{active}}{\text{monitored}}$)
+    - 25% Field Richness (presence of `channel`, `device_fingerprint`, `source_ip`, `payment_rail`)
+  - Expose REST API endpoints under `/api/health/quality/` (`/overview`, `/sources`, `/silent-alerts`, `/violations`, `/record-violation`).
+  - Wire into central event pipeline (`ingest_event`) and webhook handler (`process_inbound_webhook`) to automatically record source activity and schema violations.
+
+
 
 
 

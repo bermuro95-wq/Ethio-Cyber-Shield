@@ -13,7 +13,8 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **Phase 0** | **Validate, Obtain Texts, Freeze Scope** | **COMPLETED** | **100%** | **Gate 0 PASSED** |
 | **Phase 1** | **Independence, Tenancy & Hardening** | **COMPLETED** | **100%** | **Gate 1 PASSED** |
-| **Phase 2** | **Connectors, SDKs & Rich Event Model** | **In Progress** | **75%** | **Gate 2 Pending** |
+| **Phase 2** | **Connectors, SDKs & Rich Event Model** | **In Progress** | **88%** | **Gate 2 Pending** |
+
 | **Phase 3** | Detection Engine v2 (Rules-as-Data) | Planned | 0% | Gate 3 Pending |
 | **Phase 4** | Safe Response & Case Management | Planned | 0% | Gate 4 Pending |
 | **Phase 5** | Incident Readiness Engine (48h Clock) | Planned | 0% | Gate 5 Pending |
@@ -66,7 +67,8 @@
 - [x] **2.4 Log Agent Collector**: Lightweight access/syslog/CEF collector (`connectors/log_agent/`), continuous file tailing with state checkpointing, bounded CPU/RAM guardrails, SHA-256 evidence sealing, interactive preview endpoint (`POST /api/log-agent/parse`), and standalone CLI daemon.
 - [x] **2.5 Enrichment Service**: Offline-first GeoIP/ASN network registry with Ethiopian telecom CIDRs (`app.services.enrichment_service`), Tor/VPN/hosting flags, Threat Intelligence cache layer, behavioral device reputation scoring, and REST API endpoints (`/api/enrichment/ip`, `/api/enrichment/device`, `/api/enrichment/event`).
 - [x] **2.6 Unified Entity Graph**: Real-time entity model and linkage engine (`entities` and `entity_links` in PostgreSQL / `app.services.entity_graph_service`), multi-hop breadth-first graph traversal, shared entity fraud detection (credential stuffing, mule rings), transitive risk propagation, and REST API routes (`/api/entities/`).
-- [ ] **2.7 Health & Data-Quality Monitor**: Silent-source anomaly alerts and schema violation metrics.
+- [x] **2.7 Health & Data-Quality Monitor**: Silent-source anomaly alerts (progressive warning/critical tiers, 15m threshold, tenant-level silence detection), schema-violation tracking with sensitive field redaction, 24h/1h throughput telemetry, explainable composite Data Quality Score (0–100, Grade A–F) based on compliance, vitality, and richness, and REST API endpoints (`/api/health/quality/*`).
 - [ ] **2.8 Multi-Target Connector Schedulers**: Independent scheduler per connector replacing single-target polling loop.
+
 
 

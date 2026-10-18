@@ -290,19 +290,27 @@ def login_required(f):
 
 
 def role_required(*roles):
+    allowed_roles = set()
+    for r in roles:
+        if isinstance(r, (list, tuple, set)):
+            allowed_roles.update(r)
+        else:
+            allowed_roles.add(r)
+
     def decorator(f):
         @wraps(f)
         def decorated(*args, **kwargs):
             user = get_current_user()
             if not user:
                 return jsonify({'error': 'Authentication required'}), 401
-            if user['role'] not in roles:
+            if user['role'] not in allowed_roles:
                 return jsonify({'error': 'Insufficient permissions'}), 403
             g.user = user
             g.organization_id = user['organization_id']
             return f(*args, **kwargs)
         return decorated
     return decorator
+
 
 
 # -----------------------------------------------------------------------------

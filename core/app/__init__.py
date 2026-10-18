@@ -47,6 +47,7 @@ def create_app():
     from app.routes.log_agent import log_agent_bp
     from app.routes.enrichment import enrichment_bp
     from app.routes.entities import entities_bp
+    from app.routes.data_quality import data_quality_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(incidents_bp, url_prefix='/api/incidents')
@@ -66,6 +67,8 @@ def create_app():
     app.register_blueprint(log_agent_bp, url_prefix='/api/log-agent')
     app.register_blueprint(enrichment_bp, url_prefix='/api/enrichment')
     app.register_blueprint(entities_bp, url_prefix='/api/entities')
+    app.register_blueprint(data_quality_bp, url_prefix='/api/health/quality')
+
 
     @app.route('/api/health')
     def health():
