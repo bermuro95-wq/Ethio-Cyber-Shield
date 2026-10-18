@@ -1,0 +1,17 @@
+id: API-002
+name: Sequential Resource Enumeration Probing
+description: Probing pattern consisting of rapid sequential parameter identifier increments (IDOR enumeration).
+layer: L3
+pack: web_api
+severity: high
+weight: 35
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - attack.t1190
+  - attack.idor
+  - api.probing
+remediation_hints: Enforce object-level access controls and block enumeration IP.
+detection:
+  selection:
+    sequential_probe: true

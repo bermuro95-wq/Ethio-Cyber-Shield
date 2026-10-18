@@ -49,6 +49,7 @@ def create_app():
     from app.routes.entities import entities_bp
     from app.routes.data_quality import data_quality_bp
     from app.routes.connectors import connectors_bp
+    from app.routes.rules import rules_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(incidents_bp, url_prefix='/api/incidents')
@@ -70,6 +71,8 @@ def create_app():
     app.register_blueprint(entities_bp, url_prefix='/api/entities')
     app.register_blueprint(data_quality_bp, url_prefix='/api/health/quality')
     app.register_blueprint(connectors_bp, url_prefix='/api/connectors')
+    app.register_blueprint(rules_bp, url_prefix='/api/rules')
+
 
 
 

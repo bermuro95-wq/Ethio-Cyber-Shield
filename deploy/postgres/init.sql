@@ -363,6 +363,23 @@ CREATE TABLE IF NOT EXISTS detection_rules (
     PRIMARY KEY (organization_id, id)
 );
 
+CREATE TABLE IF NOT EXISTS tenant_rule_overrides (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    rule_id VARCHAR(50) NOT NULL,
+    is_enabled BOOLEAN DEFAULT TRUE,
+    threshold_overrides JSONB DEFAULT '{}',
+    weight_override INTEGER,
+    severity_override VARCHAR(20) CHECK (severity_override IS NULL OR severity_override IN ('low', 'medium', 'high', 'critical')),
+    lifecycle_state_override VARCHAR(20) CHECK (lifecycle_state_override IS NULL OR lifecycle_state_override IN ('draft', 'backtest', 'shadow', 'live')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id, rule_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_rule_overrides_lookup ON tenant_rule_overrides(organization_id, rule_id);
+
+
 CREATE TABLE IF NOT EXISTS detections (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

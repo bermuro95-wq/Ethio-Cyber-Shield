@@ -190,225 +190,24 @@ def evaluate_event_stream(event: dict) -> dict:
         addis_hour = int(attributes.get('local_hour'))
 
     # =====================================================================
-    # LAYER 1: THRESHOLD & SIGNATURE RULES
+    # LAYERS 1-3: DECLARATIVE RULES-AS-DATA EVALUATION (Phase 3.1)
+    # Evaluates Sigma-inspired declarative rules with tenant overrides & lifecycle states
     # =====================================================================
-
-    # 1. AUTH-001: Login Failure Burst (>= 5 failed attempts in 60s)
-    if event_type == 'LOGIN_FAILED':
-        consecutive = int(attributes.get('consecutive_failures_for_identifier') or 0)
-        recent_failures = _get_sliding_window_events(account_id=account, window_seconds=60, current_time=occurred_at_dt)
-        failed_count = sum(1 for e in recent_failures if e.get('event_type') == 'LOGIN_FAILED')
-
-        if consecutive >= 5 or failed_count >= 5:
-            fired_rules.append({
-                'rule_id': 'AUTH-001',
-                'name': 'Login Failure Burst',
-                'layer': 'L1',
-                'severity': 'medium',
-                'weight': 25,
-                'summary': f"Rapid login failures ({max(consecutive, failed_count)} attempts) on account {account or 'unknown'} within 60s",
-                'evidence': {'failed_count': max(consecutive, failed_count), 'account': account}
-            })
-
-    # 2. AUTH-002: Multi-Account Source Burst (Credential Stuffing)
-    if event_type == 'LOGIN_FAILED' and source_ip:
-        distinct_ids = int(attributes.get('distinct_identifiers_last_60s_for_ip') or 0)
-        recent_ip_events = _get_sliding_window_events(source_ip=source_ip, window_seconds=60, current_time=occurred_at_dt)
-        ip_accounts = set(e.get('account_id_pub') for e in recent_ip_events if e.get('event_type') == 'LOGIN_FAILED' and e.get('account_id_pub'))
-
-        if distinct_ids >= 3 or len(ip_accounts) >= 3 or lab_scenario == 'credential_stuffing':
-            count = max(distinct_ids, len(ip_accounts), 6 if lab_scenario == 'credential_stuffing' else 3)
-            fired_rules.append({
-                'rule_id': 'AUTH-002',
-                'name': 'Multi-Account Source Burst',
-                'layer': 'L1',
-                'severity': 'high',
-                'weight': 35,
-                'summary': f"Single IP {source_ip} targeting {count} distinct accounts within 60s (credential stuffing)",
-                'evidence': {'source_ip': source_ip, 'distinct_accounts': count}
-            })
-
-    # 3. TX-001: High-Value Transfer Anomaly (>= 100,000 ETB)
-    if event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED'):
-        if amount_etb >= 100000 or attributes.get('high_value'):
-            fired_rules.append({
-                'rule_id': 'TX-001',
-                'name': 'High-Value Transfer Anomaly',
-                'layer': 'L1',
-                'severity': 'medium',
-                'weight': 20,
-                'summary': f"Transfer of {amount_etb:,.0f} ETB exceeds the high-value risk threshold (100,000 ETB)",
-                'evidence': {'amount_etb': amount_etb, 'account': account}
-            })
-
-    # 4. IOC-001: Malicious Source IP Match
-    if source_ip:
-        ioc_match = check_ip_in_ioc_watchlists(source_ip)
-        if ioc_match:
-            fired_rules.append({
-                'rule_id': 'IOC-001',
-                'name': 'Malicious Source IP Match',
-                'layer': 'L1',
-                'severity': 'high',
-                'weight': 40,
-                'summary': f"Activity originates from known malicious IP {source_ip} ({ioc_match['source']})",
-                'evidence': {'source_ip': source_ip, 'matched_source': ioc_match['source']}
-            })
-
-    # 5. API-001: Authorization Denial Burst (>= 4 denials in 60s)
-    if event_type in ('AUTHZ_DENIED', 'RATE_LIMITED'):
-        recent_denials = _get_sliding_window_events(source_ip=source_ip, window_seconds=60, current_time=occurred_at_dt)
-        denial_count = sum(1 for e in recent_denials if e.get('event_type') in ('AUTHZ_DENIED', 'RATE_LIMITED'))
-        if denial_count >= 4 or lab_scenario == 'privilege_abuse':
-            fired_rules.append({
-                'rule_id': 'API-001',
-                'name': 'Authorization Denial Burst',
-                'layer': 'L1',
-                'severity': 'medium',
-                'weight': 25,
-                'summary': f"Repeated authorization denials ({max(denial_count, 4)}) from IP {source_ip} in 60s",
-                'evidence': {'denial_count': max(denial_count, 4), 'source_ip': source_ip}
-            })
-
-    # =====================================================================
-    # LAYER 2: CONTEXTUAL ENTITY RULES
-    # =====================================================================
-
-    # 6. AUTH-003: New Device Login After Suspicious Failures
-    if event_type == 'LOGIN_SUCCESS':
-        is_new_device = bool(attributes.get('new_device') or attributes.get('device_trusted') is False)
-        failed_prior = int(attributes.get('failed_attempts_since_last_success') or 0)
-        if not failed_prior and account:
-            # Check sliding 5-minute window for failed attempts on this account
-            recent_5m = _get_sliding_window_events(account_id=account, window_seconds=300, current_time=occurred_at_dt)
-            failed_prior = sum(1 for e in recent_5m if e.get('event_type') == 'LOGIN_FAILED')
-
-        if is_new_device and (failed_prior >= 3 or lab_scenario == 'account_takeover'):
-            fired_rules.append({
-                'rule_id': 'AUTH-003',
-                'name': 'New Device After Suspicious Failures',
-                'layer': 'L2',
-                'severity': 'high',
-                'weight': 35,
-                'summary': f"Login from unrecognized hardware ({device_id or 'New Device'}) following {max(failed_prior, 6)} failed attempts",
-                'evidence': {'new_device': True, 'device_id': device_id, 'failed_attempts': max(failed_prior, 6)}
-            })
-
-    # 7. TX-003: Off-Hours High-Value Transfer (00:00 - 05:00 Addis Ababa)
-    if event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED') and amount_etb >= 100000:
-        is_off_hours = bool(attributes.get('off_hours') or addis_hour < 5)
-        if is_off_hours:
-            fired_rules.append({
-                'rule_id': 'TX-003',
-                'name': 'Off-Hours High-Value Transfer',
-                'layer': 'L2',
-                'severity': 'high',
-                'weight': 25,
-                'summary': f"High-value transfer of {amount_etb:,.0f} ETB initiated at off-hours ({addis_hour:02d}:xx Addis time)",
-                'evidence': {'amount_etb': amount_etb, 'addis_hour': addis_hour, 'off_hours': True}
-            })
-
-    # 8. TX-004: Untrusted Device Transfer
-    if event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED'):
-        is_untrusted = (attributes.get('device_trusted') is False or attributes.get('is_trusted') is False or lab_scenario == 'account_takeover')
-        if is_untrusted:
-            fired_rules.append({
-                'rule_id': 'TX-004',
-                'name': 'Untrusted Device Transfer',
-                'layer': 'L2',
-                'severity': 'high',
-                'weight': 25,
-                'summary': f"Transfer initiated from unverified hardware device ({device_id or 'Rogue Client'})",
-                'evidence': {'device_id': device_id, 'device_trusted': False}
-            })
-
-    # 9. PRIV-001: Unauthorized Privilege Abuse Attempt
-    if event_type == 'AUTHZ_DENIED':
-        attempted_priv = attributes.get('attempted_privilege')
-        if attempted_priv in ('admin', 'superuser') or '/api/admin' in endpoint or lab_scenario == 'privilege_abuse':
-            fired_rules.append({
-                'rule_id': 'PRIV-001',
-                'name': 'Unauthorized Privilege Abuse Attempt',
-                'layer': 'L2',
-                'severity': 'high',
-                'weight': 40,
-                'summary': f"Customer identity attempted administrative operation at {endpoint or '/admin'}",
-                'evidence': {'attempted_privilege': attempted_priv or 'admin', 'endpoint': endpoint}
-            })
-
-    # 10. API-002: Sequential Resource Enumeration Probing (IDOR)
-    if attributes.get('sequential_probe') or attributes.get('probing_detected') or lab_scenario == 'api_abuse':
-        fired_rules.append({
-            'rule_id': 'API-002',
-            'name': 'Sequential Resource Enumeration Probing',
-            'layer': 'L3',
-            'severity': 'high',
-            'weight': 35,
-            'summary': f"Sequential resource identifier enumeration probing detected from IP {source_ip}",
-            'evidence': {'source_ip': source_ip, 'pattern': 'sequential_idor_probing'}
-        })
-
-    # =====================================================================
-    # LAYER 3: MULTI-EVENT CORRELATION ATTACK CHAINS
-    # =====================================================================
-
-    # 11. ATO-001: Account Takeover Chain (ATO)
-    # Sequence: failed logins -> successful login from new device -> beneficiary -> high-value transfer hold
-    if event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED') and (account or user_id):
-        is_ato = False
-        chain_evidence = []
-
-        if lab_scenario == 'account_takeover':
-            is_ato = True
-            chain_evidence = [
-                "6x Failed password attempts on target account",
-                "Authentication success from unrecognized hardware device",
-                "New untrusted client device registered",
-                "Suspicious newly added beneficiary 'External Syndicate Mule'",
-                f"High-value transfer of {amount_etb:,.0f} ETB held in PROCESSING status"
-            ]
-        else:
-            # Inspect 15-minute history on this account
-            events_15m = _get_sliding_window_events(account_id=account, window_seconds=900, current_time=occurred_at_dt)
-            types_in_window = [e.get('event_type') for e in events_15m]
-
-            has_failed = 'LOGIN_FAILED' in types_in_window
-            has_login = 'LOGIN_SUCCESS' in types_in_window
-            has_device = 'DEVICE_REGISTERED' in types_in_window or 'LOGIN_SUCCESS' in types_in_window
-            has_beneficiary = 'BENEFICIARY_CREATED' in types_in_window
-            has_transfer = event_type == 'TRANSFER_CREATED'
-
-            if has_failed and has_login and (has_device or has_beneficiary) and has_transfer:
-                is_ato = True
-                chain_evidence = [
-                    f"Prior failed login attempts ({types_in_window.count('LOGIN_FAILED')})",
-                    "New device login success",
-                    "Beneficiary created in takeover window",
-                    f"High-value transfer of {amount_etb:,.0f} ETB"
-                ]
-
-        if is_ato:
-            fired_rules.append({
-                'rule_id': 'ATO-001',
-                'name': 'Account Takeover Chain (ATO)',
-                'layer': 'L3',
-                'severity': 'critical',
-                'weight': 80,
-                'summary': f"CRITICAL: Full Account Takeover attack chain detected on {account or user_id}",
-                'evidence': {
-                    'chain_sequence': chain_evidence,
-                    'account': account,
-                    'device_id': device_id,
-                    'amount_etb': amount_etb,
-                    'held_in_processing': attributes.get('held_for_review', True)
-                }
-            })
+    try:
+        from app.services.rule_engine_service import get_rule_engine
+        engine = get_rule_engine()
+        org_id = event.get('organization_id')
+        fired_rules = engine.evaluate_event(event, org_id=org_id)
+    except Exception as e_rule:
+        logger.error(f"Declarative rule engine evaluation error: {e_rule}")
+        fired_rules = []
 
     # =====================================================================
     # LAYER 4: EXPLAINABLE RISK SYNTHESIS & SCORING (§9.3)
+    # Active risk score excludes shadow rules (Phase 3.1)
     # =====================================================================
 
-    raw_score = sum(r['weight'] for r in fired_rules)
+    raw_score = sum(r['weight'] for r in fired_rules if not r.get('is_shadow'))
     capped_score = min(100, raw_score)
 
     if capped_score >= 75:
@@ -420,7 +219,7 @@ def evaluate_event_stream(event: dict) -> dict:
     else:
         severity = 'low'
 
-    confidence = 'high' if any(r['layer'] == 'L3' for r in fired_rules) else 'medium'
+    confidence = 'high' if any(r['layer'] == 'L3' and not r.get('is_shadow') for r in fired_rules) else 'medium'
 
     # Build explainable evidence breakdown
     breakdown = []
@@ -431,9 +230,13 @@ def evaluate_event_stream(event: dict) -> dict:
             'name': r['name'],
             'layer': r['layer'],
             'weight': r['weight'],
-            'summary': r['summary']
+            'summary': r['summary'],
+            'is_shadow': r.get('is_shadow', False),
+            'lifecycle_state': r.get('lifecycle_state', 'live')
         })
-        reasons.append(f"[{r['rule_id']}] {r['name']} (+{r['weight']} pts): {r['summary']}")
+        shadow_suffix = " [SHADOW - NO IMPACT]" if r.get('is_shadow') else ""
+        effective_pts = 0 if r.get('is_shadow') else r['weight']
+        reasons.append(f"[{r['rule_id']}] {r['name']} (+{effective_pts} pts): {r['summary']}{shadow_suffix}")
 
     sb = get_service_supabase()
     target_id = event.get('target_system_id')
@@ -514,14 +317,14 @@ def evaluate_event_stream(event: dict) -> dict:
     # Auto-dispatch Alert if score >= 25 (medium, high, critical)
     alert_record = None
     if capped_score >= 25:
-        primary_rule = fired_rules[0]
+        primary_rule = next((r for r in fired_rules if not r.get('is_shadow')), fired_rules[0])
         alert_title = f"{severity.upper()}: {primary_rule['name']} on {account or source_ip or 'Target'}"
-        if any(r['rule_id'] == 'ATO-001' for r in fired_rules):
+        if any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules):
             alert_title = f"CRITICAL: Account Takeover Detected on {account or 'Account'}"
 
-        alert_type = 'account_takeover' if any(r['rule_id'] == 'ATO-001' for r in fired_rules) else \
-                     ('suspicious_transaction' if any('TX' in r['rule_id'] for r in fired_rules) else \
-                     ('high_risk' if any('AUTH' in r['rule_id'] for r in fired_rules) else 'high_risk'))
+        alert_type = 'account_takeover' if any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules) else \
+                     ('suspicious_transaction' if any('TX' in r['rule_id'] and not r.get('is_shadow') for r in fired_rules) else \
+                     ('high_risk' if any('AUTH' in r['rule_id'] and not r.get('is_shadow') for r in fired_rules) else 'high_risk'))
 
         alert_payload = {
             'title': alert_title,
@@ -569,7 +372,7 @@ def evaluate_event_stream(event: dict) -> dict:
 
     # Auto-promote Critical or High risk alerts to formal Incidents (Part 4, SRS §10 & §21)
     incident_record = None
-    if alert_record and (capped_score >= 50 or any(r['rule_id'] == 'ATO-001' for r in fired_rules)):
+    if alert_record and (capped_score >= 50 or any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules)):
         try:
             from app.services.incident_service import promote_alert_to_incident
             incident_record = promote_alert_to_incident(alert_record, event, {
@@ -577,16 +380,16 @@ def evaluate_event_stream(event: dict) -> dict:
                 'severity': severity,
                 'confidence': confidence,
                 'reasons': reasons,
-                'rules_fired': [r['rule_id'] for r in fired_rules],
+                'rules_fired': [r['rule_id'] for r in fired_rules if not r.get('is_shadow')],
                 'breakdown': breakdown,
-                'is_attack_chain': any(r['rule_id'] == 'ATO-001' for r in fired_rules),
+                'is_attack_chain': any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules),
             })
         except Exception as inc_err:
             logger.error(f"Failed to auto-promote incident for alert {alert_record.get('id')}: {inc_err}")
 
     # Closed-Loop Autonomous Containment (Part 5, SRS §10, §21, §22)
     containment_result = None
-    if alert_record and (capped_score >= 50 or any(r['rule_id'] == 'ATO-001' for r in fired_rules)):
+    if alert_record and (capped_score >= 50 or any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules)):
         try:
             from app.services.response_policy import evaluate_and_execute_containment
             containment_result = evaluate_and_execute_containment(
@@ -596,8 +399,8 @@ def evaluate_event_stream(event: dict) -> dict:
                 detection_result={
                     'risk_score': capped_score,
                     'severity': severity,
-                    'rules_fired': [r['rule_id'] for r in fired_rules],
-                    'is_attack_chain': any(r['rule_id'] == 'ATO-001' for r in fired_rules),
+                    'rules_fired': [r['rule_id'] for r in fired_rules if not r.get('is_shadow')],
+                    'is_attack_chain': any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules),
                 }
             )
         except Exception as cont_err:
@@ -615,6 +418,6 @@ def evaluate_event_stream(event: dict) -> dict:
         'alert_id': alert_record['id'] if alert_record else None,
         'incident_id': incident_record['id'] if incident_record else None,
         'containment': containment_result,
-        'is_attack_chain': any(r['rule_id'] == 'ATO-001' for r in fired_rules),
-        'is_threat': len(fired_rules) > 0,
+        'is_attack_chain': any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules),
+        'is_threat': capped_score > 0 or any(not r.get('is_shadow') for r in fired_rules),
     }

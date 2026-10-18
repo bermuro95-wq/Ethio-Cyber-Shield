@@ -75,6 +75,18 @@
   - [x] Schema validation rejects malformed events safely without system crashes (`event_contract.py`, `data_quality_service.py`).
   - [x] ShieldBank runs as just another decoupled connector target.
 
+---
 
+## Phase 3 — Detection Engine v2: configurable, measurable, locally relevant (In Progress)
 
-
+- [x] **3.1 Rules as Data & Declarative Engine**: Sigma-inspired YAML/JSON rule schema (`core/app/rules/definitions/*.yaml`) with versioning, ATT&CK tags, Ethiopian contextual fields, and parameter thresholds. All 11 core detection rules across L1-L3 migrated to declarative packs. Declarative parser & evaluator (`core/app/services/rule_engine_service.py`) supporting dynamic loading, lifecycle states (`live`, `shadow`, `draft`, `backtest`), and per-tenant threshold overrides (`tenant_rule_overrides` table in PostgreSQL with `organization_id UUID NOT NULL`). Shadow mode produces audit detections without alerting or automated mitigations. Integrated directly into `detection_engine.py` (`evaluate_event_stream`). REST API endpoints for rule management and tenant overrides (`/api/rules/*`).
+- [ ] **3.2 Rule Lifecycle Tooling**: Draft → backtest on stored events → shadow → live; "what would have fired last 7 days" preview; rule-level precision stats from analyst feedback.
+- [ ] **3.3 Rule Packs**: Specialized fraud & payment packs (mule accounts, rapid beneficiary add + transfer, coaching/USSD bursts, structuring), web/API abuse packs, and insider anomaly packs.
+- [ ] **3.4 Behavioral Baselines**: Explainable per-entity statistical baselines (typical amount, hours, devices, geos) with deterministic fallback.
+- [ ] **3.5 Risk Model v2**: Additive 0-100 model with rule confidence, entity criticality, and recency decay.
+- [ ] **3.6 Benchmark Corpus + CI**: Labeled synthetic/real datasets, automated precision/recall/false-positive reports, and Attack Lab scenario library.
+- [ ] **3.7 Alert Quality**: Deduplication, suppression windows, grouping, and alert fatigue reduction metrics.
+- [ ] **Gate 3 Criteria**:
+  - [ ] Published precision/recall per pack on the corpus.
+  - [ ] ≥90% of pilot-seeded attack scenarios detected with stated false-positive rate.
+  - [ ] A rule change can be backtested and rolled out without a code deploy.

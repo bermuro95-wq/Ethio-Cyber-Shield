@@ -365,6 +365,34 @@
     - Schema validation safely rejects malformed payloads without system instability.
     - Official SDKs (Python, Node.js, PHP/Laravel) and `docs/INTEGRATION_GUIDE.md` enable rapid $\le 1$ day operator integration.
 
+---
+
+## ADR-025: Rules as Data, Declarative Sigma-Inspired Engine, and Tenant Threshold Overrides
+
+* **Context**:
+  - Previously, detection logic across Layers 1 to 3 was hardcoded into imperative Python branches in `core/app/services/detection_engine.py`.
+  - Adding, tuning, or experimenting with rules required source code modifications and deployments, preventing rapid security response to new attack campaigns.
+  - Different Ethiopian operators have vastly different risk profiles and operational thresholds (e.g., Bank A defines high-value transfers at 500,000 ETB, while a microfinance institution flags 25,000 ETB). Hardcoded static thresholds cannot accommodate diverse financial institutions.
+  - Production deployments require rule lifecycle states (`draft`, `backtest`, `shadow`, `live`) so security engineers can test new detection rules against live production telemetry without firing false-positive alerts or triggering automated account containment.
+* **Decision**:
+  - Define rules declaratively as data using a Sigma-inspired YAML/JSON schema with versioning, MITRE ATT&CK tags, Ethiopian contextual fields (ETB amounts, Addis Ababa hours), and explicit parameter thresholds (`core/app/rules/definitions/*.yaml`).
+  - Migrate all 11 core detection rules across L1-L3 into declarative rule files:
+    - L1 Threshold & Signature: `auth_001_login_burst`, `auth_002_credential_stuffing`, `tx_001_high_value_transfer`, `ioc_001_malicious_ip`, `api_001_authz_denial_burst`
+    - L2 Contextual: `auth_003_new_device_login`, `tx_003_off_hours_transfer`, `tx_004_untrusted_device_transfer`, `priv_001_privilege_abuse`
+    - L3 Correlation Chains: `api_002_idor_enumeration`, `ato_001_account_takeover`
+  - Implement `RuleEngine` (`core/app/services/rule_engine_service.py`) supporting dynamic YAML loading, parameter interpolation, and multi-tenant threshold overrides (`tenant_rule_overrides` table in PostgreSQL with `organization_id UUID NOT NULL`).
+  - Implement rule lifecycle enforcement:
+    - `live`: Contributes to active risk score, produces detections, triggers alerts, incident escalation, and automated containment.
+    - `shadow`: Evaluates rules and persists audit detections with `is_shadow=True`, but contributes 0 points to active risk score and is strictly excluded from triggering alerts or automated containment.
+    - `draft` / `backtest`: Dormant during real-time event streaming; reserved for historical evaluation.
+  - Wire `RuleEngine.evaluate_event` into `core/app/services/detection_engine.py` (`evaluate_event_stream`), making declarative rules the primary detection evaluator.
+  - Expose REST API routes (`core/app/routes/rules.py`):
+    - `GET /api/rules`: List rules with effective tenant overrides.
+    - `GET /api/rules/<id>`: Get single rule details and effective parameters.
+    - `PUT /api/rules/<id>/override`: Set or update per-tenant rule configuration (enable/disable, custom ETB thresholds, weight/severity overrides, lifecycle state).
+    - `GET /api/rules/<id>/override`: Retrieve tenant-specific override.
+    - `DELETE /api/rules/<id>/override`: Revert tenant override to platform defaults.
+
 
 
 
