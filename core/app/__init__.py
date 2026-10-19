@@ -1,7 +1,14 @@
+import sys
+import os
 from flask import Flask
 from flask_cors import CORS
 from dotenv import load_dotenv
-import os
+
+# Ensure repository root is in sys.path for connectors and sdk modules
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
 from app.config import Config
 
 load_dotenv()
