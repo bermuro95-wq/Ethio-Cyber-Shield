@@ -466,6 +466,38 @@
     - Multi-tenant threshold overrides allowing per-tenant customization of rule thresholds (e.g. structuring thresholds, beneficiary cooldowns, off-hours schedules).
   - Verified with Part 21 test suite (`core/tests/test_part21_rule_packs.py`) ensuring rule parsing, pack filtering, evaluation criteria, multi-tenant override isolation, and stream synthesis.
 
+---
+
+## ADR-028: Explainable Behavioral Baselines and Deterministic Fallback (Phase 3.4)
+
+* **Context**:
+  - Pure static threshold rules (e.g. fixed 100k ETB transfer limits or fixed off-hours) do not capture entity-specific operational patterns (e.g., an account that routinely transfers 5,000 ETB suddenly transacting 90,000 ETB, or an enterprise operating solely during business hours active at 03:00 EAT).
+  - Machine learning anomaly models often present opaque probability scores that fail the platform's core architectural principle: "Explainable by default" (SRS §9, GEMINI.md).
+  - When historical telemetry for an entity is thin (e.g., brand-new accounts or < 5 events), statistical models suffer from high false positive rates. The platform requires a reliable deterministic fallback mechanism that prevents alert fatigue while maintaining security posture.
+* **Decision**:
+  - Implement `BehavioralBaselineService` (`core/app/services/behavioral_baseline_service.py`) supporting explainable per-entity statistical baselines across 4 dimensions:
+    1. **Transaction Amounts**: count, min, max, mean, median, 90th percentile, and standard deviation. Detects amount anomalies and outputs plain-language explanations: `"amount is 9.0× this account's 90-day median (20,000 ETB)"`.
+    2. **Temporal Operating Profile**: analyzes event timestamps in East Africa Time (`Africa/Addis_Ababa`, UTC+3). Extracts active hours and operating windows, detecting off-hours deviations with plain explanations: `"Activity at 03:00 EAT is outside typical operating window (08:00 - 17:00 EAT) for this account"`.
+    3. **Client Devices**: tracks known device IDs and fingerprints; alerts on unfamiliar devices: `"Device 'dev_xyz' has never been observed for this account in the past 90 days"`.
+    4. **Geographic Locations & Payment Channels**: tracks typical IPs, locations, and channels (USSD, mobile app, web); detects unprecedented access patterns.
+  - Implement deterministic fallback when data is thin (`sample_count < 5`):
+    - Sets `status: 'insufficient_data'`, `deterministic_fallback: True`, and `anomaly_score: 0`.
+    - Returns explanatory fallback reason: `"Insufficient historical baseline (< 5 events); fallback to platform policy defaults"`.
+    - Evaluates against standard deterministic rule engine policies rather than generating noisy statistical anomalies.
+  - Store baselines in PostgreSQL table `entity_behavioral_baselines` with `organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE`.
+  - Wire into `detection_engine.py` (`evaluate_event_stream`):
+    - Real-time event recording into tenant baseline buffer.
+    - Explainable baseline deviations synthesized into `breakdown` (as `BASE-*` items), `reasons`, and risk score contribution.
+  - Expose REST API routes under `/api/baselines`:
+    - `GET /api/baselines`: List baselines for tenant with entity_type and status filtering.
+    - `GET /api/baselines/<entity_type>/<entity_id>`: Retrieve entity behavioral baseline profile.
+    - `POST /api/baselines/<entity_type>/<entity_id>/recalculate`: Force on-demand recalculation over custom lookback window.
+    - `POST /api/baselines/evaluate`: Evaluate an event or candidate transaction against baseline.
+    - `POST /api/baselines/<entity_type>/<entity_id>/seed`: Seed or override baseline profile directly.
+    - `GET /api/baselines/summary`: Organization-wide baseline statistics and coverage.
+  - Verified with Part 22 test suite (`core/tests/test_part22_behavioral_baselines.py`) with 8/8 tests passing.
+
+
 
 
 
