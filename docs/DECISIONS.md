@@ -393,6 +393,33 @@
     - `GET /api/rules/<id>/override`: Retrieve tenant-specific override.
     - `DELETE /api/rules/<id>/override`: Revert tenant override to platform defaults.
 
+---
+
+## ADR-026: Rule Lifecycle Tooling, Historical Event Backtesting, and Analyst Precision Feedback
+
+* **Context**:
+  - In critical banking and payment rail environments, deploying new detection rules directly into live production or tuning ETB thresholds blindly causes alert fatigue, false positives, and operational disruptions.
+  - Security analysts and fraud engineers need an evidence-backed workflow to evaluate candidate rules against actual historical telemetry before activation: `draft` -> `backtest` -> `shadow` -> `live`.
+  - The platform requires an explainable "what would have fired in the last 7 days" preview to see the exact delta in detections and simulated risk points when adjusting thresholds.
+  - Continuous detection improvement requires closing the analyst feedback loop: capturing `true_positive` vs. `false_positive` verdicts, computing precision and false positive rates (FPR), and automatically surfacing tuning alerts and entity suppression recommendations when FPR exceeds 25%.
+* **Decision**:
+  - Implement `rule_lifecycle_service.py` (`RuleBacktestEngine`, `RuleLifecycleManager`, `RulePrecisionService`) strictly partitioned by `organization_id UUID NOT NULL`.
+  - Add PostgreSQL tables in `deploy/postgres/init.sql`:
+    - `rule_backtest_runs`: stores backtest execution history, window parameters, evaluated event counts, match rates, daily distribution, and sample matches.
+    - `rule_feedback`: stores analyst review verdicts (`true_positive`, `false_positive`, `suspicious_unconfirmed`, `benign_test`), analyst notes, and suggested entity suppressions.
+    - `rule_lifecycle_history`: audit log recording lifecycle transitions, old state, new state, reason, and backtest link.
+  - Enforce lifecycle transition validation:
+    - Promoting from `draft` or `backtest` to `shadow` or `live` requires a verified historical backtest run (or explicit `force=True` audit override).
+    - Transitions update per-tenant overrides (`tenant_rule_overrides`) and emit audit log records.
+  - Support dry-run "what would have fired" preview (`RuleBacktestEngine.preview_rule_evaluation`) allowing analysts to test threshold adjustments (e.g. 100k vs 250k ETB) against the last 7 days of stored events without permanent database modifications.
+  - Calculate real-time rule precision $\frac{\text{TP}}{\text{TP} + \text{FP}}$ and false positive rate. Automatically raise `HIGH_FALSE_POSITIVE_RATE` warnings when FPR $\ge 25\%$ with $\ge 2$ FPs, recommending threshold tuning and entity allowlists; conversely, surface `PROMOTION_READY` suggestions when low FPR is observed during shadow evaluation.
+  - Expose REST API routes under `/api/rules/*`:
+    - `POST /api/rules/<id>/backtest`, `GET /api/rules/<id>/backtest`, `GET /api/rules/backtests/<run_id>`
+    - `POST /api/rules/preview`
+    - `POST /api/rules/<id>/lifecycle`, `GET /api/rules/<id>/lifecycle`
+    - `POST /api/rules/<id>/feedback`
+    - `GET /api/rules/<id>/metrics`, `GET /api/rules/metrics/summary`
+
 
 
 

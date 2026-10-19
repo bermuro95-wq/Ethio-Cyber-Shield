@@ -236,11 +236,14 @@ class RuleEngine:
         self,
         event: Dict[str, Any],
         org_id: Optional[str] = None,
-        sliding_window_events: Optional[List[Dict[str, Any]]] = None
+        sliding_window_events: Optional[List[Dict[str, Any]]] = None,
+        custom_rule_overrides: Optional[Dict[str, Any]] = None,
+        candidate_rules: Optional[List[Any]] = None
     ) -> List[Dict[str, Any]]:
         """
         Evaluates the declarative rule pack against an incoming event.
         Respects per-tenant overrides, thresholds, and lifecycle states (live vs. shadow vs. draft).
+        Optionally applies custom_rule_overrides or candidate_rules for backtesting/preview.
         """
         org_key = str(org_id or event.get('organization_id') or get_current_organization_id() or '00000000-0000-0000-0000-000000000001')
         fired_rules: List[Dict[str, Any]] = []
@@ -313,15 +316,32 @@ class RuleEngine:
                 current_time=occurred_at_dt
             )
 
-        # Evaluate loaded rules
-        for rule_id, rule in _LOADED_RULES.items():
+        # Collect rules to evaluate: loaded rules + candidate rules
+        rules_to_eval = dict(_LOADED_RULES)
+        candidate_ids = set()
+        if candidate_rules:
+            for cr in candidate_rules:
+                if isinstance(cr, DetectionRule):
+                    rules_to_eval[cr.id] = cr
+                    candidate_ids.add(cr.id)
+                elif isinstance(cr, dict):
+                    c_inst = DetectionRule(cr)
+                    rules_to_eval[c_inst.id] = c_inst
+                    candidate_ids.add(c_inst.id)
+
+        # Evaluate rules
+        for rule_id, rule in rules_to_eval.items():
             override = self.get_tenant_override(org_key, rule_id)
+            if custom_rule_overrides and rule_id in custom_rule_overrides:
+                override = dict(override or {})
+                override.update(custom_rule_overrides[rule_id])
             cfg = rule.get_effective_config(override)
 
-            # Skip disabled rules or draft/backtest rules during live stream
-            if not cfg['is_enabled']:
+            # Skip disabled rules or draft/backtest rules during live stream (unless tested in backtest/preview)
+            is_explicit_test = bool(custom_rule_overrides and rule_id in custom_rule_overrides) or (rule_id in candidate_ids)
+            if not cfg['is_enabled'] and not is_explicit_test:
                 continue
-            if cfg['lifecycle_state'] in ('draft', 'backtest'):
+            if cfg['lifecycle_state'] in ('draft', 'backtest') and not is_explicit_test:
                 continue
 
             thresholds = cfg['thresholds']
