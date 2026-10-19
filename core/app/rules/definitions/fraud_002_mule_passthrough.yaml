@@ -1,0 +1,22 @@
+id: FRAUD-002
+name: Mule Pass-Through Account Pattern
+description: Rapid inbound transfer or deposit followed immediately by outbound dissipation leaving minimal balance (pass-through syndicate mule).
+layer: L2
+pack: fraud_payments
+severity: high
+weight: 35
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - fraud.mule
+  - aml.passthrough
+  - etb.syndicate
+remediation_hints: Flag account for AML review, request source-of-funds verification, and freeze remaining balance.
+detection:
+  selection:
+    event_type:
+      - TRANSFER_CREATED
+      - TRANSFER_INITIATED
+  thresholds:
+    dissipation_pct: 85.0
+    window_minutes: 30

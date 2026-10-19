@@ -1,0 +1,25 @@
+id: ADMIN-005
+name: Audit Trail Tampering Attempt
+description: Attempted modification, deletion, or cryptographic hash-chain inconsistency detected on audit_logs or security events.
+layer: L3
+pack: insider_admin
+severity: critical
+weight: 50
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - attack.t1562.002
+  - insider.audit_tamper
+  - compliance.insa_1426
+remediation_hints: Isolate database server, capture RAM/disk forensic snapshot, and alert General Counsel and INSA per Proclamation 1426/2026.
+detection:
+  selection:
+    event_type:
+      - AUDIT_TAMPER_DETECTED
+      - DB_QUERY_SUSPICIOUS
+      - ADMIN_ACTION
+  patterns:
+    - drop table audit_logs
+    - truncate audit_logs
+    - delete from audit_logs
+    - update audit_logs

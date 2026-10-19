@@ -1,0 +1,22 @@
+id: FRAUD-003
+name: SIM-Swap or Credential Reset Prior to Transfer
+description: High-value or anomalous transfer executed within 60 minutes of a reported SIM swap, MSISDN change, or password reset.
+layer: L2
+pack: fraud_payments
+severity: critical
+weight: 40
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - fraud.sim_swap
+  - attack.t1451
+  - telecom.ethio_telecom
+remediation_hints: Immediately freeze transfer, notify account holder via secondary registered contact, and verify SIM activation status with Ethio Telecom/Safaricom.
+detection:
+  selection:
+    event_type:
+      - TRANSFER_CREATED
+      - TRANSFER_INITIATED
+  thresholds:
+    window_minutes: 60
+    min_amount_etb: 25000.0

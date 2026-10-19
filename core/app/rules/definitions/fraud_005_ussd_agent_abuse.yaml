@@ -1,0 +1,23 @@
+id: FRAUD-005
+name: USSD and Agent Cash-Out Burst
+description: Abnormal velocity of USSD sessions or rapid agent branch cash-out operations exceeding velocity thresholds.
+layer: L2
+pack: fraud_payments
+severity: high
+weight: 30
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - channel.ussd
+  - channel.agent
+  - fraud.mobile_money
+remediation_hints: Enforce temporary USSD session block, limit branch cash-out ceiling, and notify branch supervisor.
+detection:
+  selection:
+    event_type:
+      - TRANSFER_CREATED
+      - TRANSFER_INITIATED
+      - WITHDRAWAL_CREATED
+  thresholds:
+    burst_count: 5
+    window_seconds: 120

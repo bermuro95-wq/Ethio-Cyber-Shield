@@ -1,0 +1,22 @@
+id: FRAUD-007
+name: Impossible Geolocation Travel Velocity
+description: Transactions or logins on the same account identity originating from geographically distinct locations within an impossibly brief timeframe.
+layer: L2
+pack: fraud_payments
+severity: high
+weight: 35
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - fraud.impossible_travel
+  - attack.t1078
+  - identity.geo_anomaly
+remediation_hints: Terminate remote session, prompt for biometric/OTP authentication on trusted device, and lock compromised credentials.
+detection:
+  selection:
+    event_type:
+      - LOGIN_SUCCESS
+      - TRANSFER_CREATED
+  thresholds:
+    window_minutes: 30
+    max_km_per_hour: 800

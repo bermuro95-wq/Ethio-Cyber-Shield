@@ -1,0 +1,24 @@
+id: FRAUD-004
+name: Transaction Structuring Under Reporting Threshold
+description: Multiple consecutive transactions placed just below the regulatory reporting threshold (e.g., 40,000 - 49,999 ETB) within 60 minutes.
+layer: L2
+pack: fraud_payments
+severity: high
+weight: 30
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - aml.structuring
+  - nbe.compliance
+  - fraud.smurfing
+remediation_hints: Flag transactions for FIC / NBE compliance audit; aggregate total daily volume.
+detection:
+  selection:
+    event_type:
+      - TRANSFER_CREATED
+      - TRANSFER_INITIATED
+  thresholds:
+    burst_count: 3
+    lower_bound_etb: 40000.0
+    upper_bound_etb: 50000.0
+    window_minutes: 60

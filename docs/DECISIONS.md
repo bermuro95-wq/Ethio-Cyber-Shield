@@ -420,6 +420,52 @@
     - `POST /api/rules/<id>/feedback`
     - `GET /api/rules/<id>/metrics`, `GET /api/rules/metrics/summary`
 
+---
+
+## ADR-027: Specialized Detection Rule Packs (Fraud & Payments, Web/API, Insider/Admin) and Multi-Tenant Threshold Tuning
+
+* **Context**:
+  - Generic threshold rules do not address the complex attack surfaces facing Ethiopian critical infrastructure and digital finance operators (e.g. USSD cash-outs, mule rings, SIM-swap account takeover, coached push-payment fraud, IDOR enumeration, API rate-limit evasion, dormant admin activations, and mass customer data exfiltration).
+  - The platform requires modular, cataloged rule packs (Fraud & Payments, Web/API Abuse, Insider/Admin) totaling at least 25 declarative rules adhering to the Sigma-inspired format with ATT&CK tags and Ethiopian operational context (ETB thresholds, Addis Ababa UTC+3 off-hours, mobile payment rails).
+  - Multi-tenancy isolation (`organization_id UUID NOT NULL`) must allow each tenant to selectively enable/disable rules, tune thresholds (e.g. custom ETB limits or structuring ceilings), and assign custom weights without code modifications or cross-tenant leakage.
+* **Decision**:
+  - Implement 3 specialized rule packs totaling 27 declarative Sigma-inspired YAML rules:
+    - **Fraud & Payments Pack (12 rules)**:
+      - `TX-001`: High-Value Transfer Threshold (default 100,000 ETB)
+      - `TX-003`: Off-Hours Transaction (outside 06:00-22:00 EAT)
+      - `TX-004`: Untrusted Device Transfer
+      - `ATO-001`: Account Takeover Multi-Stage Chain
+      - `AUTH-003`: New Device Login Post-Failures
+      - `FRAUD-001`: Rapid Beneficiary Add and Transfer
+      - `FRAUD-002`: Mule Pass-Through Account Pattern (high-velocity in/out flow)
+      - `FRAUD-003`: SIM-Swap or Credential Reset Prior to Transfer
+      - `FRAUD-004`: Transaction Structuring Under Reporting Threshold
+      - `FRAUD-005`: USSD and Agent Cash-Out Burst
+      - `FRAUD-006`: Authorized Push Payment (APP) Coached Transfer
+      - `FRAUD-007`: Impossible Geolocation Travel Velocity
+    - **Web & API Abuse Pack (9 rules)**:
+      - `AUTH-001`: Login Failure Burst (T1110)
+      - `AUTH-002`: Credential Stuffing (distributed targets from single IP)
+      - `IOC-001`: Malicious IP Threat Intelligence Match
+      - `API-001`: Authorization Denial Burst (401/403)
+      - `API-002`: IDOR Enumeration Pattern
+      - `API-003`: Bearer Token Misuse and Replay
+      - `API-004`: Automated Bot and Security Tool Scanning (sqlmap, nikto, dirbuster)
+      - `API-005`: Distributed Rate Limit Evasion Probing
+      - `AUTH-004`: Password Spraying Campaign across multiple accounts
+    - **Insider & Admin Pack (6 rules)**:
+      - `PRIV-001`: Privilege Abuse / Unauthorized Config Change
+      - `ADMIN-001`: Mass Customer Data Export Anomaly (records >= 1000)
+      - `ADMIN-002`: Dormant Admin Account Activation (inactive >= 30 days)
+      - `ADMIN-003`: Off-Hours Privileged Configuration Action (outside 06:00-20:00 EAT)
+      - `ADMIN-004`: Unauthorized Role Elevation Attempt (superuser without dual approval)
+      - `ADMIN-005`: Audit Trail Tampering Attempt (TRUNCATE/DELETE on audit logs)
+  - Engine enhancements in `core/app/services/rule_engine_service.py`:
+    - Pack filtering support in rule discovery and listing: `GET /api/rules?pack=<pack_name>`.
+    - Candidate rule evaluation and transient override support in `evaluate_event(..., custom_rule_overrides=..., candidate_rules=...)` decoupling backtesting and preview from production database state.
+    - Multi-tenant threshold overrides allowing per-tenant customization of rule thresholds (e.g. structuring thresholds, beneficiary cooldowns, off-hours schedules).
+  - Verified with Part 21 test suite (`core/tests/test_part21_rule_packs.py`) ensuring rule parsing, pack filtering, evaluation criteria, multi-tenant override isolation, and stream synthesis.
+
 
 
 

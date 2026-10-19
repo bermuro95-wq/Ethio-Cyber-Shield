@@ -1,0 +1,22 @@
+id: API-003
+name: Bearer Token Misuse and Replay
+description: Session or bearer token presented simultaneously from differing source IPs or user-agent signatures, or replay of revoked/expired tokens.
+layer: L2
+pack: web_api
+severity: high
+weight: 35
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - attack.t1539
+  - attack.t1550.001
+  - api.token_theft
+remediation_hints: Revoke bearer token, invalidate current refresh token, and enforce user re-authentication.
+detection:
+  selection:
+    event_type:
+      - TOKEN_REPLAYED
+      - AUTHZ_DENIED
+      - API_REQUEST
+  thresholds:
+    distinct_ips_count: 2

@@ -1,0 +1,21 @@
+id: ADMIN-003
+name: Off-Hours Privileged Configuration Action
+description: Sensitive administrative operation (system configuration override, firewall change, role grant) executed outside normal business hours (22:00-06:00 Addis Ababa).
+layer: L2
+pack: insider_admin
+severity: high
+weight: 35
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - insider.off_hours
+  - admin.unauthorized_window
+  - locale.addis_ababa
+remediation_hints: Place configuration change in pending-approval status; require secondary executive confirmation.
+detection:
+  selection:
+    event_type:
+      - ADMIN_ACTION
+  thresholds:
+    start_hour: 22
+    end_hour: 6

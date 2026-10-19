@@ -1,0 +1,24 @@
+id: ADMIN-004
+name: Unauthorized Role Elevation Attempt
+description: Administrative user attempting self-elevation or granting superuser/compliance auditor privileges without required dual approval.
+layer: L2
+pack: insider_admin
+severity: critical
+weight: 45
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - attack.t1078.004
+  - insider.privilege_escalation
+  - governance.dual_control
+remediation_hints: Revoke elevated role assignment immediately; trigger high-severity alert to internal audit committee.
+detection:
+  selection:
+    event_type:
+      - ADMIN_ACTION
+      - ROLE_ASSIGNED
+      - AUTHZ_DENIED
+  keywords:
+    - superuser
+    - security_admin
+    - compliance_auditor
