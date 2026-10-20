@@ -457,6 +457,26 @@ CREATE TABLE IF NOT EXISTS entity_behavioral_baselines (
 CREATE INDEX IF NOT EXISTS idx_entity_baselines_lookup ON entity_behavioral_baselines(organization_id, entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_entity_baselines_status ON entity_behavioral_baselines(organization_id, status);
 
+-- =========================================================================
+-- 9d. ENTITY CRITICALITY (Phase 3.5 — Risk Model v2)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS entity_criticality (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id VARCHAR(100) NOT NULL,
+    criticality_tier VARCHAR(20) NOT NULL DEFAULT 'medium' CHECK (criticality_tier IN ('critical', 'high', 'medium', 'low')),
+    criticality_score_boost INTEGER DEFAULT 0,
+    owner_unit VARCHAR(100),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id, entity_type, entity_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_entity_criticality_lookup ON entity_criticality(organization_id, entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_entity_criticality_tier ON entity_criticality(organization_id, criticality_tier);
+
 
 CREATE TABLE IF NOT EXISTS detections (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

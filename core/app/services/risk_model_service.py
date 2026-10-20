@@ -387,11 +387,11 @@ class RiskModelV2Service:
             # Determine confidence factor
             conf_str = str(r.get('confidence', '')).lower()
             if conf_str not in CONFIDENCE_FACTORS:
-                # Infer from layer or rule metadata
-                layer = r.get('layer', '')
-                conf_str = 'high' if layer == 'L3' else ('medium' if layer == 'L2' else 'medium')
+                # Default to full confidence (1.0) so configured rule weights are preserved
+                # unless explicitly calibrated to 'medium' (0.85) or 'low' (0.70)
+                conf_str = 'high'
 
-            conf_factor = CONFIDENCE_FACTORS.get(conf_str, 0.85)
+            conf_factor = CONFIDENCE_FACTORS.get(conf_str, 1.0)
             if conf_str == 'high' and not is_shadow:
                 has_high_confidence = True
 

@@ -497,6 +497,42 @@
     - `GET /api/baselines/summary`: Organization-wide baseline statistics and coverage.
   - Verified with Part 22 test suite (`core/tests/test_part22_behavioral_baselines.py`) with 8/8 tests passing.
 
+---
+
+## ADR-029: Explainable Risk Model v2 (Additive 0–100 with Rule Confidence, Entity Criticality, and Recency Decay)
+
+* **Context**:
+  - Legacy risk scoring in ECS relied on a crude sum of rule weights clamped at 100. This lacked essential security nuance:
+    1. Equal weighting regardless of rule confidence (heuristics vs. deterministic attack chains).
+    2. Inability to account for entity criticality (a probe against an unauthenticated marketing page had the same mathematical weight as a probe against EthSwitch settlement rails or Core Banking hosts).
+    3. Absence of temporal recency decay, causing past resolved alerts to either permanently inflate entity risk or fail to compound acute ongoing multi-stage attacks.
+  - Under Ethiopian legal regulations (Proclamation No. 1426/2026 and PDPP 1321/2024), cybersecurity risk scores must be explainable by default and **must never be presented as statistical probabilities of guilt or fraud**.
+* **Decision**:
+  - Implement `RiskModelV2Service` (`core/app/services/risk_model_service.py`) providing an additive, explainable 0–100 operational risk scoring engine.
+  - Multi-factor mathematical formula:
+    1. **Rule Confidence Weighting**: Evaluated rules contribute $\text{round}(r.\text{weight} \times C_r)$ with confidence factors $C_r \in \{1.00\text{ (high)}, 0.85\text{ (medium)}, 0.70\text{ (low)}\}$. Unspecified confidence defaults to 1.00 preserving calibrated declarative weights.
+    2. **Pre-Criticality Synthesis**: Additive sum of confidence-adjusted rules and behavioral baseline anomaly scores: $\text{pre\_score} = \text{rules\_contrib} + \text{baseline\_score}$.
+    3. **Entity Criticality Tiers**:
+       - `critical`: $1.40\times$ multiplier, $+15$ pts boost (National switch rails, EthSwitch gateway, Core Banking hosts, RTGS/ACH nodes, Treasury reserve accounts).
+       - `high`: $1.20\times$ multiplier, $+8$ pts boost (Corporate accounts, branch managers, cashier terminals, privileged IT admins).
+       - `medium`: $1.00\times$ multiplier, $+0$ pts boost (Standard retail accounts, regular authenticated users).
+       - `low`: $0.90\times$ multiplier, $+0$ pts boost (Sandbox environments, low-risk public endpoints).
+    4. **Zero-Baseline Protection**: If $\text{pre\_score} == 0$, criticality boost is strictly suppressed, preventing false alarms on routine/benign events on critical infrastructure.
+    5. **Recency Decay**: Step-wise temporal decay for historical alerts: $0-15\text{m}$ ($1.00$), $15-60\text{m}$ ($0.85$), $1-6\text{h}$ ($0.65$), $6-24\text{h}$ ($0.40$), $>24\text{h}$ ($0.20$).
+    6. **Deterministic Severity & Rationale**: Mapping to Low ($0-24$), Medium ($25-49$), High ($50-74$), and Critical ($75-100$) with operational response rationales.
+    7. **Non-Probability Mandate**: Mandatory legal notice across all evaluation outputs: `"Deterministic operational risk priority index (0–100); NOT a statistical probability of guilt or fraud."`
+  - Store entity criticality configurations in PostgreSQL table `entity_criticality` strictly partitioned by `organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE`.
+  - Wire into `detection_engine.py` (`evaluate_event_stream`), synthesizing declarative rules, behavioral baselines, and Risk Model v2 into every alert and incident.
+  - Expose REST API routes under `/api/risk`:
+    - `GET /api/risk/model/spec`: Returns declarative specifications, formulas, and parameters.
+    - `POST /api/risk/evaluate`: Dry-run and live evaluation of risk for events or candidate detections.
+    - `GET /api/risk/criticality`: List entity criticality definitions for tenant.
+    - `POST /api/risk/criticality`: Set or update entity criticality (Admin/Responder only).
+    - `DELETE /api/risk/criticality/<id>`: Delete entity criticality override (Admin only).
+    - `GET /api/risk/entities/<entity_type>/<entity_id>`: Retrieve composite decayed risk profile and entity history.
+  - Verified with Part 23 test suite (`core/tests/test_part23_risk_model_v2.py`) with 11/11 tests passing and no regressions across Part 3, Part 19, Part 20, Part 21, and Part 22.
+
+
 
 
 

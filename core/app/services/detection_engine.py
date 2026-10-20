@@ -250,8 +250,7 @@ def evaluate_event_stream(event: dict) -> dict:
 
     # Build explainable evidence breakdown
     breakdown = []
-    if not reasons:
-        reasons = []
+    reasons = list(risk_v2.get('reasons', [])) if risk_v2 else []
     for r in fired_rules:
         breakdown.append({
             'rule_id': r['rule_id'],
@@ -278,8 +277,9 @@ def evaluate_event_stream(event: dict) -> dict:
                 'is_shadow': False,
                 'lifecycle_state': 'live'
             })
-            if not risk_v2:
-                reasons.append(f"[BASELINE-{sig.get('dimension', 'STAT').upper()}] {sig.get('explanation')} (+{sig.get('deviation_score')} pts)")
+            baseline_reason = f"[BASELINE-{sig.get('dimension', 'STAT').upper()}] {sig.get('explanation')} (+{sig.get('deviation_score')} pts)"
+            if baseline_reason not in reasons:
+                reasons.append(baseline_reason)
     elif baseline_eval and baseline_eval.get('deterministic_fallback') and baseline_eval.get('explanations') and not fired_rules:
         reasons.append(f"[BASELINE-FALLBACK] {baseline_eval['explanations'][0]}")
 
