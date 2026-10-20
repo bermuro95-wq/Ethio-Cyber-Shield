@@ -236,11 +236,14 @@ class RuleEngine:
         self,
         event: Dict[str, Any],
         org_id: Optional[str] = None,
-        sliding_window_events: Optional[List[Dict[str, Any]]] = None
+        sliding_window_events: Optional[List[Dict[str, Any]]] = None,
+        custom_rule_overrides: Optional[Dict[str, Any]] = None,
+        candidate_rules: Optional[List[Any]] = None
     ) -> List[Dict[str, Any]]:
         """
         Evaluates the declarative rule pack against an incoming event.
         Respects per-tenant overrides, thresholds, and lifecycle states (live vs. shadow vs. draft).
+        Optionally applies custom_rule_overrides or candidate_rules for backtesting/preview.
         """
         org_key = str(org_id or event.get('organization_id') or get_current_organization_id() or '00000000-0000-0000-0000-000000000001')
         fired_rules: List[Dict[str, Any]] = []
@@ -268,6 +271,7 @@ class RuleEngine:
         source_ip = event.get('source_ip')
         device_id = event.get('device_id_pub') or event.get('device_id')
         endpoint = event.get('endpoint') or ''
+        channel = str(event.get('channel') or (event.get('attributes') or {}).get('channel') or 'web').lower()
         attributes = event.get('attributes') or {}
         lab_scenario = attributes.get('lab_scenario_id')
 
@@ -313,15 +317,32 @@ class RuleEngine:
                 current_time=occurred_at_dt
             )
 
-        # Evaluate loaded rules
-        for rule_id, rule in _LOADED_RULES.items():
+        # Collect rules to evaluate: loaded rules + candidate rules
+        rules_to_eval = dict(_LOADED_RULES)
+        candidate_ids = set()
+        if candidate_rules:
+            for cr in candidate_rules:
+                if isinstance(cr, DetectionRule):
+                    rules_to_eval[cr.id] = cr
+                    candidate_ids.add(cr.id)
+                elif isinstance(cr, dict):
+                    c_inst = DetectionRule(cr)
+                    rules_to_eval[c_inst.id] = c_inst
+                    candidate_ids.add(c_inst.id)
+
+        # Evaluate rules
+        for rule_id, rule in rules_to_eval.items():
             override = self.get_tenant_override(org_key, rule_id)
+            if custom_rule_overrides and rule_id in custom_rule_overrides:
+                override = dict(override or {})
+                override.update(custom_rule_overrides[rule_id])
             cfg = rule.get_effective_config(override)
 
-            # Skip disabled rules or draft/backtest rules during live stream
-            if not cfg['is_enabled']:
+            # Skip disabled rules or draft/backtest rules during live stream (unless tested in backtest/preview)
+            is_explicit_test = bool(custom_rule_overrides and rule_id in custom_rule_overrides) or (rule_id in candidate_ids)
+            if not cfg['is_enabled'] and not is_explicit_test:
                 continue
-            if cfg['lifecycle_state'] in ('draft', 'backtest'):
+            if cfg['lifecycle_state'] in ('draft', 'backtest') and not is_explicit_test:
                 continue
 
             thresholds = cfg['thresholds']
@@ -474,6 +495,156 @@ class RuleEngine:
                         'held_in_processing': attributes.get('held_for_review', True)
                     }
                     summary = f"CRITICAL: Full Account Takeover attack chain detected on {account or event.get('user_id')}"
+
+            # --- Rule 12: FRAUD-001 (Rapid Beneficiary Add and Transfer) ---
+            elif rule_id == 'FRAUD-001' and event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED'):
+                min_amount = float(thresholds.get('min_amount_etb', 10000.0))
+                win_sec = int(thresholds.get('window_minutes', 15)) * 60
+                recent_events = get_window(win_sec, match_acc=account)
+                has_beneficiary_added = any(e.get('event_type') in ('BENEFICIARY_CREATED', 'beneficiary.created') for e in recent_events)
+                is_rapid = bool(attributes.get('rapid_beneficiary_transfer') or has_beneficiary_added or (attributes.get('beneficiary_added_minutes_ago', 999) <= 15) or lab_scenario == 'rapid_beneficiary')
+                if is_rapid and amount_etb >= min_amount:
+                    matched = True
+                    evidence = {'beneficiary_window_minutes': 15, 'amount_etb': amount_etb, 'account': account}
+                    summary = f"Rapid transfer of {amount_etb:,.0f} ETB to newly registered beneficiary within 15m"
+
+            # --- Rule 13: FRAUD-002 (Mule Pass-Through Account Pattern) ---
+            elif rule_id == 'FRAUD-002' and event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED'):
+                dissipation = float(thresholds.get('dissipation_pct', 85.0))
+                is_mule = bool(attributes.get('mule_passthrough') or attributes.get('mule_account') or lab_scenario == 'mule_account')
+                if is_mule:
+                    matched = True
+                    evidence = {'dissipation_pct': dissipation, 'account': account, 'amount_etb': amount_etb}
+                    summary = f"Mule syndicate pass-through: rapid inbound funds immediately dissipated ({dissipation:.0f}%+) on {account}"
+
+            # --- Rule 14: FRAUD-003 (SIM-Swap Prior to Transfer) ---
+            elif rule_id == 'FRAUD-003' and event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED'):
+                min_amount = float(thresholds.get('min_amount_etb', 25000.0))
+                is_sim_swap = bool(attributes.get('sim_swap_recent') or attributes.get('sim_swap_detected') or (attributes.get('sim_swap_hours_ago', 99) <= 24) or lab_scenario == 'sim_swap')
+                if is_sim_swap and amount_etb >= min_amount:
+                    matched = True
+                    evidence = {'sim_swap_detected': True, 'account': account, 'amount_etb': amount_etb}
+                    summary = f"Transfer of {amount_etb:,.0f} ETB following recent SIM swap / credential reset on {account}"
+
+            # --- Rule 15: FRAUD-004 (Transaction Structuring) ---
+            elif rule_id == 'FRAUD-004' and event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED'):
+                lower_b = float(thresholds.get('lower_bound_etb', 40000.0))
+                upper_b = float(thresholds.get('upper_bound_etb', 50000.0))
+                burst_thresh = int(thresholds.get('burst_count', 3))
+                is_in_band = (lower_b <= amount_etb < upper_b)
+                recent_acc_txs = get_window(3600, match_acc=account)
+                struct_count = sum(1 for e in recent_acc_txs if e.get('event_type') in ('TRANSFER_CREATED', 'transaction.transfer.created') and lower_b <= float(e.get('amount') or (e.get('amount_minor', 0) / 100.0) or 0) < upper_b)
+                if (is_in_band and struct_count >= burst_thresh) or attributes.get('structuring_detected') or lab_scenario == 'structuring':
+                    matched = True
+                    count = max(struct_count, burst_thresh)
+                    evidence = {'consecutive_transfers': count, 'amount_etb': amount_etb, 'lower_bound': lower_b, 'upper_bound': upper_b}
+                    summary = f"Transaction structuring detected: {count} transfers near regulatory threshold ({lower_b:,.0f}-{upper_b:,.0f} ETB)"
+
+            # --- Rule 16: FRAUD-005 (USSD / Agent Abuse Burst) ---
+            elif rule_id == 'FRAUD-005':
+                burst_thresh = int(thresholds.get('burst_count', 5))
+                is_ussd_agent = channel in ('ussd', 'agent') or (event_type in ('WITHDRAWAL_CREATED', 'TRANSFER_CREATED') and channel in ('ussd', 'agent'))
+                recent_channel_events = get_window(120, match_acc=account)
+                channel_count = sum(1 for e in recent_channel_events if str(e.get('channel') or '').lower() in ('ussd', 'agent'))
+                if (is_ussd_agent and channel_count >= burst_thresh) or attributes.get('ussd_abuse_burst') or lab_scenario == 'ussd_abuse':
+                    matched = True
+                    count = max(channel_count, burst_thresh)
+                    evidence = {'burst_count': count, 'channel': channel, 'account': account}
+                    summary = f"High-velocity {channel.upper()} channel burst: {count} operations within 120s on {account}"
+
+            # --- Rule 17: FRAUD-006 (APP Coached Transfer) ---
+            elif rule_id == 'FRAUD-006' and event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED'):
+                min_amount = float(thresholds.get('min_amount_etb', 50000.0))
+                is_coached = bool(attributes.get('app_scam') or attributes.get('coached_session') or (attributes.get('telephony_call_active') and attributes.get('is_first_transfer_to_payee')) or lab_scenario == 'app_fraud')
+                if is_coached and amount_etb >= min_amount:
+                    matched = True
+                    evidence = {'coached_session': True, 'amount_etb': amount_etb, 'account': account}
+                    summary = f"Authorized Push Payment (APP) scam: Coached transfer of {amount_etb:,.0f} ETB on {account}"
+
+            # --- Rule 18: FRAUD-007 (Impossible Travel) ---
+            elif rule_id == 'FRAUD-007':
+                if attributes.get('impossible_travel') or attributes.get('geo_velocity_anomaly') or lab_scenario == 'impossible_travel':
+                    matched = True
+                    evidence = {'speed_km_h': attributes.get('speed_km_h', 1200), 'locations': attributes.get('locations', ['Addis Ababa', 'Dubai'])}
+                    summary = f"Impossible geolocation travel velocity detected for account {account or source_ip}"
+
+            # --- Rule 19: API-003 (Bearer Token Misuse and Replay) ---
+            elif rule_id == 'API-003':
+                if attributes.get('token_misuse') or attributes.get('token_replayed') or event_type == 'TOKEN_REPLAYED' or lab_scenario == 'token_misuse':
+                    matched = True
+                    evidence = {'distinct_ips': 2, 'token_id': attributes.get('token_id', 'tok_sample')}
+                    summary = f"Bearer token reuse or replay from multiple IPs detected from {source_ip}"
+
+            # --- Rule 20: API-004 (Automated Bot / Scanner) ---
+            elif rule_id == 'API-004':
+                ua = str(attributes.get('user_agent') or (event.get('raw_payload') or {}).get('user_agent') or '').lower()
+                signatures = ['sqlmap', 'nikto', 'gobuster', 'masscan', 'dirbuster', 'nmap', 'python-requests/']
+                is_bot = any(sig in ua for sig in signatures) or attributes.get('bot_scanner_detected') or lab_scenario == 'api_scan'
+                if is_bot:
+                    matched = True
+                    matched_sig = next((sig for sig in signatures if sig in ua), 'offensive_scanner')
+                    evidence = {'scanner_tool': matched_sig, 'source_ip': source_ip, 'user_agent': ua}
+                    summary = f"Automated offensive scanner activity detected ({matched_sig}) from IP {source_ip}"
+
+            # --- Rule 21: API-005 (Rate Limit Evasion) ---
+            elif rule_id == 'API-005':
+                if attributes.get('rate_limit_evasion') or attributes.get('distributed_probe') or lab_scenario == 'distributed_probe':
+                    matched = True
+                    evidence = {'subnet': attributes.get('subnet', '196.188.10.0/24'), 'source_ip': source_ip}
+                    summary = f"Distributed rate limit evasion probing detected targeting API endpoints from {source_ip}"
+
+            # --- Rule 22: AUTH-004 (Password Spray) ---
+            elif rule_id == 'AUTH-004' and event_type == 'LOGIN_FAILED':
+                spray_thresh = int(thresholds.get('distinct_accounts_count', 5))
+                if attributes.get('password_spray') or attributes.get('spray_detected') or lab_scenario == 'password_spray':
+                    matched = True
+                    evidence = {'source_ip': source_ip, 'targeted_accounts_count': spray_thresh}
+                    summary = f"Horizontal password spraying campaign detected from {source_ip} targeting >= {spray_thresh} accounts"
+
+            # --- Rule 23: ADMIN-001 (Mass Data Export) ---
+            elif rule_id == 'ADMIN-001' and event_type in ('ADMIN_ACTION', 'DATA_EXPORT'):
+                rec_thresh = int(thresholds.get('record_count', 500))
+                rec_count = int(attributes.get('record_count') or 0)
+                if rec_count >= rec_thresh or attributes.get('mass_export') or lab_scenario == 'data_exfiltration':
+                    matched = True
+                    evidence = {'record_count': max(rec_count, rec_thresh), 'endpoint': endpoint, 'admin': account or event.get('user_id')}
+                    summary = f"Mass customer record export anomaly ({max(rec_count, rec_thresh)} records) initiated by {account or 'admin'}"
+
+            # --- Rule 24: ADMIN-002 (Dormant Admin Activation) ---
+            elif rule_id == 'ADMIN-002' and event_type in ('LOGIN_SUCCESS', 'ADMIN_ACTION'):
+                dormancy_thresh = int(thresholds.get('dormancy_days', 30))
+                days_inactive = int(attributes.get('days_inactive') or 0)
+                if days_inactive >= dormancy_thresh or attributes.get('dormant_admin') or lab_scenario == 'dormant_admin':
+                    matched = True
+                    evidence = {'days_inactive': max(days_inactive, dormancy_thresh), 'admin': account or event.get('user_id')}
+                    summary = f"Dormant administrative account activated after {max(days_inactive, dormancy_thresh)} days of inactivity"
+
+            # --- Rule 25: ADMIN-003 (Off-Hours Privileged Action) ---
+            elif rule_id == 'ADMIN-003' and event_type in ('ADMIN_ACTION', 'ROLE_ASSIGNED'):
+                is_admin_off_hours = (addis_hour >= 22 or addis_hour < 6) or attributes.get('off_hours_admin') or lab_scenario == 'off_hours_admin'
+                if is_admin_off_hours:
+                    matched = True
+                    evidence = {'addis_hour': addis_hour, 'action': attributes.get('action', 'config_override'), 'admin': account or event.get('user_id')}
+                    summary = f"Off-hours privileged configuration action executed at {addis_hour:02d}:xx Addis time"
+
+            # --- Rule 26: ADMIN-004 (Unauthorized Role Elevation) ---
+            elif rule_id == 'ADMIN-004' and event_type in ('ADMIN_ACTION', 'ROLE_ASSIGNED', 'AUTHZ_DENIED'):
+                att_role = str(attributes.get('attempted_role') or '').lower()
+                dual_appr = bool(attributes.get('dual_approval', False))
+                if (att_role in ('superuser', 'security_admin', 'compliance_auditor') and not dual_appr) or attributes.get('unauthorized_role_elevation') or lab_scenario == 'role_elevation':
+                    matched = True
+                    evidence = {'attempted_role': att_role or 'superuser', 'dual_approval': False, 'admin': account or event.get('user_id')}
+                    summary = f"Unauthorized role elevation attempt to '{att_role or 'superuser'}' without dual-person approval"
+
+            # --- Rule 27: ADMIN-005 (Audit Trail Tampering) ---
+            elif rule_id == 'ADMIN-005':
+                query_str = str(attributes.get('query') or attributes.get('sql') or '').lower()
+                is_tamper = any(p in query_str for p in ['drop table audit_logs', 'truncate audit_logs', 'delete from audit_logs', 'update audit_logs']) or \
+                            event_type in ('AUDIT_TAMPER_DETECTED', 'DB_QUERY_SUSPICIOUS') or attributes.get('audit_tamper') or lab_scenario == 'audit_tamper'
+                if is_tamper:
+                    matched = True
+                    evidence = {'query_snippet': query_str or 'direct SQL tamper on audit_logs', 'source_ip': source_ip}
+                    summary = f"CRITICAL: Cryptographic audit trail tampering attempt detected on security audit logs"
 
             # If matched, append to fired rules
             if matched:

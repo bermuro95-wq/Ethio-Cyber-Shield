@@ -203,11 +203,27 @@ def evaluate_event_stream(event: dict) -> dict:
         fired_rules = []
 
     # =====================================================================
+    # BEHAVIORAL BASELINE EVALUATION (Phase 3.4)
+    # Evaluates statistical baselines (amounts, hours, devices, geos)
+    # Outputs plain explanations ("amount is 9× this account's 90-day median")
+    # Falls back deterministically when history is thin (< 5 events)
+    # =====================================================================
+    baseline_eval = None
+    try:
+        from app.services.behavioral_baseline_service import BehavioralBaselineService
+        BehavioralBaselineService.record_event_for_baseline(event, org_id)
+        baseline_eval = BehavioralBaselineService.evaluate_event_against_baseline(event, org_id)
+    except Exception as e_base:
+        logger.debug(f"Behavioral baseline evaluation skipped: {e_base}")
+        baseline_eval = {'is_anomalous': False, 'anomaly_score': 0, 'signals': [], 'explanations': [], 'deterministic_fallback': True}
+
+    # =====================================================================
     # LAYER 4: EXPLAINABLE RISK SYNTHESIS & SCORING (§9.3)
     # Active risk score excludes shadow rules (Phase 3.1)
     # =====================================================================
 
-    raw_score = sum(r['weight'] for r in fired_rules if not r.get('is_shadow'))
+    baseline_score = baseline_eval.get('anomaly_score', 0) if baseline_eval and baseline_eval.get('is_anomalous') else 0
+    raw_score = sum(r['weight'] for r in fired_rules if not r.get('is_shadow')) + baseline_score
     capped_score = min(100, raw_score)
 
     if capped_score >= 75:
@@ -237,6 +253,21 @@ def evaluate_event_stream(event: dict) -> dict:
         shadow_suffix = " [SHADOW - NO IMPACT]" if r.get('is_shadow') else ""
         effective_pts = 0 if r.get('is_shadow') else r['weight']
         reasons.append(f"[{r['rule_id']}] {r['name']} (+{effective_pts} pts): {r['summary']}{shadow_suffix}")
+
+    if baseline_eval and baseline_eval.get('is_anomalous'):
+        for sig in baseline_eval.get('signals', []):
+            breakdown.append({
+                'rule_id': f"BASE-{sig.get('dimension', 'STAT').upper()}",
+                'name': f"Behavioral Baseline Deviation ({sig.get('dimension', '').title()})",
+                'layer': 'L2',
+                'weight': sig.get('deviation_score', 0),
+                'summary': sig.get('explanation', ''),
+                'is_shadow': False,
+                'lifecycle_state': 'live'
+            })
+            reasons.append(f"[BASELINE-{sig.get('dimension', 'STAT').upper()}] {sig.get('explanation')} (+{sig.get('deviation_score')} pts)")
+    elif baseline_eval and baseline_eval.get('deterministic_fallback') and baseline_eval.get('explanations') and not fired_rules:
+        reasons.append(f"[BASELINE-FALLBACK] {baseline_eval['explanations'][0]}")
 
     sb = get_service_supabase()
     target_id = event.get('target_system_id')
@@ -420,4 +451,6 @@ def evaluate_event_stream(event: dict) -> dict:
         'containment': containment_result,
         'is_attack_chain': any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules),
         'is_threat': capped_score > 0 or any(not r.get('is_shadow') for r in fired_rules),
+        'behavioral_baseline': baseline_eval,
+        'deterministic_fallback': baseline_eval.get('deterministic_fallback', True) if baseline_eval else True,
     }

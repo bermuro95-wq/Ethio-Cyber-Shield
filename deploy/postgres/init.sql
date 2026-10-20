@@ -379,6 +379,84 @@ CREATE TABLE IF NOT EXISTS tenant_rule_overrides (
 
 CREATE INDEX IF NOT EXISTS idx_tenant_rule_overrides_lookup ON tenant_rule_overrides(organization_id, rule_id);
 
+-- =========================================================================
+-- 9b. RULE LIFECYCLE, BACKTESTING & ANALYST FEEDBACK (Phase 3.2)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS rule_backtest_runs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    rule_id VARCHAR(50) NOT NULL,
+    rule_version VARCHAR(20) DEFAULT '1.0.0',
+    status VARCHAR(20) DEFAULT 'completed' CHECK (status IN ('running', 'completed', 'failed')),
+    time_range_days INTEGER DEFAULT 7,
+    time_range_start TIMESTAMPTZ NOT NULL,
+    time_range_end TIMESTAMPTZ NOT NULL,
+    parameters JSONB DEFAULT '{}',
+    events_evaluated INTEGER DEFAULT 0,
+    matches_count INTEGER DEFAULT 0,
+    results_summary JSONB DEFAULT '{}',
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_rule_backtest_runs_org ON rule_backtest_runs(organization_id, rule_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS rule_feedback (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    rule_id VARCHAR(50) NOT NULL,
+    detection_id UUID REFERENCES detections(id) ON DELETE SET NULL,
+    alert_id UUID REFERENCES alerts(id) ON DELETE SET NULL,
+    verdict VARCHAR(50) NOT NULL CHECK (verdict IN ('true_positive', 'false_positive', 'suspicious_unconfirmed', 'benign_test')),
+    analyst_notes TEXT,
+    suggested_suppression JSONB DEFAULT '{}',
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_rule_feedback_org ON rule_feedback(organization_id, rule_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rule_feedback_verdict ON rule_feedback(organization_id, verdict);
+
+CREATE TABLE IF NOT EXISTS rule_lifecycle_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    rule_id VARCHAR(50) NOT NULL,
+    from_state VARCHAR(20) NOT NULL,
+    to_state VARCHAR(20) NOT NULL,
+    reason TEXT,
+    backtest_run_id UUID REFERENCES rule_backtest_runs(id) ON DELETE SET NULL,
+    changed_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_rule_lifecycle_history_org ON rule_lifecycle_history(organization_id, rule_id, created_at DESC);
+
+-- =========================================================================
+-- 9c. ENTITY BEHAVIORAL BASELINES (Phase 3.4)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS entity_behavioral_baselines (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id VARCHAR(100) NOT NULL,
+    lookback_days INTEGER DEFAULT 90,
+    sample_count INTEGER DEFAULT 0,
+    amount_stats JSONB DEFAULT '{}',
+    temporal_profile JSONB DEFAULT '{}',
+    known_devices JSONB DEFAULT '[]',
+    known_locations JSONB DEFAULT '[]',
+    known_channels JSONB DEFAULT '[]',
+    status VARCHAR(20) DEFAULT 'sufficient' CHECK (status IN ('sufficient', 'insufficient_data', 'stale')),
+    last_calculated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id, entity_type, entity_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_entity_baselines_lookup ON entity_behavioral_baselines(organization_id, entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_entity_baselines_status ON entity_behavioral_baselines(organization_id, status);
+
 
 CREATE TABLE IF NOT EXISTS detections (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

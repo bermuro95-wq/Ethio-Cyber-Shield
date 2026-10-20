@@ -1,0 +1,26 @@
+id: API-004
+name: Automated Bot and Security Tool Scanning
+description: Requests exhibiting known offensive security tool user-agent signatures (sqlmap, nikto, gobuster, masscan) or abnormal headless bot activity.
+layer: L2
+pack: web_api
+severity: high
+weight: 30
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - attack.t1595
+  - tool.scanner
+  - waf.bot_mitigation
+remediation_hints: Issue rate limit or challenge on source IP at WAF/reverse proxy; report IP to threat intelligence feed.
+detection:
+  selection:
+    event_type:
+      - API_REQUEST
+      - HTTP_REQUEST
+      - AUTHZ_DENIED
+  signatures:
+    - sqlmap
+    - nikto
+    - gobuster
+    - masscan
+    - dirbuster

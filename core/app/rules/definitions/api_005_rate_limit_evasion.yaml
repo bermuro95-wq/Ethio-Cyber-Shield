@@ -1,0 +1,23 @@
+id: API-005
+name: Distributed Rate Limit Evasion Probing
+description: Distributed probing cycling across source IPs or subnets staying just below individual IP denial thresholds to target authentication or API endpoints.
+layer: L2
+pack: web_api
+severity: high
+weight: 35
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - attack.t1110.003
+  - api.distributed_probe
+  - pattern.rate_limit_evasion
+remediation_hints: Enforce subnet-level rate limiting (/24 or /20) on ingress API gateway.
+detection:
+  selection:
+    event_type:
+      - API_REQUEST
+      - AUTHZ_DENIED
+      - RATE_LIMITED
+  thresholds:
+    subnet_request_burst: 10
+    window_seconds: 60

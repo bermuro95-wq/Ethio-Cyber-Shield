@@ -1,0 +1,22 @@
+id: FRAUD-001
+name: Rapid Beneficiary Add and Transfer
+description: Funds transfer initiated to a newly registered beneficiary account within 15 minutes of addition.
+layer: L2
+pack: fraud_payments
+severity: high
+weight: 35
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - fraud.transfer
+  - pattern.rapid_beneficiary
+  - nbe.payment_fraud
+remediation_hints: Place transfer on hold for manual review; verify recipient beneficiary with account owner via SMS/callback.
+detection:
+  selection:
+    event_type:
+      - TRANSFER_CREATED
+      - TRANSFER_INITIATED
+  thresholds:
+    window_minutes: 15
+    min_amount_etb: 10000.0

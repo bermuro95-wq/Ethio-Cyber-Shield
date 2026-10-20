@@ -1,0 +1,21 @@
+id: FRAUD-006
+name: Authorized Push Payment (APP) Coached Transfer
+description: High-risk first transfer to an unfamiliar recipient coupled with extended interaction hesitation or active telephony indicators (social engineering/coached fraud).
+layer: L3
+pack: fraud_payments
+severity: critical
+weight: 45
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - fraud.app_scam
+  - social_engineering
+  - pattern.coached
+remediation_hints: Require mandatory 2-hour cooling-off window; display scam warning prompt on banking app with verbal confirmation required.
+detection:
+  selection:
+    event_type:
+      - TRANSFER_CREATED
+      - TRANSFER_INITIATED
+  thresholds:
+    min_amount_etb: 50000.0

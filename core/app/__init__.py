@@ -1,7 +1,14 @@
+import sys
+import os
 from flask import Flask
 from flask_cors import CORS
 from dotenv import load_dotenv
-import os
+
+# Ensure repository root is in sys.path for connectors and sdk modules
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
 from app.config import Config
 
 load_dotenv()
@@ -50,6 +57,7 @@ def create_app():
     from app.routes.data_quality import data_quality_bp
     from app.routes.connectors import connectors_bp
     from app.routes.rules import rules_bp
+    from app.routes.baselines import baselines_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(incidents_bp, url_prefix='/api/incidents')
@@ -72,6 +80,7 @@ def create_app():
     app.register_blueprint(data_quality_bp, url_prefix='/api/health/quality')
     app.register_blueprint(connectors_bp, url_prefix='/api/connectors')
     app.register_blueprint(rules_bp, url_prefix='/api/rules')
+    app.register_blueprint(baselines_bp, url_prefix='/api/baselines')
 
 
 

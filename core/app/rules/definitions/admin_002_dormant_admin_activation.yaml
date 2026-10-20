@@ -1,0 +1,21 @@
+id: ADMIN-002
+name: Dormant Admin Account Activation
+description: Successful authentication or administrative command executed on an administrative identity after 30 or more days of dormancy.
+layer: L2
+pack: insider_admin
+severity: high
+weight: 35
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - attack.t1078.002
+  - insider.dormant_admin
+  - nbe.it_governance
+remediation_hints: Require identity re-verification with IT security management; confirm employment status with HR before restoring privileges.
+detection:
+  selection:
+    event_type:
+      - LOGIN_SUCCESS
+      - ADMIN_ACTION
+  thresholds:
+    dormancy_days: 30

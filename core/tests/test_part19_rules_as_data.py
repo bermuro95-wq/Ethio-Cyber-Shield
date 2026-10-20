@@ -325,7 +325,7 @@ class TestRulesAsData(unittest.TestCase):
             'currency': 'ETB',
             'organization_id': self.org_a,
             'occurred_at': datetime.now(timezone.utc).isoformat(),
-            'attributes': {}
+            'attributes': {'local_hour': 12}
         }
         res_live = evaluate_event_stream(event_150k)
         self.assertIn("TX-001", res_live["rules_fired"])

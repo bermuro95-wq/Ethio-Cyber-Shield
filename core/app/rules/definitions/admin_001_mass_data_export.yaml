@@ -1,0 +1,21 @@
+id: ADMIN-001
+name: Mass Customer Data Export Anomaly
+description: Administrative identity initiating bulk export or downloading an abnormally large volume of customer accounts, card records, or financial transactions.
+layer: L2
+pack: insider_admin
+severity: critical
+weight: 45
+lifecycle_state: live
+version: 1.0.0
+tags:
+  - attack.t1567
+  - insider.data_exfiltration
+  - compliance.pdpp
+remediation_hints: Suspend exporting user session immediately; notify Data Protection Officer (DPO) and CISO per PDPP 1321/2024 obligations.
+detection:
+  selection:
+    event_type:
+      - ADMIN_ACTION
+      - DATA_EXPORT
+  thresholds:
+    record_count: 500

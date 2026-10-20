@@ -2,7 +2,7 @@ id: AUTH-001
 name: Login Failure Burst
 description: Rapid consecutive login failures targeting a specific account within a 60-second window.
 layer: L1
-pack: fraud_payments
+pack: web_api
 severity: medium
 weight: 25
 lifecycle_state: live

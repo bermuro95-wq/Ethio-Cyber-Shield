@@ -393,6 +393,111 @@
     - `GET /api/rules/<id>/override`: Retrieve tenant-specific override.
     - `DELETE /api/rules/<id>/override`: Revert tenant override to platform defaults.
 
+---
+
+## ADR-026: Rule Lifecycle Tooling, Historical Event Backtesting, and Analyst Precision Feedback
+
+* **Context**:
+  - In critical banking and payment rail environments, deploying new detection rules directly into live production or tuning ETB thresholds blindly causes alert fatigue, false positives, and operational disruptions.
+  - Security analysts and fraud engineers need an evidence-backed workflow to evaluate candidate rules against actual historical telemetry before activation: `draft` -> `backtest` -> `shadow` -> `live`.
+  - The platform requires an explainable "what would have fired in the last 7 days" preview to see the exact delta in detections and simulated risk points when adjusting thresholds.
+  - Continuous detection improvement requires closing the analyst feedback loop: capturing `true_positive` vs. `false_positive` verdicts, computing precision and false positive rates (FPR), and automatically surfacing tuning alerts and entity suppression recommendations when FPR exceeds 25%.
+* **Decision**:
+  - Implement `rule_lifecycle_service.py` (`RuleBacktestEngine`, `RuleLifecycleManager`, `RulePrecisionService`) strictly partitioned by `organization_id UUID NOT NULL`.
+  - Add PostgreSQL tables in `deploy/postgres/init.sql`:
+    - `rule_backtest_runs`: stores backtest execution history, window parameters, evaluated event counts, match rates, daily distribution, and sample matches.
+    - `rule_feedback`: stores analyst review verdicts (`true_positive`, `false_positive`, `suspicious_unconfirmed`, `benign_test`), analyst notes, and suggested entity suppressions.
+    - `rule_lifecycle_history`: audit log recording lifecycle transitions, old state, new state, reason, and backtest link.
+  - Enforce lifecycle transition validation:
+    - Promoting from `draft` or `backtest` to `shadow` or `live` requires a verified historical backtest run (or explicit `force=True` audit override).
+    - Transitions update per-tenant overrides (`tenant_rule_overrides`) and emit audit log records.
+  - Support dry-run "what would have fired" preview (`RuleBacktestEngine.preview_rule_evaluation`) allowing analysts to test threshold adjustments (e.g. 100k vs 250k ETB) against the last 7 days of stored events without permanent database modifications.
+  - Calculate real-time rule precision $\frac{\text{TP}}{\text{TP} + \text{FP}}$ and false positive rate. Automatically raise `HIGH_FALSE_POSITIVE_RATE` warnings when FPR $\ge 25\%$ with $\ge 2$ FPs, recommending threshold tuning and entity allowlists; conversely, surface `PROMOTION_READY` suggestions when low FPR is observed during shadow evaluation.
+  - Expose REST API routes under `/api/rules/*`:
+    - `POST /api/rules/<id>/backtest`, `GET /api/rules/<id>/backtest`, `GET /api/rules/backtests/<run_id>`
+    - `POST /api/rules/preview`
+    - `POST /api/rules/<id>/lifecycle`, `GET /api/rules/<id>/lifecycle`
+    - `POST /api/rules/<id>/feedback`
+    - `GET /api/rules/<id>/metrics`, `GET /api/rules/metrics/summary`
+
+---
+
+## ADR-027: Specialized Detection Rule Packs (Fraud & Payments, Web/API, Insider/Admin) and Multi-Tenant Threshold Tuning
+
+* **Context**:
+  - Generic threshold rules do not address the complex attack surfaces facing Ethiopian critical infrastructure and digital finance operators (e.g. USSD cash-outs, mule rings, SIM-swap account takeover, coached push-payment fraud, IDOR enumeration, API rate-limit evasion, dormant admin activations, and mass customer data exfiltration).
+  - The platform requires modular, cataloged rule packs (Fraud & Payments, Web/API Abuse, Insider/Admin) totaling at least 25 declarative rules adhering to the Sigma-inspired format with ATT&CK tags and Ethiopian operational context (ETB thresholds, Addis Ababa UTC+3 off-hours, mobile payment rails).
+  - Multi-tenancy isolation (`organization_id UUID NOT NULL`) must allow each tenant to selectively enable/disable rules, tune thresholds (e.g. custom ETB limits or structuring ceilings), and assign custom weights without code modifications or cross-tenant leakage.
+* **Decision**:
+  - Implement 3 specialized rule packs totaling 27 declarative Sigma-inspired YAML rules:
+    - **Fraud & Payments Pack (12 rules)**:
+      - `TX-001`: High-Value Transfer Threshold (default 100,000 ETB)
+      - `TX-003`: Off-Hours Transaction (outside 06:00-22:00 EAT)
+      - `TX-004`: Untrusted Device Transfer
+      - `ATO-001`: Account Takeover Multi-Stage Chain
+      - `AUTH-003`: New Device Login Post-Failures
+      - `FRAUD-001`: Rapid Beneficiary Add and Transfer
+      - `FRAUD-002`: Mule Pass-Through Account Pattern (high-velocity in/out flow)
+      - `FRAUD-003`: SIM-Swap or Credential Reset Prior to Transfer
+      - `FRAUD-004`: Transaction Structuring Under Reporting Threshold
+      - `FRAUD-005`: USSD and Agent Cash-Out Burst
+      - `FRAUD-006`: Authorized Push Payment (APP) Coached Transfer
+      - `FRAUD-007`: Impossible Geolocation Travel Velocity
+    - **Web & API Abuse Pack (9 rules)**:
+      - `AUTH-001`: Login Failure Burst (T1110)
+      - `AUTH-002`: Credential Stuffing (distributed targets from single IP)
+      - `IOC-001`: Malicious IP Threat Intelligence Match
+      - `API-001`: Authorization Denial Burst (401/403)
+      - `API-002`: IDOR Enumeration Pattern
+      - `API-003`: Bearer Token Misuse and Replay
+      - `API-004`: Automated Bot and Security Tool Scanning (sqlmap, nikto, dirbuster)
+      - `API-005`: Distributed Rate Limit Evasion Probing
+      - `AUTH-004`: Password Spraying Campaign across multiple accounts
+    - **Insider & Admin Pack (6 rules)**:
+      - `PRIV-001`: Privilege Abuse / Unauthorized Config Change
+      - `ADMIN-001`: Mass Customer Data Export Anomaly (records >= 1000)
+      - `ADMIN-002`: Dormant Admin Account Activation (inactive >= 30 days)
+      - `ADMIN-003`: Off-Hours Privileged Configuration Action (outside 06:00-20:00 EAT)
+      - `ADMIN-004`: Unauthorized Role Elevation Attempt (superuser without dual approval)
+      - `ADMIN-005`: Audit Trail Tampering Attempt (TRUNCATE/DELETE on audit logs)
+  - Engine enhancements in `core/app/services/rule_engine_service.py`:
+    - Pack filtering support in rule discovery and listing: `GET /api/rules?pack=<pack_name>`.
+    - Candidate rule evaluation and transient override support in `evaluate_event(..., custom_rule_overrides=..., candidate_rules=...)` decoupling backtesting and preview from production database state.
+    - Multi-tenant threshold overrides allowing per-tenant customization of rule thresholds (e.g. structuring thresholds, beneficiary cooldowns, off-hours schedules).
+  - Verified with Part 21 test suite (`core/tests/test_part21_rule_packs.py`) ensuring rule parsing, pack filtering, evaluation criteria, multi-tenant override isolation, and stream synthesis.
+
+---
+
+## ADR-028: Explainable Behavioral Baselines and Deterministic Fallback (Phase 3.4)
+
+* **Context**:
+  - Pure static threshold rules (e.g. fixed 100k ETB transfer limits or fixed off-hours) do not capture entity-specific operational patterns (e.g., an account that routinely transfers 5,000 ETB suddenly transacting 90,000 ETB, or an enterprise operating solely during business hours active at 03:00 EAT).
+  - Machine learning anomaly models often present opaque probability scores that fail the platform's core architectural principle: "Explainable by default" (SRS §9, GEMINI.md).
+  - When historical telemetry for an entity is thin (e.g., brand-new accounts or < 5 events), statistical models suffer from high false positive rates. The platform requires a reliable deterministic fallback mechanism that prevents alert fatigue while maintaining security posture.
+* **Decision**:
+  - Implement `BehavioralBaselineService` (`core/app/services/behavioral_baseline_service.py`) supporting explainable per-entity statistical baselines across 4 dimensions:
+    1. **Transaction Amounts**: count, min, max, mean, median, 90th percentile, and standard deviation. Detects amount anomalies and outputs plain-language explanations: `"amount is 9.0× this account's 90-day median (20,000 ETB)"`.
+    2. **Temporal Operating Profile**: analyzes event timestamps in East Africa Time (`Africa/Addis_Ababa`, UTC+3). Extracts active hours and operating windows, detecting off-hours deviations with plain explanations: `"Activity at 03:00 EAT is outside typical operating window (08:00 - 17:00 EAT) for this account"`.
+    3. **Client Devices**: tracks known device IDs and fingerprints; alerts on unfamiliar devices: `"Device 'dev_xyz' has never been observed for this account in the past 90 days"`.
+    4. **Geographic Locations & Payment Channels**: tracks typical IPs, locations, and channels (USSD, mobile app, web); detects unprecedented access patterns.
+  - Implement deterministic fallback when data is thin (`sample_count < 5`):
+    - Sets `status: 'insufficient_data'`, `deterministic_fallback: True`, and `anomaly_score: 0`.
+    - Returns explanatory fallback reason: `"Insufficient historical baseline (< 5 events); fallback to platform policy defaults"`.
+    - Evaluates against standard deterministic rule engine policies rather than generating noisy statistical anomalies.
+  - Store baselines in PostgreSQL table `entity_behavioral_baselines` with `organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE`.
+  - Wire into `detection_engine.py` (`evaluate_event_stream`):
+    - Real-time event recording into tenant baseline buffer.
+    - Explainable baseline deviations synthesized into `breakdown` (as `BASE-*` items), `reasons`, and risk score contribution.
+  - Expose REST API routes under `/api/baselines`:
+    - `GET /api/baselines`: List baselines for tenant with entity_type and status filtering.
+    - `GET /api/baselines/<entity_type>/<entity_id>`: Retrieve entity behavioral baseline profile.
+    - `POST /api/baselines/<entity_type>/<entity_id>/recalculate`: Force on-demand recalculation over custom lookback window.
+    - `POST /api/baselines/evaluate`: Evaluate an event or candidate transaction against baseline.
+    - `POST /api/baselines/<entity_type>/<entity_id>/seed`: Seed or override baseline profile directly.
+    - `GET /api/baselines/summary`: Organization-wide baseline statistics and coverage.
+  - Verified with Part 22 test suite (`core/tests/test_part22_behavioral_baselines.py`) with 8/8 tests passing.
+
+
 
 
 
