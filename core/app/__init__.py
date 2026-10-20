@@ -58,6 +58,7 @@ def create_app():
     from app.routes.connectors import connectors_bp
     from app.routes.rules import rules_bp
     from app.routes.baselines import baselines_bp
+    from app.routes.risk import risk_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(incidents_bp, url_prefix='/api/incidents')
@@ -81,6 +82,7 @@ def create_app():
     app.register_blueprint(connectors_bp, url_prefix='/api/connectors')
     app.register_blueprint(rules_bp, url_prefix='/api/rules')
     app.register_blueprint(baselines_bp, url_prefix='/api/baselines')
+    app.register_blueprint(risk_bp, url_prefix='/api/risk')
 
 
 

@@ -218,28 +218,40 @@ def evaluate_event_stream(event: dict) -> dict:
         baseline_eval = {'is_anomalous': False, 'anomaly_score': 0, 'signals': [], 'explanations': [], 'deterministic_fallback': True}
 
     # =====================================================================
-    # LAYER 4: EXPLAINABLE RISK SYNTHESIS & SCORING (§9.3)
-    # Active risk score excludes shadow rules (Phase 3.1)
+    # LAYER 4: EXPLAINABLE RISK MODEL V2 SYNTHESIS & SCORING (Phase 3.5)
+    # Additive 0-100 model with rule confidence, entity criticality,
+    # recency decay, and deterministic non-probability rationale
     # =====================================================================
-
     baseline_score = baseline_eval.get('anomaly_score', 0) if baseline_eval and baseline_eval.get('is_anomalous') else 0
-    raw_score = sum(r['weight'] for r in fired_rules if not r.get('is_shadow')) + baseline_score
-    capped_score = min(100, raw_score)
+    target_entity_type = 'account' if account else ('system' if event.get('target_system_id') else ('user' if user_id else ('ip' if source_ip else 'event')))
+    target_entity_id = account or user_id or source_ip or event.get('target_system_id') or event_id
 
-    if capped_score >= 75:
-        severity = 'critical'
-    elif capped_score >= 50:
-        severity = 'high'
-    elif capped_score >= 25:
-        severity = 'medium'
-    else:
-        severity = 'low'
-
-    confidence = 'high' if any(r['layer'] == 'L3' and not r.get('is_shadow') for r in fired_rules) else 'medium'
+    try:
+        from app.services.risk_model_service import RiskModelV2Service
+        risk_v2 = RiskModelV2Service.calculate_risk(
+            fired_rules=fired_rules,
+            baseline_score=baseline_score,
+            entity_type=target_entity_type,
+            entity_id=target_entity_id,
+            org_id=org_id
+        )
+        capped_score = risk_v2['risk_score']
+        severity = risk_v2['severity']
+        confidence = risk_v2['confidence']
+        reasons = risk_v2['reasons']
+    except Exception as e_v2:
+        logger.error(f"Risk Model v2 calculation fallback: {e_v2}")
+        raw_score = sum(r['weight'] for r in fired_rules if not r.get('is_shadow')) + baseline_score
+        capped_score = min(100, raw_score)
+        severity = 'critical' if capped_score >= 75 else ('high' if capped_score >= 50 else ('medium' if capped_score >= 25 else 'low'))
+        confidence = 'high' if any(r.get('layer') == 'L3' and not r.get('is_shadow') for r in fired_rules) else 'medium'
+        risk_v2 = None
+        reasons = []
 
     # Build explainable evidence breakdown
     breakdown = []
-    reasons = []
+    if not reasons:
+        reasons = []
     for r in fired_rules:
         breakdown.append({
             'rule_id': r['rule_id'],
@@ -250,9 +262,10 @@ def evaluate_event_stream(event: dict) -> dict:
             'is_shadow': r.get('is_shadow', False),
             'lifecycle_state': r.get('lifecycle_state', 'live')
         })
-        shadow_suffix = " [SHADOW - NO IMPACT]" if r.get('is_shadow') else ""
-        effective_pts = 0 if r.get('is_shadow') else r['weight']
-        reasons.append(f"[{r['rule_id']}] {r['name']} (+{effective_pts} pts): {r['summary']}{shadow_suffix}")
+        if not risk_v2:
+            shadow_suffix = " [SHADOW - NO IMPACT]" if r.get('is_shadow') else ""
+            effective_pts = 0 if r.get('is_shadow') else r['weight']
+            reasons.append(f"[{r['rule_id']}] {r['name']} (+{effective_pts} pts): {r['summary']}{shadow_suffix}")
 
     if baseline_eval and baseline_eval.get('is_anomalous'):
         for sig in baseline_eval.get('signals', []):
@@ -265,7 +278,8 @@ def evaluate_event_stream(event: dict) -> dict:
                 'is_shadow': False,
                 'lifecycle_state': 'live'
             })
-            reasons.append(f"[BASELINE-{sig.get('dimension', 'STAT').upper()}] {sig.get('explanation')} (+{sig.get('deviation_score')} pts)")
+            if not risk_v2:
+                reasons.append(f"[BASELINE-{sig.get('dimension', 'STAT').upper()}] {sig.get('explanation')} (+{sig.get('deviation_score')} pts)")
     elif baseline_eval and baseline_eval.get('deterministic_fallback') and baseline_eval.get('explanations') and not fired_rules:
         reasons.append(f"[BASELINE-FALLBACK] {baseline_eval['explanations'][0]}")
 
@@ -453,4 +467,5 @@ def evaluate_event_stream(event: dict) -> dict:
         'is_threat': capped_score > 0 or any(not r.get('is_shadow') for r in fired_rules),
         'behavioral_baseline': baseline_eval,
         'deterministic_fallback': baseline_eval.get('deterministic_fallback', True) if baseline_eval else True,
+        'risk_model_v2': risk_v2,
     }
