@@ -826,6 +826,76 @@ CREATE TABLE IF NOT EXISTS regulatory_obligations (
 );
 
 -- =========================================================================
+-- 10C. COMMUNITY DEFENSE: PRIVACY-PRESERVING SIGNAL EXCHANGE (Phase 6)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS tenant_sharing_preferences (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    opt_in_sharing BOOLEAN DEFAULT FALSE,
+    allowed_tlp_levels JSONB DEFAULT '["GREEN", "AMBER"]',
+    allowed_indicator_types JSONB DEFAULT '["ip", "domain", "device_fingerprint", "phone_hash", "beneficiary_account_hash", "mule_account_hash"]',
+    auto_share_confirmed_threats BOOLEAN DEFAULT FALSE,
+    anonymize_reporter BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_sharing_preferences_org ON tenant_sharing_preferences(organization_id);
+
+CREATE TABLE IF NOT EXISTS community_signals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    signal_hash VARCHAR(64) NOT NULL UNIQUE,
+    indicator_type VARCHAR(50) NOT NULL CHECK (indicator_type IN ('ip', 'domain', 'device_fingerprint', 'phone_hash', 'beneficiary_account_hash', 'mule_account_hash')),
+    indicator_value TEXT NOT NULL,
+    tlp VARCHAR(20) NOT NULL DEFAULT 'GREEN' CHECK (tlp IN ('CLEAR', 'WHITE', 'GREEN', 'AMBER', 'RED')),
+    threat_category VARCHAR(100) NOT NULL,
+    severity VARCHAR(20) NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+    confidence FLOAT NOT NULL DEFAULT 0.70,
+    corroboration_count INTEGER DEFAULT 1,
+    corroborating_orgs JSONB DEFAULT '[]',
+    is_corroborated BOOLEAN DEFAULT FALSE,
+    status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'retracted', 'expired', 'under_review')),
+    retraction_reason TEXT,
+    ttl_hours INTEGER DEFAULT 168,
+    expires_at TIMESTAMPTZ NOT NULL,
+    stix_bundle JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_community_signals_type_val ON community_signals(indicator_type, indicator_value);
+CREATE INDEX IF NOT EXISTS idx_community_signals_status_exp ON community_signals(status, expires_at);
+CREATE INDEX IF NOT EXISTS idx_community_signals_tlp ON community_signals(tlp);
+
+CREATE TABLE IF NOT EXISTS reporter_reputations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    reputation_score FLOAT DEFAULT 0.50,
+    signals_contributed INTEGER DEFAULT 0,
+    signals_corroborated INTEGER DEFAULT 0,
+    signals_retracted INTEGER DEFAULT 0,
+    last_active_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reporter_reputations_org ON reporter_reputations(organization_id);
+
+CREATE TABLE IF NOT EXISTS signal_exchange_audit (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    action VARCHAR(50) NOT NULL,
+    signal_id UUID REFERENCES community_signals(id) ON DELETE SET NULL,
+    signal_hash VARCHAR(64),
+    details JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_signal_exchange_audit_org ON signal_exchange_audit(organization_id, created_at DESC);
+
+-- =========================================================================
 -- 11. AUDIT LOGS (Hash-Chained Audit Trail)
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS audit_logs (

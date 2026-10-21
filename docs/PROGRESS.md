@@ -19,7 +19,7 @@
 | **Phase 3** | **Detection Engine v2 (Rules-as-Data)** | **COMPLETED** | **100%** | **Gate 3 PASSED** |
 | **Phase 4** | **Safe Response & Case Management** | **COMPLETED** | **100%** | **Gate 4 PASSED** |
 | **Phase 5** | **Incident Readiness Engine (48h Clock)** | **COMPLETED** | **100%** | **Gate 5 PASSED** |
-| **Phase 6** | Community Defense (Signal Exchange) | Planned | 0% | Gate 6 Pending |
+| **Phase 6** | **Community Defense (Signal Exchange)** | **COMPLETED** | **100%** | **Gate 6 PASSED** |
 | **Phase 7** | Productization & GTM | Planned | 0% | Gate 7 Pending |
 | **Phase 8** | Selective Expansion | Demand-driven | 0% | Gate 8 Pending |
 
@@ -219,3 +219,43 @@
   - [x] 48-hour clock, escalation milestones, and immutable evidence trail verified with automated tests.
   - [x] Legal wording strictly avoids compliance overclaims ("supports evidence for").
   - [x] Cryptographic SHA-256 manifest integrity verified; post-incident tampering detected.
+
+---
+
+## Phase 6 — Community Defense: privacy-preserving signal exchange (COMPLETED)
+
+- [x] **6.1 Signal Schema, Keyed Hashing & TLP Policy**:
+  - Implemented `core/app/services/signal_exchange_service.py` and `core/app/routes/signals.py` (blueprint `/api/signals`).
+  - **Privacy-Preserving Keyed Hashing**: Customer accounts, phone numbers, and mule IDs are hashed using HMAC-SHA256 with an offline hub salt (`HUB_PEPPER`). Raw PII is mathematically irrecoverable across tenant boundaries. Public network observables (IP, domain) remain plain for firewall/WAF matching.
+  - **Traffic Light Protocol (TLP)**: Enforces FIRST Standards TLP v2.0 (`CLEAR/WHITE`, `GREEN`, `AMBER`, `RED`). `TLP:RED` is strictly local and rejected from community egress.
+  - **Sharing Preferences & Consent**: Stored in `tenant_sharing_preferences` table. Strict opt-in check enforced before any signal contribution.
+
+- [x] **6.2 Anti-Poisoning & Corroboration Engine**:
+  - **Reporter Reputation Scoring**: Tracks participant credibility (0.00 to 1.00) in `reporter_reputations` table. Increments on verified corroborations (+0.05); penalizes on retracted false positives (-0.20).
+  - **Corroboration Threshold ($N \ge 2$)**: Single-contributor signals start as uncorroborated (`is_corroborated: false`). Corroboration requires independent observation by $\ge 2$ distinct licensed institutions.
+  - **Non-Negotiable Safe Automation Rule**: Single-source uncorroborated signals produce ONLY advisory warnings (`IOC-COMMUNITY-ADVISORY`, 15 pts) and **NEVER** trigger automated blocking (`allow_automated_block: false`). Only corroborated signals or locally approved rules can trigger containment.
+  - **Retraction & Dispute Flow**: Contributor or administrator can retract false signals (`retract_signal`), deprecating them network-wide.
+
+- [x] **6.3 Hub Service & Anonymized Feed Consumption**:
+  - Community feed endpoint (`/api/signals/feed`) anonymizes contributor identities (`HUB-ANONYMIZED-PARTICIPANT`) and filters by recipient permitted TLP levels.
+  - Audit logging of all contributions, consumptions, and matches in `signal_exchange_audit`.
+
+- [x] **6.4 Detection Engine Integration**:
+  - Extends `IOC-001` with `COMMUNITY_CORROBORATED_IOC` and `COMMUNITY_UNVERIFIED_ADVISORY`.
+  - Enables Gate 6 verification: an indicator contributed by Tenant A flags and prevents a seeded attack at Tenant B.
+
+- [x] **6.5 EthioCERT STIX 2.1 Interoperability**:
+  - Exports active signals as standardized OASIS STIX 2.1 JSON Bundles (`export_stix_bundle`) with indicators, patterns, and TLP markings.
+  - Ingests official EthioCERT threat advisories (`import_cert_advisories`).
+
+- [x] **6.6 Governance Charter & Privacy Impact Assessment (PIA)**:
+  - Published `docs/SIGNAL_EXCHANGE_GOVERNANCE.md` establishing consortium terms, data-handling charter, takedown process, and PIA.
+
+- [x] **6.7 Network Effect Dashboard**:
+  - Metrics endpoint (`/api/signals/metrics`) tracking signals contributed, signals corroborated, and attacks prevented via community signals.
+
+- [x] **Gate 6 Criteria (PASSED)**:
+  - [x] Two or more tenants exchange signals end-to-end (`test_gate6_cross_tenant_prevention`).
+  - [x] A signal from Tenant A flags and prevents a seeded attack at Tenant B.
+  - [x] Anti-poisoning tests verify that single-source uncorroborated signals never trigger automated blocking.
+  - [x] Privacy Impact Assessment (PIA) and keyed hashing verify zero raw-PII leakage.

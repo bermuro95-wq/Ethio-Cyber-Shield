@@ -725,6 +725,44 @@
   - Completes Phase 5 of the ECS platform roadmap.
   - Verified with 9/9 passing tests in `core/tests/test_part28_incident_readiness_48h_vault.py` with zero regressions across Phase 4 suites (`test_part27`, `test_part26`).
 
+---
+
+## ADR-035: Community Defense, Privacy-Preserving Keyed Hashing, Anti-Poisoning Corroboration, and STIX 2.1 Exchange (Phase 6)
+
+* **Context**:
+  - Cyber fraud syndicates and advanced threat actors operate across multiple Ethiopian financial operators and infrastructure sectors simultaneously (e.g., mule account rings routing stolen funds across CBE, Dashen, Awash, and telebirr).
+  - Exchanging raw indicators directly risks exposing sensitive customer PII, account numbers, and balances, violating PDPP Proclamation No. 1321/2024 and banking secrecy rules.
+  - Furthermore, untrusted community feeds introduce "signal poisoning" risks where false indicators could cause catastrophic automated denial of service against legitimate counterparties or critical infrastructure.
+  - Phase 6 builds the long-term defensive moat through privacy-preserving signal exchange, anti-poisoning corroboration, and national EthioCERT STIX 2.1 interoperability.
+
+* **Decision**:
+  - **Phase 6.1: Signal Schema, Keyed Hashing & TLP Policy (`core/app/services/signal_exchange_service.py`, `core/app/routes/signals.py`)**:
+    - **Keyed Hashing**: Customer accounts, phone numbers, and mule IDs are hashed using HMAC-SHA256 with an offline hub salt (`HUB_PEPPER`). Raw PII is mathematically irrecoverable across tenant boundaries. Public network observables (IP, domain) remain plain for firewall/WAF matching.
+    - **Traffic Light Protocol (TLP)**: Enforces `TLP:CLEAR/WHITE`, `TLP:GREEN`, `TLP:AMBER`, and `TLP:RED`. `TLP:RED` is strictly local and rejected from community egress.
+    - **Sharing Preferences & Consent**: Stored in `tenant_sharing_preferences` table. Strict opt-in check enforced before any signal contribution.
+  - **Phase 6.2: Anti-Poisoning & Corroboration Engine**:
+    - **Reporter Reputation Scoring**: Tracks participant credibility (0.00 to 1.00) in `reporter_reputations` table. Increments on verified corroborations (+0.05); penalizes on retracted false positives (-0.20).
+    - **Corroboration Threshold ($N \ge 2$)**: Single-contributor signals start as uncorroborated (`is_corroborated: false`). Corroboration requires independent observation by $\ge 2$ distinct licensed institutions.
+    - **Non-Negotiable Safe Automation Rule**: Single-source uncorroborated signals produce ONLY advisory warnings (`IOC-COMMUNITY-ADVISORY`, 15 pts) and **NEVER** trigger automated blocking (`allow_automated_block: false`). Only corroborated signals or locally approved rules can trigger containment.
+    - **Retraction & Dispute Flow**: Contributor or administrator can retract false signals (`retract_signal`), deprecating them network-wide.
+  - **Phase 6.3: Hub Service & Anonymized Feed Consumption**:
+    - Community feed endpoint (`/api/signals/feed`) anonymizes contributor identities (`HUB-ANONYMIZED-PARTICIPANT`) and filters by recipient permitted TLP levels.
+    - Audit logging of all contributions, consumptions, and matches in `signal_exchange_audit`.
+  - **Phase 6.4: Detection Engine Integration**:
+    - Extends `IOC-001` with `COMMUNITY_CORROBORATED_IOC` and `COMMUNITY_UNVERIFIED_ADVISORY`.
+    - Enables Gate 6 verification: an indicator contributed by Tenant A flags and prevents a seeded attack at Tenant B.
+  - **Phase 6.5: EthioCERT STIX 2.1 Interoperability**:
+    - Exports active signals as standardized OASIS STIX 2.1 JSON Bundles (`export_stix_bundle`) with indicators, patterns, and TLP markings.
+    - Ingests official EthioCERT threat advisories (`import_cert_advisories`).
+  - **Phase 6.6: Governance Charter & Privacy Impact Assessment (PIA)**:
+    - Published [`docs/SIGNAL_EXCHANGE_GOVERNANCE.md`](file:///home/neuron/dev/cybershield/Ethio-Cyber-Shield/docs/SIGNAL_EXCHANGE_GOVERNANCE.md) establishing consortium terms, data-handling charter, takedown process, and PIA.
+  - **Phase 6.7: Network Effect Dashboard**:
+    - Metrics endpoint (`/api/signals/metrics`) tracking signals contributed, signals corroborated, and attacks prevented via community signals.
+
+* **Consequences**:
+  - Completes Phase 6 of the ECS platform roadmap.
+  - Verified with 8/8 passing tests in `core/tests/test_part29_community_signal_exchange.py` with zero regressions across Phase 5 (`test_part28`), Phase 4 (`test_part27`, `test_part26`), and Phase 3 (`test_part25`).
+
 
 
 
