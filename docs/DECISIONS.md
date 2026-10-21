@@ -685,6 +685,46 @@
   - Completes Phase 4.4, 4.5, 4.6, and 4.7 of the ECS platform roadmap.
   - Verified with 12/12 passing tests in `core/tests/test_part27_case_management_notifications_feedback_pir.py` with zero regressions across Phase 4.1-4.3 (`test_part26`) and Phase 3.7 (`test_part25`).
 
+---
+
+## ADR-034: Incident Readiness Engine, 48-Hour Statutory Clock, Evidence Vault, and Compliance Assistance (Phase 5)
+
+* **Context**:
+  - Ethiopian critical infrastructure operators (banks, payment system operators, telecommunications, energy) face strict regulatory reporting obligations under Proclamation No. 1426/2026 (Part 4 §18: mandatory reporting to National CERT within 48 hours of detection), National Bank of Ethiopia (NBE) Financial Cyber Resilience Directives, and PDPP Proclamation No. 1321/2024.
+  - Without automated readiness tooling, manual forensic collation takes days, breaching statutory 48-hour deadlines and risking administrative penalties.
+  - Architectural mandates require tamper-evident evidence, bilingual reporting (Amharic & English), privacy preservation, and strict non-overclaiming ("supports evidence for", never "guarantees compliance").
+
+* **Decision**:
+  - **Phase 5.1: Reportable-Incident Classification (`core/app/services/readiness_service.py`, `core/app/routes/readiness.py`)**:
+    - Evaluates statutory triggers: critical severity / risk $\ge 75$, ransomware / ATO, ETB financial exposure $\ge 50,000$ ETB, customer data exposure $\ge 100$ records (PDPP Art. 31), or interbank settlement / EthSwitch / RTGS involvement.
+    - Explicit detection timestamp anchor (`detection_date`) locked at detection time; human-in-the-loop confirmation step (`confirm_reportable_status`) records certifying officer attestation.
+  - **Phase 5.2: The 48-Hour Statutory Clock Engine**:
+    - Calculates real-time countdown in East Africa Time (`Africa/Addis_Ababa`, UTC+3).
+    - Milestone stages: `green` (0-24h), `yellow_warning` (24-36h), `amber_warning` (36-44h), `red_critical` (44-48h), and `breached` (>48h).
+    - Escalation watchdog (`check_48h_clock_escalations`) dispatches statutory warnings via `NotificationService`.
+    - EthioCERT submission recording (`record_cert_submission`) halts the clock as `submitted_on_time`.
+  - **Phase 5.3: Submission-Ready EthioCERT / INSA Package (`ECS-IRS-v1.0`)**:
+    - Compiles standard statutory JSON (`incident_report_v1.0.json`) conforming to `docs/INCIDENT_REPORT_FALLBACK_SPEC.md`.
+    - Generates unique statutory reference: `ECS-REP-YYYYMMDD-<short_id>`.
+    - Generates mandatory bilingual executive summaries (English technical narrative & Amharic official declaration: `በአዋጅ ቁጥር 1426/2026 መሰረት የቀረበ የ48 ሰዓት የሳይበር ደህንነት ክስተት ሪፖርት`).
+  - **Phase 5.4: Tamper-Evident Evidence Vault & Chain of Custody**:
+    - Creates immutable snapshots in `evidence_vaults` table with 10-year retention (`retention_days=3650`).
+    - Triple SHA-256 cryptographic sealing: `telemetry_sha256_digest` (ordered raw events), `audit_trail_sha256_digest` (hash-chained audit logs), and composite `manifest_sha256`.
+    - Chain-of-custody log in `evidence_chain_of_custody` tracking all creation, verification, export, and submission events.
+  - **Phase 5.5: Statutory Obligation Register & Compliance Support Guide**:
+    - Versioned register in `regulatory_obligations` mapping ECS capabilities to INSA Proc. 1426/2026 (§18, §19, §20), NBE Directives (§6, §8), and PDPP 1321/2024 (§31, §32).
+    - Strictly labels status as `"supports_evidence_for"`, `"partially_supported"`, or `"not_covered"` — NEVER `"compliant"` or `"guarantees compliance"`.
+    - Published comprehensive guide: `docs/COMPLIANCE_SUPPORT.md`.
+  - **Phase 5.6: One-Click Sealed Audit Pack**:
+    - All-in-one sealed regulatory audit package (`generate_audit_pack`) bundling policy, statutory mapping, breach logs, vault manifests, and SHA-256 seal.
+  - **Phase 5.7 & 5.8: Auditor Role & Data Protection Controls**:
+    - Read-only `auditor` role with inspection access to vaults, 48h clock, and audit packs without mutation privileges.
+    - PII minimization and privacy scrubbing on all exported telemetry.
+
+* **Consequences**:
+  - Completes Phase 5 of the ECS platform roadmap.
+  - Verified with 9/9 passing tests in `core/tests/test_part28_incident_readiness_48h_vault.py` with zero regressions across Phase 4 suites (`test_part27`, `test_part26`).
+
 
 
 

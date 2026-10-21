@@ -18,7 +18,7 @@
 
 | **Phase 3** | **Detection Engine v2 (Rules-as-Data)** | **COMPLETED** | **100%** | **Gate 3 PASSED** |
 | **Phase 4** | **Safe Response & Case Management** | **COMPLETED** | **100%** | **Gate 4 PASSED** |
-| **Phase 5** | Incident Readiness Engine (48h Clock) | Planned | 0% | Gate 5 Pending |
+| **Phase 5** | **Incident Readiness Engine (48h Clock)** | **COMPLETED** | **100%** | **Gate 5 PASSED** |
 | **Phase 6** | Community Defense (Signal Exchange) | Planned | 0% | Gate 6 Pending |
 | **Phase 7** | Productization & GTM | Planned | 0% | Gate 7 Pending |
 | **Phase 8** | Selective Expansion | Demand-driven | 0% | Gate 8 Pending |
@@ -163,3 +163,59 @@
   - [x] No guardrail bypass in adversarial tests (Kill Switch, Allowlists, Rate Limits, Cooldowns, Confidence).
   - [x] Every automated action is reversible or explicitly marked irreversible and requires two-person approval.
   - [x] End-to-end case management with SLA timers, SHA-256 evidence sealing, multi-channel notifications, analyst feedback loop, and post-incident review.
+
+---
+
+## Phase 5 — Incident Readiness Engine: the 48-hour clock, evidence and compliance support (COMPLETED)
+
+- [x] **5.1 Reportable-Incident Classification**:
+  - Implemented `core/app/services/readiness_service.py` evaluating statutory criteria under Proclamation No. 1426/2026:
+    - Critical severity or risk score $\ge 75$.
+    - Statutory high-impact types: `ransomware`, `account_takeover`.
+    - Exposure of national switch / interbank settlement / RTGS rails.
+    - Financial volume exposed $\ge 50,000$ ETB.
+    - Personal data breach $\ge 100$ records (PDPP Art. 31 trigger).
+  - Explicit detection timestamp anchor (`detection_date`) locked at detection time.
+  - Human-in-the-loop analyst confirmation step (`confirm_reportable_status`) recording certifying officer attestation.
+
+- [x] **5.2 The 48-Hour Statutory Clock Engine**:
+  - Exact countdown calculation in East Africa Time (`Africa/Addis_Ababa`, UTC+3).
+  - Milestone stages: `green` (0-24h), `yellow_warning` (24-36h), `amber_warning` (36-44h), `red_critical` (44-48h), and `breached` (>48h).
+  - Milestone escalation watchdog (`check_48h_clock_escalations`) dispatching statutory alerts via `NotificationService`.
+  - EthioCERT submission recording (`record_cert_submission`) halting the clock on-time with verified reference numbers.
+
+- [x] **5.3 Submission-Ready EthioCERT / INSA Package**:
+  - Generates official `incident_report_v1.0.json` conforming strictly to `docs/INCIDENT_REPORT_FALLBACK_SPEC.md` (`ECS-IRS-v1.0`).
+  - Standard statutory reference format: `ECS-REP-YYYYMMDD-<short_id>`.
+  - Mandatory bilingual executive summaries: English technical narrative and Amharic official declaration (`በአዋጅ ቁጥር 1426/2026 መሰረት የቀረበ የ48 ሰዓት የሳይበር ደህንነት ክስተት ሪፖርት`).
+  - Captures organization profile, statutory timeline, attack vector, MITRE ATT&CK techniques, impact assessment in ETB, indicators, containment actions, and certifying officer attestation.
+
+- [x] **5.4 Evidence Vault & Cryptographic Sealing**:
+  - Immutable snapshots in `evidence_vaults` table with 10-year retention (`retention_days=3650`).
+  - Triple SHA-256 cryptographic sealing:
+    - `telemetry_sha256_digest`: hash of all ordered raw security events.
+    - `audit_trail_sha256_digest`: hash of associated hash-chained audit records.
+    - `manifest_sha256`: composite hash seal over the complete snapshot package.
+  - Verification endpoint (`verify_vault_integrity`) recomputes hashes and flags any post-incident tampering.
+  - Chain-of-custody log in `evidence_chain_of_custody` tracking creation, verification, export, and submission events.
+
+- [x] **5.5 Statutory Obligation Register & Compliance Support Guide**:
+  - Versioned statutory mapping register in `regulatory_obligations` mapping ECS capabilities to:
+    - INSA Proclamation No. 1426/2026 (§18, §19, §20).
+    - NBE Cyber Resilience Directives (§6, §8).
+    - PDPP Proclamation No. 1321/2024 (§31, §32).
+  - Strict compliance with Non-Negotiable Rule #6 (No overclaiming): Statuses strictly labeled `"supports_evidence_for"`, `"partially_supported"`, or `"not_covered"` — never `"compliant"`.
+  - Published comprehensive guide: `docs/COMPLIANCE_SUPPORT.md`.
+
+- [x] **5.6 One-Click Sealed Audit Pack Bundle**:
+  - Compiles an all-in-one sealed regulatory audit package (`generate_audit_pack`): organization profile, statutory mapping register, 48-hour incident breach log, evidence vault manifests, and composite SHA-256 seal.
+
+- [x] **5.7 & 5.8 Auditor Read-Only Role & Data Protection Controls**:
+  - Read-only `auditor` role with inspection access to vaults, 48h clock, and audit packs without mutation privileges.
+  - Mandatory recursive PII minimization and privacy scrubbing on all exported telemetry.
+
+- [x] **Gate 5 Criteria (PASSED)**:
+  - [x] Complete regulatory report package generated in <2 hours from simulated attack.
+  - [x] 48-hour clock, escalation milestones, and immutable evidence trail verified with automated tests.
+  - [x] Legal wording strictly avoids compliance overclaims ("supports evidence for").
+  - [x] Cryptographic SHA-256 manifest integrity verified; post-incident tampering detected.

@@ -761,6 +761,71 @@ CREATE TABLE IF NOT EXISTS post_incident_reviews (
 CREATE INDEX IF NOT EXISTS idx_post_incident_reviews_org ON post_incident_reviews(organization_id, incident_id);
 
 -- =========================================================================
+-- 10B. INCIDENT READINESS ENGINE (48-HOUR CLOCK & EVIDENCE VAULT - Phase 5)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS tenant_readiness_policies (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    reportable_criteria JSONB NOT NULL DEFAULT '{}',
+    ciso_contact_name VARCHAR(100),
+    ciso_contact_phone VARCHAR(20),
+    ciso_contact_email VARCHAR(100),
+    regulatory_license_ref VARCHAR(100),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_readiness_policies_org ON tenant_readiness_policies(organization_id);
+
+CREATE TABLE IF NOT EXISTS evidence_vaults (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    incident_id UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+    report_ref VARCHAR(100) NOT NULL UNIQUE,
+    status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'submitted', 'archived', 'sealed')),
+    snapshot_data JSONB NOT NULL DEFAULT '{}',
+    telemetry_sha256_digest VARCHAR(64) NOT NULL,
+    audit_trail_sha256_digest VARCHAR(64) NOT NULL,
+    manifest_sha256 VARCHAR(64) NOT NULL,
+    retention_days INTEGER DEFAULT 3650,
+    sealed_at TIMESTAMPTZ DEFAULT NOW(),
+    sealed_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_evidence_vaults_org_incident ON evidence_vaults(organization_id, incident_id);
+
+CREATE TABLE IF NOT EXISTS evidence_chain_of_custody (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    vault_id UUID NOT NULL REFERENCES evidence_vaults(id) ON DELETE CASCADE,
+    action VARCHAR(50) NOT NULL,
+    actor_id UUID REFERENCES users(id),
+    actor_name VARCHAR(100),
+    actor_role VARCHAR(50),
+    ip_address VARCHAR(45),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_evidence_chain_of_custody_vault ON evidence_chain_of_custody(vault_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS regulatory_obligations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    framework VARCHAR(100) NOT NULL,
+    clause_id VARCHAR(50) NOT NULL,
+    clause_title VARCHAR(255) NOT NULL,
+    description TEXT,
+    ecs_support_status VARCHAR(50) NOT NULL CHECK (ecs_support_status IN ('supports_evidence_for', 'partially_supported', 'not_covered')),
+    evidence_source VARCHAR(255),
+    verification_method TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(framework, clause_id)
+);
+
+-- =========================================================================
 -- 11. AUDIT LOGS (Hash-Chained Audit Trail)
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS audit_logs (

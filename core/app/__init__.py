@@ -66,6 +66,7 @@ def create_app():
     from app.routes.notifications import notifications_bp
     from app.routes.feedback import feedback_bp
     from app.routes.pir import pir_bp
+    from app.routes.readiness import readiness_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(incidents_bp, url_prefix='/api/incidents')
@@ -78,6 +79,7 @@ def create_app():
     app.register_blueprint(notifications_bp, url_prefix='/api/notifications')
     app.register_blueprint(feedback_bp, url_prefix='/api/feedback')
     app.register_blueprint(pir_bp, url_prefix='/api/pir')
+    app.register_blueprint(readiness_bp, url_prefix='/api/readiness')
     app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
     app.register_blueprint(audit_bp, url_prefix='/api/audit')
     app.register_blueprint(analysis_bp, url_prefix='/api/analysis')
