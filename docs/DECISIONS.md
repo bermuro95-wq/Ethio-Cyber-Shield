@@ -532,6 +532,39 @@
     - `GET /api/risk/entities/<entity_type>/<entity_id>`: Retrieve composite decayed risk profile and entity history.
   - Verified with Part 23 test suite (`core/tests/test_part23_risk_model_v2.py`) with 11/11 tests passing and no regressions across Part 3, Part 19, Part 20, Part 21, and Part 22.
 
+---
+
+## ADR-030: Benchmark Corpus, Attack Lab Scenario Library, and CI Detection Verification (Phase 3.6)
+
+* **Context**:
+  - Deploying and maintaining 27+ detection rules across Fraud & Payments, Web/API, and Insider/Admin packs requires continuous quantitative assurance that rules actually catch target threats without inducing false alarms on legitimate banking operations.
+  - Gate 3 requires:
+    1. A reproducible labeled benchmark corpus and scenario library containing $\ge 12$ distinct attack scenarios.
+    2. Published precision/recall per pack on the corpus.
+    3. $\ge 90\%$ of attack scenarios detected with a false positive rate $\le 10\%$.
+    4. Automated verification integrated directly into CI to prevent detection regressions on code changes or threshold adjustments.
+* **Decision**:
+  - Implement the Attack Lab Scenario Library (`core/app/benchmark/scenarios.py`) providing 16 distinct scenarios:
+    - **Fraud & Payments (6 scenarios)**: `SCEN-01-ATO-CHAIN` (Multi-stage ATO), `SCEN-02-MULE-TRANSFER` (Mule Syndicate), `SCEN-03-SIM-SWAP` (SIM-swap cashout), `SCEN-04-STRUCTURING` (Smurfing under 50k ETB), `SCEN-05-USSD-CASH-OUT` (USSD session bursts), `SCEN-06-APP-COACHED` (Coached push payment).
+    - **Web & API Abuse (4 scenarios)**: `SCEN-07-CRED-STUFFING` (Distributed login spray), `SCEN-08-IDOR-PROBE` (Sequential account traversal), `SCEN-09-BOT-SCANNER` (sqlmap/nikto scanner recon), `SCEN-10-TOKEN-REPLAY` (Bearer token reuse across distinct IPs/devices).
+    - **Insider & Admin (3 scenarios)**: `SCEN-11-MASS-EXFIL` (5,000 PII/balance records export), `SCEN-12-AUDIT-TAMPER` (TRUNCATE audit_logs attack), `SCEN-16-DORMANT-ADMIN` (Off-hours dormant admin activation).
+    - **Benign Baseline (3 scenarios)**: `SCEN-13-BENIGN-RETAIL` (Daytime P2P retail transfers), `SCEN-14-BENIGN-MERCHANT` (In-store QR payments), `SCEN-15-BENIGN-SALARY` (Corporate batch payroll credits).
+  - Implement `BenchmarkCorpus` (`core/app/benchmark/corpus.py`) generating standardized labeled datasets with ground truth assertions (`is_attack`, `category`, `expected_rule_ids`).
+  - Implement `BenchmarkService` (`core/app/services/benchmark_service.py`):
+    - Computes scenario detection rate, false positive rate, precision, recall, and F1 score per pack and per rule.
+    - Evaluates Gate 3 criteria ($\ge 90\%$ detection rate, $\le 10\%$ FPR).
+    - Results: **100.00% Scenario Detection Rate**, **0.00% False Positive Rate**, **100.00% Precision**, **F1: 1.0000**.
+  - Expose REST API routes under `/api/benchmark` (`core/app/routes/benchmark.py`):
+    - `GET /api/benchmark/scenarios`: List scenario catalog and target rules.
+    - `POST /api/benchmark/scenarios/run`: Execute individual scenario in sandbox mode.
+    - `GET /api/benchmark/corpus`: Summary of labeled benchmark corpus.
+    - `POST /api/benchmark/run`: Full benchmark execution.
+    - `GET /api/benchmark/latest`: Latest benchmark run metrics.
+  - Implement standalone CLI runner (`labs/run_benchmark.py`) with `--min-recall 0.90` and `--max-fpr 0.10` gates and terminal reporting.
+  - Integrated into `.github/workflows/ci.yml` ensuring all PRs and commits verify Gate 3 detection performance automatically.
+  - Verified with Part 24 test suite (`core/tests/test_part24_benchmark_corpus_and_ci.py`) with 7/7 tests passing.
+
+
 
 
 
