@@ -337,11 +337,43 @@ CREATE TABLE IF NOT EXISTS alerts (
     acknowledged_at TIMESTAMPTZ,
     resolved_by UUID REFERENCES users(id),
     resolved_at TIMESTAMPTZ,
+    fingerprint VARCHAR(64),
+    duplicate_count INT DEFAULT 1,
+    last_seen_at TIMESTAMPTZ DEFAULT NOW(),
+    group_id UUID,
+    entity_type VARCHAR(50),
+    entity_id VARCHAR(255),
+    is_suppressed BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_alerts_org_status ON alerts(organization_id, status);
+CREATE INDEX IF NOT EXISTS idx_alerts_org_fingerprint_status ON alerts(organization_id, fingerprint, status);
+CREATE INDEX IF NOT EXISTS idx_alerts_org_group ON alerts(organization_id, group_id);
+
+-- =========================================================================
+-- 8b. ALERT SUPPRESSION RULES (Phase 3.7 Alert Quality)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS alert_suppression_rules (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    rule_id VARCHAR(100) NOT NULL DEFAULT '*',
+    fingerprint VARCHAR(64),
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id VARCHAR(255) NOT NULL,
+    alert_type VARCHAR(100),
+    reason TEXT NOT NULL,
+    duration_minutes INT DEFAULT 60,
+    suppressed_by UUID REFERENCES users(id),
+    created_by VARCHAR(100) DEFAULT 'system',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_suppression_lookup 
+    ON alert_suppression_rules(organization_id, entity_type, entity_id, is_active, expires_at);
 
 -- =========================================================================
 -- 9. DETECTION RULES & FINDINGS

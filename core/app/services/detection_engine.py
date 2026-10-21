@@ -180,7 +180,7 @@ def evaluate_event_stream(event: dict) -> dict:
     lab_scenario = attributes.get('lab_scenario_id')
     occurred_at_dt = _parse_time(event.get('occurred_at'))
 
-    amount_etb = float(event.get('amount') or (attributes.get('amount') if isinstance(attributes, dict) else 0) or 0)
+    amount_etb = float(event.get('amount') or event.get('amount_etb') or (attributes.get('amount') if isinstance(attributes, dict) else 0) or (attributes.get('amount_etb') if isinstance(attributes, dict) else 0) or 0)
     if not amount_etb and event.get('amount_minor'):
         amount_etb = float(event['amount_minor']) / 100.0
 
@@ -361,6 +361,7 @@ def evaluate_event_stream(event: dict) -> dict:
 
     # Auto-dispatch Alert if score >= 25 (medium, high, critical)
     alert_record = None
+    quality_res = None
     if capped_score >= 25:
         primary_rule = next((r for r in fired_rules if not r.get('is_shadow')), fired_rules[0])
         alert_title = f"{severity.upper()}: {primary_rule['name']} on {account or source_ip or 'Target'}"
@@ -371,20 +372,24 @@ def evaluate_event_stream(event: dict) -> dict:
                      ('suspicious_transaction' if any('TX' in r['rule_id'] and not r.get('is_shadow') for r in fired_rules) else \
                      ('high_risk' if any('AUTH' in r['rule_id'] and not r.get('is_shadow') for r in fired_rules) else 'high_risk'))
 
-        alert_payload = {
+        primary_rule_id = primary_rule.get('rule_id') if primary_rule else 'GENERAL'
+        entity_type = 'account' if account else ('ip' if source_ip else 'device' if device_id else 'target')
+        entity_id = account or source_ip or device_id or target_id or 'unknown'
+
+        candidate_alert = {
+            'organization_id': org_id,
             'title': alert_title,
             'severity': severity,
             'status': 'open',
             'alert_type': alert_type,
+            'risk_score': capped_score,
+            'primary_rule_id': primary_rule_id,
+            'entity_type': entity_type,
+            'entity_id': entity_id,
             'description': f"Automated detection fired {len(fired_rules)} rule(s) with risk score {capped_score}/100. " + "; ".join(reasons[:2]),
-        }
-        alert_res = None
-        try:
-            v3_alert = dict(alert_payload)
-            if target_id:
-                v3_alert['target_system_id'] = target_id
-            v3_alert['risk_score'] = capped_score
-            v3_alert['evidence'] = {
+            'trigger_event_id': event_id,
+            'target_system_id': target_id,
+            'evidence': {
                 'risk_score': capped_score,
                 'severity': severity,
                 'confidence': confidence,
@@ -395,61 +400,68 @@ def evaluate_event_stream(event: dict) -> dict:
                 'device_id': device_id,
                 'amount_etb': amount_etb,
             }
-            alert_res = sb.table('alerts').insert(v3_alert).execute()
-        except Exception:
-            try:
-                alert_res = sb.table('alerts').insert(alert_payload).execute()
-            except Exception as e:
-                logger.error(f"Failed to auto-dispatch alert: {e}")
+        }
 
-        if alert_res and alert_res.data and isinstance(alert_res.data, list) and len(alert_res.data) > 0:
-            first_item = alert_res.data[0]
-            if isinstance(first_item, dict):
-                alert_record = first_item
-                alert_id = alert_record.get('id')
-                if alert_id and isinstance(alert_id, str):
+        try:
+            from app.services.alert_quality_service import AlertQualityService
+            quality_res = AlertQualityService.process_candidate_alert(candidate_alert, org_id=org_id)
+            if quality_res and quality_res.get('action') in ('created', 'deduplicated'):
+                alert_record = quality_res.get('alert')
+                alert_id = alert_record.get('id') if alert_record else None
+                if quality_res.get('action') == 'created' and alert_id and isinstance(alert_id, str):
                     try:
                         log_action(None, 'auto_alert_dispatched', 'alert', alert_id, {
                             'title': alert_title, 'risk_score': capped_score, 'severity': severity
                         })
                     except Exception as audit_err:
                         logger.debug(f"Audit log skipped for auto-alert: {audit_err}")
+        except Exception as q_err:
+            logger.error(f"Alert quality processing fallback: {q_err}")
+            # Direct insert fallback
+            try:
+                alert_res = sb.table('alerts').insert(candidate_alert).execute()
+                if alert_res and alert_res.data and isinstance(alert_res.data, list) and len(alert_res.data) > 0:
+                    alert_record = alert_res.data[0]
+            except Exception as direct_err:
+                logger.error(f"Direct alert insert fallback failed: {direct_err}")
 
     # Auto-promote Critical or High risk alerts to formal Incidents (Part 4, SRS §10 & §21)
     incident_record = None
     if alert_record and (capped_score >= 50 or any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules)):
-        try:
-            from app.services.incident_service import promote_alert_to_incident
-            incident_record = promote_alert_to_incident(alert_record, event, {
-                'risk_score': capped_score,
-                'severity': severity,
-                'confidence': confidence,
-                'reasons': reasons,
-                'rules_fired': [r['rule_id'] for r in fired_rules if not r.get('is_shadow')],
-                'breakdown': breakdown,
-                'is_attack_chain': any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules),
-            })
-        except Exception as inc_err:
-            logger.error(f"Failed to auto-promote incident for alert {alert_record.get('id')}: {inc_err}")
+        if not quality_res or quality_res.get('action') == 'created':
+            try:
+                from app.services.incident_service import promote_alert_to_incident
+                incident_record = promote_alert_to_incident(alert_record, event, {
+                    'risk_score': capped_score,
+                    'severity': severity,
+                    'confidence': confidence,
+                    'reasons': reasons,
+                    'rules_fired': [r['rule_id'] for r in fired_rules if not r.get('is_shadow')],
+                    'breakdown': breakdown,
+                    'is_attack_chain': any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules),
+                })
+            except Exception as inc_err:
+                logger.error(f"Failed to auto-promote incident for alert {alert_record.get('id')}: {inc_err}")
 
     # Closed-Loop Autonomous Containment (Part 5, SRS §10, §21, §22)
     containment_result = None
     if alert_record and (capped_score >= 50 or any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules)):
-        try:
-            from app.services.response_policy import evaluate_and_execute_containment
-            containment_result = evaluate_and_execute_containment(
-                event=event,
-                alert=alert_record,
-                incident=incident_record,
-                detection_result={
-                    'risk_score': capped_score,
-                    'severity': severity,
-                    'rules_fired': [r['rule_id'] for r in fired_rules if not r.get('is_shadow')],
-                    'is_attack_chain': any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules),
-                }
-            )
-        except Exception as cont_err:
-            logger.error(f"Error executing auto-containment: {cont_err}")
+        if not quality_res or quality_res.get('action') == 'created':
+            try:
+                from app.services.response_policy import evaluate_and_execute_containment
+                containment_result = evaluate_and_execute_containment(
+                    event=event,
+                    alert=alert_record,
+                    incident=incident_record,
+                    detection_result={
+                        'risk_score': capped_score,
+                        'severity': severity,
+                        'rules_fired': [r['rule_id'] for r in fired_rules if not r.get('is_shadow')],
+                        'is_attack_chain': any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules),
+                    }
+                )
+            except Exception as cont_err:
+                logger.error(f"Error executing auto-containment: {cont_err}")
 
     return {
         'event_id': event_id,
@@ -468,4 +480,5 @@ def evaluate_event_stream(event: dict) -> dict:
         'behavioral_baseline': baseline_eval,
         'deterministic_fallback': baseline_eval.get('deterministic_fallback', True) if baseline_eval else True,
         'risk_model_v2': risk_v2,
+        'alert_quality': quality_res,
     }

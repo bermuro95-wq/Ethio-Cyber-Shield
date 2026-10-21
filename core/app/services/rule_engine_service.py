@@ -276,7 +276,7 @@ class RuleEngine:
         lab_scenario = attributes.get('lab_scenario_id')
 
         # Amount extraction
-        amount_etb = float(event.get('amount') or (attributes.get('amount') if isinstance(attributes, dict) else 0) or 0)
+        amount_etb = float(event.get('amount') or event.get('amount_etb') or (attributes.get('amount') if isinstance(attributes, dict) else 0) or (attributes.get('amount_etb') if isinstance(attributes, dict) else 0) or 0)
         if not amount_etb and event.get('amount_minor'):
             amount_etb = float(event['amount_minor']) / 100.0
 

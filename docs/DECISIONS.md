@@ -564,6 +564,44 @@
   - Integrated into `.github/workflows/ci.yml` ensuring all PRs and commits verify Gate 3 detection performance automatically.
   - Verified with Part 24 test suite (`core/tests/test_part24_benchmark_corpus_and_ci.py`) with 7/7 tests passing.
 
+---
+
+## ADR-031: Alert Quality, Sliding-Window Deduplication, Suppression Windows, and SOC Fatigue Reduction (Phase 3.7)
+
+* **Context**:
+  - High-volume transaction processing and telemetry ingestion in Ethiopian financial infrastructure can cause alert floods, where repeated identical events (e.g. brute force sprays, automated retry bursts) overwhelm SOC analysts with duplicate tickets.
+  - Furthermore, routine penetration testing, maintenance windows, and rule tuning require temporary, time-bounded suppression without permanently disabling core detection rules.
+  - Phase 3.7 completes Phase 3 (Detection Engine v2) by delivering deterministic SHA-256 alert fingerprinting, sliding-window deduplication, dynamic severity escalation, entity-centric correlation grouping, time-based suppression windows, and real-time alert fatigue reduction metrics.
+
+* **Decision**:
+  - **Deterministic Alert Fingerprinting**: Calculate canonical SHA-256 hash over invariant attributes: `sha256(f"{org_id}:{rule_id}:{entity_type}:{entity_id}:{alert_type}")`. Identical incident attributes consistently map to the identical fingerprint.
+  - **Sliding-Window Deduplication**:
+    - During a configurable deduplication window (default: 15 minutes / 900 seconds), incoming candidate alerts matching an active open alert with the identical fingerprint are absorbed rather than spawning new alert records.
+    - Increments `duplicate_count`, updates `last_seen_at`, and appends the new `trigger_event_id` to `related_event_ids`.
+    - **Risk Score & Severity Escalation**: If duplicate events carry higher risk scores than the initial alert, the parent alert's `risk_score`, `severity`, and `title` automatically escalate to reflect the elevated threat level.
+  - **Entity-Centric Alert Grouping & Attack-Chain Correlation**:
+    - Multiple distinct detection rules firing on the same entity (e.g. AUTH-001 followed by TX-001) within a 30-minute grouping window share a correlated `group_id`, visually clustering the multi-vector campaign together for analysts.
+  - **Time-Based Suppression Windows (`alert_suppression_rules`)**:
+    - Allow SOC teams and administrators to define temporary suppression rules on specific entities (IP, account, user) or rule IDs with an explicit duration and reason.
+    - Candidate alerts matching active, unexpired suppression rules are suppressed (`action: 'suppressed'`), preventing alert creation and incident dispatch.
+    - Expired rules are ignored automatically; manual early revocation supported via API.
+  - **Fatigue Reduction Metrics**:
+    - Track total evaluated, created, deduplicated, and suppressed candidate alerts per tenant.
+    - Compute `alert_reduction_rate = (deduplicated + suppressed) / total_evaluated`, average duplicates per alert, and SOC health grade (`Optimal` $\ge 70\%$, `Good` $\ge 50\%$, `Moderate` $\ge 30\%$, `Critical Fatigue` $< 30\%$).
+  - **Database Persistence & Multi-Tenancy**:
+    - Table `alert_suppression_rules` with strict `organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE`.
+    - New columns on `alerts`: `fingerprint`, `duplicate_count`, `last_seen_at`, `group_id`, `entity_type`, `entity_id`, `is_suppressed`.
+  - **Detection Engine Integration**:
+    - Integrated into `core/app/services/detection_engine.py` (`evaluate_event_stream`).
+    - Skips duplicate incident creation and duplicate outbound containment actions when candidate alerts are deduplicated or suppressed.
+  - **REST API (`/api/alerts/quality/*`)**:
+    - `GET /api/alerts/quality/metrics`: Tenant SOC alert fatigue metrics and health grades.
+    - `GET /api/alerts/quality/suppressions`: List active unexpired suppression windows.
+    - `POST /api/alerts/quality/suppressions`: Create maintenance/testing suppression rule (Analyst/Admin).
+    - `DELETE /api/alerts/quality/suppressions/<id>`: Early revocation of suppression rule.
+    - `POST /api/alerts/quality/evaluate`: Candidate alert evaluation (dedupe/suppress/group dry-run).
+  - Verified with Part 25 test suite (`core/tests/test_part25_alert_quality.py`) with 10/10 tests passing and zero regressions across detection engine test suites.
+
 
 
 

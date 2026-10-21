@@ -60,11 +60,13 @@ def create_app():
     from app.routes.baselines import baselines_bp
     from app.routes.risk import risk_bp
     from app.routes.benchmark import benchmark_bp
+    from app.routes.alert_quality import alert_quality_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(incidents_bp, url_prefix='/api/incidents')
     app.register_blueprint(indicators_bp, url_prefix='/api/indicators')
     app.register_blueprint(transactions_bp, url_prefix='/api/transactions')
+    app.register_blueprint(alert_quality_bp, url_prefix='/api/alerts/quality')
     app.register_blueprint(alerts_bp, url_prefix='/api/alerts')
     app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
     app.register_blueprint(audit_bp, url_prefix='/api/audit')
