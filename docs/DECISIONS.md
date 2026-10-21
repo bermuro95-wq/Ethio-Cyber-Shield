@@ -645,6 +645,46 @@
     - Integrated with `response_policy.py` (`evaluate_and_execute_containment`).
     - Verified with 13/13 tests passing in `core/tests/test_part26_safe_response_modes_and_guardrails.py` and zero regressions across existing test suites (`test_part5_controlled_response.py`, `test_automated_pipeline.py`, `test_part25_alert_quality.py`).
 
+---
+
+## ADR-033: Case Management, Multi-Channel Notifications, Analyst Feedback Loop, and Post-Incident Reviews (Phases 4.4, 4.5, 4.6, 4.7)
+
+* **Context**:
+  - Security Operations Centers (SOCs) in Ethiopian financial institutions and critical infrastructure need comprehensive operational incident handling following detection:
+    1. Incident Case Management (Phase 4.4): Formal case tracking, stage-based SLA timers (TTA, TTC, TTR), assignment history, collaborative analyst notes, SHA-256 evidence attachments, cross-time entity timelines, related-alert attack graphs, and cross-time telemetry searches.
+    2. Multi-Channel Notifications (Phase 4.5): Real-time alerting across Telegram, SMS, Email, and signed Webhooks; privacy-preserving data minimization (zero PII in messages); local Addis Ababa timezone quiet hours with critical severity override; and automated SLA escalation alerts.
+    3. Analyst Feedback Loop (Phase 4.6): Triage verdicts (TP, FP, benign positive, test), precision and False Positive Rate (FPR) tracking, automated rule tuning warnings (FPR >= 25%), and 1-click suppression rule generation from recurring FP invariants.
+    4. Post-Incident Review (PIR) Template (Phase 4.7): Automated compilation of executive post-incident reports with operational metrics, ETB financial impact, regulatory mapping (INSA Proc. 1426/2026, NBE Directives, PDPP Proc. 1321/2024), 5 Whys root cause analysis, bilingual summaries (Amharic and English), and cryptographic SHA-256 evidence sealing.
+
+* **Decision**:
+  - **Phase 4.4: Case Management (`core/app/services/case_service.py`, `core/app/routes/cases.py`)**:
+    - **SLA Engine**: Dynamically computes response (TTA), containment (TTC), and resolution (TTR) milestone adherence by severity (`critical`: 15m/60m/240m; `high`: 30m/240m/720m; `medium`: 120m/720m/1440m; `low`: 480m/1440m/2880m). Tracks SLA health (`on_track`, `at_risk`, `breached`, `met`).
+    - **Milestones**: Status transitions automatically record `acknowledged_at` (on investigating), `contained_at` (on contained), and `resolved_at` (on resolved/closed).
+    - **Case Notes & Attachments**: Scoped by `organization_id UUID NOT NULL` in `case_notes` and `case_attachments` tables. Every attachment is cryptographically hash-sealed with SHA-256 and verified for tamper resistance.
+    - **Cross-Time Entity Timeline & Graph**: Aggregates security events, alerts, incidents, and response mitigations for an account/IP/device across time into a unified chronological feed and node/edge graph.
+    - **Saved Searches**: Stores user and shared search queries in `saved_searches` table with multi-parameter event querying.
+  - **Phase 4.5: Multi-Channel Notifications (`core/app/services/notification_service.py`, `core/app/routes/notifications.py`)**:
+    - **Envelope Encryption**: Sensitive connector credentials (`bot_token`, `webhook_secret`, `smtp_password`, `sms_api_key`) are envelope-encrypted with AES-256-GCM (`crypto_service.encrypt_secret`) and stored in `tenant_notification_configs`. Raw secrets are masked in API outputs (`enc:***MASKED***`).
+    - **Privacy Preservation & Redaction**: All notifications strictly redact sensitive customer PII (`ACC-***1234`, `196.188.***.***`, `+25191****56`, `[MASKED_NATIONAL_ID]`, `[REDACTED_SECRET]`).
+    - **Severity Routing & Quiet Hours**: Messages routed by minimum severity threshold. Quiet hours enforced in East Africa Time (`Africa/Addis_Ababa`, UTC+3) with critical incident override.
+    - **Outbound Webhook Signatures**: Outbound payloads signed with HMAC-SHA256 (`X-ECS-Signature: sha256=<hex>`) and timestamped.
+    - **SLA Breach Escalation Watchdog**: Automatically identifies active incidents reaching >= 50% of response SLA target or breached, dispatching urgent escalation alerts.
+  - **Phase 4.6: Analyst Feedback Loop (`core/app/services/analyst_feedback_service.py`, `core/app/routes/feedback.py`)**:
+    - **Triage Feedback**: Captures verdicts (`true_positive`, `false_positive`, `benign_positive`, `test`) in `rule_feedback` table.
+    - **Rule Tuning Statistics**: Aggregates precision and False Positive Rate (FPR) per rule. Triggers automated warning when FPR >= 25% recommending parameter adjustments or shadow mode.
+    - **Automated Suppression Suggestions**: Analyzes recurring false-positive invariants (e.g. repeated benign internal IPs or batch accounts) and generates 1-click suppression rule suggestions (`AlertQualityService.create_suppression_rule`).
+  - **Phase 4.7: Post-Incident Review & Evidence Sealing (`core/app/services/pir_service.py`, `core/app/routes/pir.py`)**:
+    - **Auto-Compilation**: Auto-gathers incident telemetry, operational metrics (TTD, TTA, TTC, TTR, SLA grade), and financial impact in ETB (amount at risk, intercepted/saved, net loss).
+    - **Regulatory Evidence Register**: Maps incident evidence to INSA Proclamation No. 1426/2026, NBE Cyber Resilience Directives, and PDPP Proclamation No. 1321/2024 ("Supports Evidence For Compliance").
+    - **Root Cause & Lessons Learned**: Generates 5 Whys analysis and actionable rule-tuning tasks.
+    - **Bilingual Summaries**: Generates executive summaries in both Amharic and English.
+    - **Cryptographic Sealing**: Computes canonical SHA-256 seal locking the PIR document against any future tampering. Verification endpoint validates seal integrity.
+    - **Report Export**: Exports complete executive Markdown reports.
+
+* **Consequences**:
+  - Completes Phase 4.4, 4.5, 4.6, and 4.7 of the ECS platform roadmap.
+  - Verified with 12/12 passing tests in `core/tests/test_part27_case_management_notifications_feedback_pir.py` with zero regressions across Phase 4.1-4.3 (`test_part26`) and Phase 3.7 (`test_part25`).
+
 
 
 

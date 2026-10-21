@@ -17,7 +17,7 @@
 
 
 | **Phase 3** | **Detection Engine v2 (Rules-as-Data)** | **COMPLETED** | **100%** | **Gate 3 PASSED** |
-| **Phase 4** | Safe Response & Case Management | In Progress | 43% | Gate 4 Pending |
+| **Phase 4** | **Safe Response & Case Management** | **COMPLETED** | **100%** | **Gate 4 PASSED** |
 | **Phase 5** | Incident Readiness Engine (48h Clock) | Planned | 0% | Gate 5 Pending |
 | **Phase 6** | Community Defense (Signal Exchange) | Planned | 0% | Gate 6 Pending |
 | **Phase 7** | Productization & GTM | Planned | 0% | Gate 7 Pending |
@@ -94,7 +94,7 @@
 
 ---
 
-## Phase 4 — Safe, trustworthy response and case management (IN PROGRESS: 4.1, 4.2, 4.3 completed)
+## Phase 4 — Safe, trustworthy response and case management (COMPLETED)
 
 - [x] **4.1 Response Modes per Action Type & Tenant**:
   - Implemented `core/app/services/response_modes_service.py` supporting progressive risk postures: `observe` (shadow) → `recommend` → `approve` (human-in-the-loop / two-person) → `auto`.
@@ -123,3 +123,43 @@
   - **Dry-run Simulation**: Simulation engine (`dry_run=True`) evaluating condition matching and connector actions without mutating target systems.
   - **Dual-Custody / Two-Person Approvals**: Risky action approval workflow (`action_approvals` table) requiring dual distinct analyst sign-offs before execution.
   - REST API routes (`/api/response/*`) for playbooks, approvals, modes, guardrails, allowlists, and execution logs.
+
+- [x] **4.4 Case Management & SLA Engine**:
+  - Implemented `core/app/services/case_service.py` and `core/app/routes/cases.py` (blueprint `/api/cases`).
+  - **Dynamic SLA Timers**: Severity-based milestone targets (`critical`: TTA=15m, TTC=60m, TTR=240m; `high`: 30m/240m/720m; `medium`: 120m/720m/1440m; `low`: 480m/1440m/2880m). Real-time health evaluation (`on_track`, `at_risk`, `breached`, `met`).
+  - **Milestone Recording**: Status transitions (`open` → `investigating` → `contained` → `resolved` → `closed`) automatically record `acknowledged_at`, `contained_at`, and `resolved_at`.
+  - **Case Assignment & Notes**: Assignment tracking with audit logging; collaborative analyst case notes in `case_notes` table.
+  - **SHA-256 Evidence Attachments**: Artifact upload and registration with cryptographic SHA-256 integrity verification (`case_attachments` table).
+  - **Cross-Time Entity Timeline**: Unified query aggregating security events, alerts, incidents, and response actions for an account/IP/device across time.
+  - **Related-Alert Graph**: Correlated case view linking incidents, alerts, indicators, entities, and actions into a visualization-ready graph.
+  - **Saved Searches**: Tenant-scoped personal and shared search query storage in `saved_searches` table with cross-time event filtering.
+
+- [x] **4.5 Multi-Channel Notifications & Escalation**:
+  - Implemented `core/app/services/notification_service.py` and `core/app/routes/notifications.py` (blueprint `/api/notifications`).
+  - **Multi-Channel Dispatch**: Telegram bot, Email, SMS Gateway, and signed outbound HTTP webhooks.
+  - **Envelope Encryption**: AES-256-GCM encryption for bot tokens, webhook secrets, SMTP passwords, and SMS API keys stored in `tenant_notification_configs`. Masked display (`enc:***MASKED***`) prevents token leakage.
+  - **Privacy Preservation**: Strict recursive PII scrubbing on all outgoing notification payloads (`ACC-***1234`, `196.188.***.***`, `+25191****56`, `[MASKED_NATIONAL_ID]`, `[REDACTED_SECRET]`).
+  - **Severity Routing & Quiet Hours**: Minimum severity gating per channel. Addis Ababa local timezone (`Africa/Addis_Ababa`, UTC+3) quiet hours enforcement with critical severity override.
+  - **Outbound Webhook Signatures**: Signed with HMAC-SHA256 (`X-ECS-Signature: sha256=...`) and timestamped.
+  - **SLA Breach Escalation Watchdog**: Automated identification and high-priority escalation for incidents reaching >= 50% response SLA elapsed time without triage.
+
+- [x] **4.6 Analyst Feedback Loop & Suppression Suggestions**:
+  - Implemented `core/app/services/analyst_feedback_service.py` and `core/app/routes/feedback.py` (blueprint `/api/feedback`).
+  - **Triage Feedback Capture**: Captures analyst verdicts (`true_positive`, `false_positive`, `benign_positive`, `test`) and reason categories (`benign_business_activity`, `rule_overly_broad`, `data_quality_issue`, `malicious_confirmed`, `authorized_testing`) in `rule_feedback` table.
+  - **Rule Tuning Statistics**: Real-time aggregation of precision and False Positive Rate (FPR). Automated tuning warnings triggered when FPR >= 25% recommending threshold adjustments or shadow mode.
+  - **Automated Suppression Suggestions**: Detects recurrent false-positive patterns on specific entities and auto-generates 1-click suppression rule suggestions (`AlertQualityService.create_suppression_rule`).
+
+- [x] **4.7 Post-Incident Review (PIR) Template & Evidence Sealing**:
+  - Implemented `core/app/services/pir_service.py` and `core/app/routes/pir.py` (blueprint `/api/pir`).
+  - **Auto-Compilation**: Compiles formal PIRs for contained/resolved incidents extracting operational metrics (TTD, TTA, TTC, TTR, SLA grade) and ETB financial impact (amount at risk, intercepted/saved, net loss).
+  - **Regulatory Evidence Mapping**: Maps incident chronology to INSA Proclamation No. 1426/2026, NBE Cyber Resilience Directives, and PDPP Proclamation No. 1321/2024 ("Supports Evidence For Compliance").
+  - **Root Cause & Lessons Learned**: 5 Whys analysis, systemic/human factors, lessons learned, and actionable rule-tuning tasks.
+  - **Bilingual Summaries**: Executive summaries in both Amharic (`የድህረ-ክስተት ግምገማ ሪፖርት`) and English.
+  - **Cryptographic SHA-256 Sealing**: Finalized PIRs are locked with a canonical SHA-256 seal preventing subsequent tampering. Seal integrity verification endpoint.
+  - **Markdown Export**: Complete bilingual executive report export.
+
+- [x] **Gate 4 Criteria (PASSED)**:
+  - [x] In shadow mode ECS produces a would-have-done report (`/api/response/reports/would-have-done`).
+  - [x] No guardrail bypass in adversarial tests (Kill Switch, Allowlists, Rate Limits, Cooldowns, Confidence).
+  - [x] Every automated action is reversible or explicitly marked irreversible and requires two-person approval.
+  - [x] End-to-end case management with SLA timers, SHA-256 evidence sealing, multi-channel notifications, analyst feedback loop, and post-incident review.
