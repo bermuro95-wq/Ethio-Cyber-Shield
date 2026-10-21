@@ -1,8 +1,16 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request, g
 from app.services.auth_service import login_required
 from app.services.db import get_service_supabase
+from app.services.tenant_service import get_current_organization_id
+from app.services.metrics_service import MetricsService
 
 dashboard_bp = Blueprint('dashboard', __name__)
+
+
+def _get_org_id() -> str:
+    org_id = g.user.get('organization_id') if hasattr(g, 'user') and g.user else None
+    return str(org_id or get_current_organization_id() or "00000000-0000-0000-0000-000000000001")
+
 
 @dashboard_bp.route('/stats', methods=['GET'])
 @login_required
@@ -69,3 +77,20 @@ def get_stats():
         'incident_types': type_counts,
         'recent_activity': audit.data or []
     })
+
+
+@dashboard_bp.route('/executive', methods=['GET'])
+@login_required
+def get_executive_dashboard():
+    """
+    Returns high-level executive and operational KPIs:
+    MTTD, MTTA, MTTC, MTTR, ETB protected, 48h compliance rate, noise reduction.
+    Supports low_bandwidth=true flag for rural branches.
+    """
+    org_id = _get_org_id()
+    low_bw = (
+        request.args.get('low_bandwidth', '').lower() in ('true', '1', 'yes') or
+        request.args.get('compact', '').lower() in ('true', '1', 'yes')
+    )
+    metrics = MetricsService.get_executive_metrics(org_id, low_bandwidth=low_bw)
+    return jsonify(metrics), 200

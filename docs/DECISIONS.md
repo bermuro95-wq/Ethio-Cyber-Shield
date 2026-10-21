@@ -763,6 +763,53 @@
   - Completes Phase 6 of the ECS platform roadmap.
   - Verified with 8/8 passing tests in `core/tests/test_part29_community_signal_exchange.py` with zero regressions across Phase 5 (`test_part28`), Phase 4 (`test_part27`, `test_part26`), and Phase 3 (`test_part25`).
 
+---
+
+## ADR-036: Product Editions, Feature Entitlements, Executive Metrics, Multilingual Localization, and Pilot Onboarding (Phase 7)
+
+* **Context**:
+  - Having completed core multi-tenant decoupling (Phases 1–3), safe response automation (Phase 4), the 48-hour statutory incident readiness engine (Phase 5), and community signal exchange (Phase 6), ECS required a clear product packaging, governance structure, and operational framework for go-to-market.
+  - Target operators span independent fintech startups, small microfinance institutions (MFIs), large commercial banks, telecom operators, and national sector hubs (EthSwitch/INSA).
+  - Furthermore, operational realities in Ethiopian critical infrastructure require:
+    1. Clear edition boundaries (open-source Community vs commercial Pro vs Managed defense vs Sector Hub).
+    2. Executive KPIs (MTTD, MTTA, MTTC, MTTR, total ETB protected, 48h compliance rate).
+    3. Low-Bandwidth Mode (<1 KB compact telemetry) for regional branches operating over constrained 2G/3G and VSAT links.
+    4. Multilingual cybersecurity terminology across English, Amharic (`አማርኛ`), and Afaan Oromo (`Afaan Oromoo`).
+    5. Standardized 14-day progressive shadow-mode onboarding runbook.
+
+* **Decision**:
+  - **Phase 7.1: Editions & Feature Entitlements (`core/app/services/editions_service.py`, `core/app/routes/settings.py`)**:
+    - Defines four distinct tiers:
+      1. `community`: Free, self-hosted, Apache-2.0 open-source defense platform for startups and MFIs.
+      2. `pro`: Commercial edition for licensed financial institutions, equipped with 48h readiness clock, evidence vault, safe automation, and advanced Ethiopian fraud packs.
+      3. `managed`: Dedicated managed defense operations with monthly tuning reviews and facilitated tabletop drills.
+      4. `sector_hub`: Multi-tenant signal exchange hub and consortium governance platform for EthSwitch, INSA, and banking associations.
+    - Feature gating (`is_feature_enabled`) strictly isolates tenant capabilities based on active edition.
+    - Endpoints: `GET /api/settings/editions`, `PUT /api/settings/editions`.
+  - **Phase 7.2: Open-Source Governance & Legal Assets**:
+    - Standard Apache-2.0 `LICENSE` at repository root.
+    - `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` establishing engineering standards and community pledge.
+    - `docs/ROADMAP.md` mapping v3.0 release through future HSM and air-gapped SCADA horizons.
+    - `docs/SUPPORT_MODEL.md` establishing clear SLA tiers, emergency escalation paths, and explicit Rule #6 disclaimers (no automatic 24/7 SOC guarantee, tools *"support evidence for"* compliance).
+  - **Phase 7.3: Executive & Operational Metrics (`core/app/services/metrics_service.py`, `core/app/routes/dashboard.py`)**:
+    - Computes real-time MTTD, MTTA, MTTC, MTTR in minutes.
+    - Calculates total ETB financial volume protected across blocked transactions and contained incident assets.
+    - Evaluates 48-hour statutory compliance adherence percentage under INSA Proclamation No. 1426/2026.
+    - Measures alert fatigue reduction and noise suppression percentage.
+    - **Low-Bandwidth Mode**: Endpoint `GET /api/dashboard/executive?low_bandwidth=true` returns a compact numeric summary payload under 1,024 bytes (<1 KB) for rural banking branches.
+  - **Phase 7.4: Multilingual Terminology Service (`core/app/services/i18n_service.py`)**:
+    - Localized glossary supporting English (`en`), Amharic (`am`), and Afaan Oromo (`om`).
+    - Standardizes terminology for Account Takeover (`የሂሳብ ቁጥጥር ስርቆት` / `Herrega Dhuunfaa Qabachuu`), Evidence Vault (`የማስረጃ ማከማቻ` / `Kuusaa Ragaa`), Emergency Kill Switch (`የአደጋ ጊዜ ድንገተኛ ማቆሚያ` / `Cufaa Balaa Hatattamaa`), etc.
+    - Endpoint: `GET /api/settings/i18n`.
+  - **Phase 7.5: Operations Runbook & 14-Day Pilot Onboarding Protocol**:
+    - `docs/OPERATIONS_RUNBOOK.md`: Docker Compose deployment, backup/restore, emergency kill switch activation, and security hardening checklist.
+    - `docs/PILOT_ONBOARDING.md`: 14-day progressive shadow-mode protocol (`observe` $\to$ `recommend` $\to$ reversibility test $\to$ 48h drill $\to$ sign-off).
+
+* **Consequences**:
+  - Completes Phase 7 of the ECS platform roadmap, concluding the planned v3.0 Independent Platform transformation.
+  - Verified with 10/10 passing tests in `core/tests/test_part30_productization_editions_and_operations.py` with zero regressions across Phase 6 (`test_part29`), Phase 5 (`test_part28`), and Phase 4 (`test_part27`, `test_part26`).
+
+
 
 
 
