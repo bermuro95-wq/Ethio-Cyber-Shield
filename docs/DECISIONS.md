@@ -809,6 +809,49 @@
   - Completes Phase 7 of the ECS platform roadmap, concluding the planned v3.0 Independent Platform transformation.
   - Verified with 10/10 passing tests in `core/tests/test_part30_productization_editions_and_operations.py` with zero regressions across Phase 6 (`test_part29`), Phase 5 (`test_part28`), and Phase 4 (`test_part27`, `test_part26`).
 
+---
+
+## ADR-037: Selective Expansion — Multilingual Explainable Narratives, Host/Email Adapters, Exposure Management, Fayda ID Assurance, and Sector Hub Dashboards (Phase 8)
+
+* **Context**:
+  - With the core multi-tenant platform, safe automation, incident readiness engine, community exchange, and product packaging completed (Phases 1–7), Phase 8 executes high-value, demand-driven expansions identified during operator discovery.
+  - Specifically, operators require:
+    1. Explainable, human-readable narratives in national languages (English, Amharic, Afaan Oromo) to translate deterministic detection evidence for executives and regulators without unverified LLM hallucinations.
+    2. Ingestion of endpoint (Sysmon/Wazuh/Defender) and email security logs to catch ransomware precursors (e.g. shadow copy deletion) and Business Email Compromise (BEC) wire lures before bank transaction settlement.
+    3. External attack surface exposure auditing (LocalShield concepts: TLS expiry, deprecated ciphers, missing security headers, exposed open ports) feeding directly into ECS risk context.
+    4. National Digital ID (Fayda - Proclamation No. 1284/2023) authentication telemetry to differentiate verified biometric customer transactions from presentation spoofing or identity theft attacks.
+    5. Anonymized sector-wide threat intelligence and statutory compliance dashboards for regulatory authorities (INSA, NBE, EthSwitch) that protect banking secrecy.
+
+* **Decision**:
+  - **Phase 8.1: Explainable Multilingual Narratives (`core/app/services/narrative_service.py`, `core/app/routes/narrative.py`)**:
+    - Generates deterministic, explainable incident debriefs and executive summaries in English, Amharic (`አማርኛ`), and Afaan Oromo (`Afaan Oromoo`).
+    - Adheres strictly to Principle #1 (Explainable by default; LLM is advisory-only) and Principle #4 (PII scrubbed before narrative synthesis).
+    - Endpoints: `POST /api/narrative/incident/<id>`, `GET /api/narrative/incident/<id>`.
+  - **Phase 8.2: Endpoint & Email Telemetry Adapters (`core/app/services/endpoint_email_adapter_service.py`, `core/app/routes/telemetry_adapters.py`)**:
+    - **Endpoint Telemetry**: Normalizes host events; flags ransomware precursors (`vssadmin delete shadows`, `wbadmin delete catalog`, MITRE ATT&CK T1490) and suspicious script execution (MITRE T1059).
+    - **Email Telemetry**: Evaluates SPF/DKIM/DMARC verdicts; flags BEC C-Suite/VIP impersonation combined with urgent financial wire transfer lures.
+    - Endpoints: `POST /api/adapters/endpoint/ingest`, `POST /api/adapters/email/ingest`, `GET /api/adapters/events`.
+  - **Phase 8.3: Exposure Management & Attack Surface Context (`core/app/services/exposure_service.py`, `core/app/routes/exposure.py`)**:
+    - Manages external asset inventory (domains, FQDNs, IPs).
+    - Audits TLS certificates (validity, expiration within 14 days, self-signed, deprecated versions) and missing HTTP security headers (HSTS, CSP, X-Frame-Options).
+    - Checks for insecure exposed public ports (22, 3389, 5432, 6379) and computes asset exposure score (0-100) integrated into ECS transaction risk scoring.
+    - Endpoints: `POST /api/exposure/assets`, `GET /api/exposure/assets`, `POST /api/exposure/assets/<id>/scan`.
+  - **Phase 8.4: National Identity Assurance — Fayda Digital ID Adapter (`core/app/services/fayda_id_service.py`, `core/app/routes/fayda.py`)**:
+    - Connects to Ethiopian National ID Program (NIDP) rails under Proclamation No. 1284/2023.
+    - Privacy-preserving keyed hashing of Fayda FIN (`fayda_fin_h_...`) ensures no raw national ID numbers leave tenant premises.
+    - Biometric face/fingerprint verification yields high assurance (risk mitigation factor); presentation attack / deepfake spoof yields critical identity theft alert (+90 risk penalty).
+    - Endpoints: `POST /api/fayda/verify`, `GET /api/fayda/account/<account_number>`.
+  - **Phase 8.5: Regulator & Sector-Wide Telemetry Dashboard (`core/app/services/regulator_dashboard_service.py`, `core/app/routes/regulator.py`)**:
+    - Provides aggregated cross-institution threat posture across Commercial Banking, Microfinance, FinTech, and Telecom sectors.
+    - Strict privacy mandate: Strips all individual institutional names, account numbers, and customer PII.
+    - Tracks sector-wide 48-hour statutory compliance adherence and total ETB protected volume.
+    - Endpoint: `GET /api/regulator/sector-overview`.
+
+* **Consequences**:
+  - Completes Phase 8 (Selective Expansion), delivering end-to-end host/email/identity/exposure correlation.
+  - Verified with 7/7 passing tests in `core/tests/test_part31_selective_expansion.py` and 59/59 passing regression tests with zero regressions across Phases 4–7.
+
+
 
 
 

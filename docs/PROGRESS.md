@@ -21,7 +21,7 @@
 | **Phase 5** | **Incident Readiness Engine (48h Clock)** | **COMPLETED** | **100%** | **Gate 5 PASSED** |
 | **Phase 6** | **Community Defense (Signal Exchange)** | **COMPLETED** | **100%** | **Gate 6 PASSED** |
 | **Phase 7** | **Productization, Packaging & GTM** | **COMPLETED** | **100%** | **Gate 7 PASSED** |
-| **Phase 8** | Selective Expansion | Demand-driven | 0% | Gate 8 Pending |
+| **Phase 8** | **Selective Expansion** | **COMPLETED** | **100%** | **Gate 8 PASSED** |
 
 ---
 
@@ -298,4 +298,47 @@
   - [x] Multilingual cybersecurity terminology dictionary operational (`en`, `am`, `om`).
   - [x] Operations runbook and 14-day shadow onboarding protocol published.
   - [x] Test suite `test_part30_productization_editions_and_operations.py` 100% passing (10/10 tests).
+
+---
+
+### Phase 8: Selective Expansion (Completed)
+- [x] **8.1 Explainable Multilingual Narratives (`narrative_service.py`, `narrative.py`)**:
+  - Structured deterministic narrative generation (English, Amharic `አማርኛ`, Afaan Oromo `Afaan Oromoo`).
+  - PII minimization & scrubbing before narrative synthesis.
+  - Endpoints: `POST /api/narrative/incident/<id>`, `GET /api/narrative/incident/<id>`.
+
+- [x] **8.2 Endpoint & Email Security Telemetry Adapters (`endpoint_email_adapter_service.py`, `telemetry_adapters.py`)**:
+  - Ingestion of host-level Sysmon/Wazuh/Defender process executions.
+  - Real-time detection of ransomware precursors (`vssadmin delete shadows`, `wbadmin delete catalog`, MITRE ATT&CK T1490).
+  - Ingestion of email security headers, DMARC/SPF evaluation, and Business Email Compromise (BEC) C-Suite/VIP impersonation detection with wire urgency lures.
+  - Endpoints: `POST /api/adapters/endpoint/ingest`, `POST /api/adapters/email/ingest`, `GET /api/adapters/events`.
+
+- [x] **8.3 Exposure Management & Attack Surface Context (`exposure_service.py`, `exposure.py`)**:
+  - External asset inventory (domains, FQDNs, IPs).
+  - TLS/SSL certificate audits (validity, <14 days expiration, self-signed, deprecated TLS versions).
+  - HTTP security header checks (HSTS, CSP, X-Frame-Options) and exposed public ports (22, 3389, 5432, 6379).
+  - External exposure score calculation integrated directly into ECS transaction risk scoring.
+  - Endpoints: `POST /api/exposure/assets`, `GET /api/exposure/assets`, `POST /api/exposure/assets/<id>/scan`.
+
+- [x] **8.4 National Identity Assurance — Fayda Digital ID Adapter (`fayda_id_service.py`, `fayda.py`)**:
+  - National digital ID integration under Ethiopian Proclamation No. 1284/2023.
+  - Privacy-preserving keyed hashing of Fayda FIN (`fayda_fin_h_...`) to protect citizen privacy.
+  - Biometric face/fingerprint verification yields high assurance (risk mitigation factor); presentation attack / deepfake spoof yields critical alert (+90 risk penalty).
+  - Endpoints: `POST /api/fayda/verify`, `GET /api/fayda/account/<account_number>`.
+
+- [x] **8.5 Regulator & Sector-Wide Telemetry Dashboard (`regulator_dashboard_service.py`, `regulator.py`)**:
+  - Aggregated cross-institution threat posture across Commercial Banking, Microfinance, FinTech, and Telecom sectors.
+  - Strict privacy: Strips all individual institutional names, account numbers, and customer PII.
+  - Tracks sector-wide 48-hour statutory compliance adherence and total ETB protected volume.
+  - Endpoint: `GET /api/regulator/sector-overview`.
+
+- [x] **Gate 8 Criteria (PASSED)**:
+  - [x] Multilingual narrative generator verified across English, Amharic, and Afaan Oromo with zero PII leakage.
+  - [x] Endpoint adapter detects ransomware shadow deletion precursor (MITRE T1490).
+  - [x] Email adapter detects BEC VIP impersonation and DMARC failures.
+  - [x] External attack surface inventory and TLS/header audits feed exposure scores into ECS risk model.
+  - [x] Fayda Digital ID adapter verifies biometric authentication and detects presentation spoofing attacks.
+  - [x] Regulator sector overview provides cross-operator threat intelligence with verified zero bank identity leakage.
+  - [x] Test suite `test_part31_selective_expansion.py` 100% passing (7/7 tests) and 59/59 regression tests passing.
+
 

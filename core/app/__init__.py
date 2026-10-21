@@ -68,6 +68,11 @@ def create_app():
     from app.routes.pir import pir_bp
     from app.routes.readiness import readiness_bp
     from app.routes.signals import signals_bp
+    from app.routes.narrative import narrative_bp
+    from app.routes.telemetry_adapters import adapters_bp
+    from app.routes.exposure import exposure_bp
+    from app.routes.fayda import fayda_bp
+    from app.routes.regulator import regulator_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(incidents_bp, url_prefix='/api/incidents')
@@ -82,6 +87,11 @@ def create_app():
     app.register_blueprint(pir_bp, url_prefix='/api/pir')
     app.register_blueprint(readiness_bp, url_prefix='/api/readiness')
     app.register_blueprint(signals_bp, url_prefix='/api/signals')
+    app.register_blueprint(narrative_bp, url_prefix='/api/narrative')
+    app.register_blueprint(adapters_bp, url_prefix='/api/adapters')
+    app.register_blueprint(exposure_bp, url_prefix='/api/exposure')
+    app.register_blueprint(fayda_bp, url_prefix='/api/fayda')
+    app.register_blueprint(regulator_bp, url_prefix='/api/regulator')
     app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
     app.register_blueprint(audit_bp, url_prefix='/api/audit')
     app.register_blueprint(analysis_bp, url_prefix='/api/analysis')
