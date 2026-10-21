@@ -537,7 +537,7 @@ CREATE TABLE IF NOT EXISTS response_actions (
     action_type VARCHAR(100) NOT NULL CHECK (action_type IN ('freeze_transaction', 'revoke_session', 'block_ip', 'require_step_up', 'disable_beneficiary', 'lock_account', 'revert')),
     target_entity_type VARCHAR(50),
     target_entity_id VARCHAR(100),
-    status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'failed', 'reverted')),
+    status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'failed', 'reverted', 'simulated', 'recommended', 'pending_approval', 'blocked_by_guardrail')),
     is_reverted BOOLEAN DEFAULT FALSE,
     reverted_at TIMESTAMPTZ,
     alert_id UUID REFERENCES alerts(id),
@@ -551,6 +551,102 @@ CREATE TABLE IF NOT EXISTS response_actions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_response_actions_org_status ON response_actions(organization_id, status);
+
+-- =========================================================================
+-- 10b. TENANT RESPONSE MODES (Phase 4.1 Safe Response)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS tenant_response_modes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    action_type VARCHAR(100) NOT NULL,
+    mode VARCHAR(20) NOT NULL DEFAULT 'observe' CHECK (mode IN ('observe', 'recommend', 'approve', 'auto')),
+    requires_two_person_approval BOOLEAN DEFAULT FALSE,
+    updated_by UUID REFERENCES users(id),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (organization_id, action_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_response_modes_lookup ON tenant_response_modes(organization_id, action_type);
+
+-- =========================================================================
+-- 10c. GUARDRAILS & ALLOWLISTS (Phase 4.2 Guardrails)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS tenant_guardrails (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE UNIQUE,
+    emergency_kill_switch BOOLEAN DEFAULT FALSE,
+    max_actions_per_hour INT DEFAULT 20,
+    max_actions_per_day INT DEFAULT 100,
+    cooldown_seconds INT DEFAULT 900,
+    min_confidence VARCHAR(20) DEFAULT 'high' CHECK (min_confidence IN ('low', 'medium', 'high')),
+    default_ttl_minutes INT DEFAULT 60,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tenant_allowlists (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id VARCHAR(255) NOT NULL,
+    reason TEXT NOT NULL,
+    created_by VARCHAR(100) DEFAULT 'system',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (organization_id, entity_type, entity_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_allowlists_lookup ON tenant_allowlists(organization_id, entity_type, entity_id);
+
+CREATE TABLE IF NOT EXISTS guardrail_audit_log (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    action_type VARCHAR(100) NOT NULL,
+    target_entity_type VARCHAR(50) NOT NULL,
+    target_entity_id VARCHAR(255) NOT NULL,
+    guardrail_type VARCHAR(50) NOT NULL,
+    decision VARCHAR(20) NOT NULL CHECK (decision IN ('passed', 'blocked', 'modified')),
+    reason TEXT NOT NULL,
+    confidence VARCHAR(20),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_guardrail_audit_log_org ON guardrail_audit_log(organization_id, created_at DESC);
+
+-- =========================================================================
+-- 10d. DECLARATIVE PLAYBOOKS & APPROVALS (Phase 4.3 Playbooks)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS playbooks (
+    id VARCHAR(100) NOT NULL,
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    version VARCHAR(20) DEFAULT '1.0.0',
+    category VARCHAR(50) DEFAULT 'general',
+    trigger JSONB NOT NULL DEFAULT '{}',
+    actions JSONB NOT NULL DEFAULT '[]',
+    notifications JSONB DEFAULT '[]',
+    is_enabled BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (organization_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS action_approvals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    action_type VARCHAR(100) NOT NULL,
+    target_entity_type VARCHAR(50) NOT NULL,
+    target_entity_id VARCHAR(255) NOT NULL,
+    reason TEXT,
+    requires_two_person BOOLEAN DEFAULT FALSE,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'expired')),
+    requested_by VARCHAR(100) DEFAULT 'system',
+    approvers JSONB DEFAULT '[]',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_action_approvals_org_status ON action_approvals(organization_id, status);
 
 -- =========================================================================
 -- 11. AUDIT LOGS (Hash-Chained Audit Trail)

@@ -1,0 +1,42 @@
+id: PB-004-INSIDER-EXFIL
+name: "Insider Threat & Bulk Data Exfiltration Mitigation"
+description: "High-risk mitigation for mass record exfiltration, dormant admin abuse, and audit tampering"
+version: "1.0.0"
+category: "insider_admin"
+is_enabled: true
+
+trigger:
+  severity_in:
+    - high
+    - critical
+  min_risk_score: 60
+  rules_any:
+    - PRIV-001
+    - EXFIL-001
+    - AUDIT-001
+
+actions:
+  - name: "Revoke Admin Session"
+    connector: revoke_session
+    target_entity: session_id
+    is_reversible: false
+    reason: "Insider Containment: Immediate privilege termination"
+
+  - name: "Require Strong Step-Up"
+    connector: require_step_up
+    target_entity: user_id
+    is_reversible: false
+    reason: "Insider Containment: Hardware token re-authentication"
+
+  - name: "Emergency Admin Lock"
+    connector: lock_account
+    target_entity: account_id
+    is_reversible: true
+    rollback_connector: revert
+    requires_approval_if_irreversible: true
+    reason: "Insider Containment: Lock suspect admin user"
+
+notifications:
+  - channel: audit_log
+  - channel: ciso_escalation
+    severity: critical

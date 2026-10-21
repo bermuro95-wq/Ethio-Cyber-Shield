@@ -602,6 +602,49 @@
     - `POST /api/alerts/quality/evaluate`: Candidate alert evaluation (dedupe/suppress/group dry-run).
   - Verified with Part 25 test suite (`core/tests/test_part25_alert_quality.py`) with 10/10 tests passing and zero regressions across detection engine test suites.
 
+---
+
+## ADR-032: Safe Response Modes, Guardrails Engine, and Declarative Playbooks (Phase 4.1, 4.2, 4.3)
+
+* **Context**:
+  - Financial and critical infrastructure operators in Ethiopia cannot risk automated containment actions accidentally disrupting interbank settlement rails (EthSwitch, RTGS), legitimate high-value commercial transfers, or administrative operations.
+  - Automation must be safe, explainable, progressive, and reversible.
+  - Phase 4.1, 4.2, and 4.3 establish the safe automation pillar:
+    1. Progressive response modes per action type and tenant (`observe`, `recommend`, `approve`, `auto`).
+    2. Comprehensive safety guardrails (Kill Switch, Allowlists, Blast Radius Rate Limits, Cooldowns, Confidence thresholds).
+    3. Declarative playbooks with dry-run capabilities and response connector control contracts with idempotent rollback.
+
+* **Decision**:
+  - **Phase 4.1: Response Modes (`core/app/services/response_modes_service.py`)**:
+    - Progressive risk postures: `observe` (shadow) $\to$ `recommend` $\to$ `approve` $\to$ `auto`.
+    - Default posture: new tenants start in `observe` (shadow) mode for $\ge 14$ days, producing simulated "would-have-done" reports without dispatching real mutations against target systems.
+    - Per-action-type and per-tenant mode overrides stored in `tenant_response_modes` table (`organization_id UUID NOT NULL`).
+    - Compiles shadow observation reports (`generate_would_have_done_report`) showing what actions ECS would have executed.
+  - **Phase 4.2: Guardrails Engine (`core/app/services/guardrails_service.py`)**:
+    - **Emergency Kill Switch**: Per-tenant toggle instantly halts all automated containment operations with audited rejection.
+    - **Allowlists & Protected Entities**: Protects critical national infrastructure IPs (e.g. EthSwitch gateway, RTGS routers) and VIP/staff accounts (`tenant_allowlists`). Actions targeting allowlisted entities are strictly blocked.
+    - **Blast Radius Rate Limits**: Enforces sliding-window action rate limits (default: 20 actions/hour, 100 actions/day per tenant). Excess actions are blocked and audited.
+    - **Entity Cooldowns**: Enforces a 15-minute lookback window (`cooldown_seconds = 900`) preventing repeat mitigations on the same entity.
+    - **Confidence Threshold**: Minimum detection confidence posture (`high`, `medium`, `low`) required before auto-containment can execute.
+    - **Audit Trail**: Every guardrail check is recorded to `guardrail_audit_log` with decision (`passed`, `blocked`) and reason.
+  - **Phase 4.3: Declarative Playbooks & Response Connectors (`core/app/services/playbook_service.py`)**:
+    - Declarative YAML playbooks stored in `core/app/playbooks/definitions/`:
+      - `PB-001-ATO-CONTAINMENT`: Multi-step ATO containment (freeze transfer, revoke session, block IP).
+      - `PB-002-MULE-FREEZE`: Mule syndicate containment (freeze transfer, disable beneficiary, lock account).
+      - `PB-003-CRED-STUFFING`: Credential stuffing & spray defense (block IP, enforce step-up).
+      - `PB-004-INSIDER-EXFIL`: Insider threat mitigation (revoke admin session, require step-up, emergency lock).
+    - **Response Connectors Control Contract**: Standardized contract defining `is_reversible`, `rollback_connector`, `requires_approval_if_irreversible`, and `supported_entities` across all controls (`freeze_transaction`, `revoke_session`, `block_ip`, `require_step_up`, `disable_beneficiary`, `lock_account`, `revert`).
+    - **Dry-Run Simulation Engine**: Evaluates triggers, guardrails, and modes returning simulated execution traces without mutations (`dry_run=True`).
+    - **Dual-Custody / Two-Person Approval**: Risky operations (`lock_account`) stage in `action_approvals` requiring two distinct authorized approvers.
+    - **Idempotent Rollback**: Revert connector (`revert_target_action`) rolls back previously dispatched reversible actions.
+  - **REST API Routes (`core/app/routes/response.py`)**:
+    - `/api/response/modes`, `/api/response/modes/would-have-done`
+    - `/api/response/guardrails`, `/api/response/guardrails/kill-switch`, `/api/response/guardrails/allowlist`, `/api/response/guardrails/logs`
+    - `/api/response/playbooks`, `/api/response/playbooks/<id>/dry-run`, `/api/response/connectors`, `/api/response/approvals`, `/api/response/actions/<id>/rollback`
+  - **Integration & Verification**:
+    - Integrated with `response_policy.py` (`evaluate_and_execute_containment`).
+    - Verified with 13/13 tests passing in `core/tests/test_part26_safe_response_modes_and_guardrails.py` and zero regressions across existing test suites (`test_part5_controlled_response.py`, `test_automated_pipeline.py`, `test_part25_alert_quality.py`).
+
 
 
 

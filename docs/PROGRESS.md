@@ -17,7 +17,7 @@
 
 
 | **Phase 3** | **Detection Engine v2 (Rules-as-Data)** | **COMPLETED** | **100%** | **Gate 3 PASSED** |
-| **Phase 4** | Safe Response & Case Management | Planned | 0% | Gate 4 Pending |
+| **Phase 4** | Safe Response & Case Management | In Progress | 43% | Gate 4 Pending |
 | **Phase 5** | Incident Readiness Engine (48h Clock) | Planned | 0% | Gate 5 Pending |
 | **Phase 6** | Community Defense (Signal Exchange) | Planned | 0% | Gate 6 Pending |
 | **Phase 7** | Productization & GTM | Planned | 0% | Gate 7 Pending |
@@ -91,3 +91,35 @@
   - [x] ≥90% of pilot-seeded attack scenarios detected with stated false-positive rate (100.00% detection rate, 0.00% FPR).
   - [x] A rule change can be backtested and rolled out without a code deploy (`/api/rules/<id>/backtest`, `/api/rules/<id>/override`).
   - [x] Deduplication and suppression windows eliminate duplicate ticket floods and SOC fatigue.
+
+---
+
+## Phase 4 — Safe, trustworthy response and case management (IN PROGRESS: 4.1, 4.2, 4.3 completed)
+
+- [x] **4.1 Response Modes per Action Type & Tenant**:
+  - Implemented `core/app/services/response_modes_service.py` supporting progressive risk postures: `observe` (shadow) → `recommend` → `approve` (human-in-the-loop / two-person) → `auto`.
+  - Default for new tenants is `observe` (shadow mode for ≥14 days) preventing accidental disruption. Default seeded production bank operates in `auto`.
+  - Granular per-action overrides per tenant (e.g. `freeze_transaction` can be `auto`, while `lock_account` requires `approve`).
+  - Action simulation engine (`dry_run` / `observe` status `simulated`) generating explainable 14-day shadow "would-have-done" reports (`/api/response/reports/would-have-done`).
+  - Scoped by `organization_id UUID NOT NULL` in `tenant_response_modes` PostgreSQL table.
+
+- [x] **4.2 Guardrails Engine**:
+  - Implemented `core/app/services/guardrails_service.py` providing deterministic safety boundaries before any mitigation execution.
+  - **Emergency Kill Switch**: Instant per-tenant automation cut-off (`set_kill_switch(tenant_id, enabled=True)`) stopping all automated mitigations immediately.
+  - **Allowlists**: Dynamic allowlist for critical infrastructure, partner gateways (e.g., EthSwitch `196.188.10.1`, RTGS), core banking servers, and VIP/treasury accounts (`tenant_allowlists`). Any mitigation targeting an allowlisted entity is blocked.
+  - **Blast Radius Rate Limits**: Configurable max actions per hour (default 20) and max actions per day (default 100) per tenant.
+  - **Entity Cooldowns**: Cooldown enforcement (default 900 seconds) preventing repetitive hammering of the same account/IP.
+  - **Confidence Thresholds**: Minimum rule confidence required for automated action execution (default 0.85).
+  - **Guardrail Audit Logging**: Every guardrail evaluation and block is logged to `guardrail_audit_log` with tamper-evident evidence fields.
+
+- [x] **4.3 Declarative Playbooks & Response Connectors**:
+  - Declarative YAML playbook schema (`core/app/playbooks/definitions/*.yaml`):
+    - `pb_001_ato_containment.yaml` (`PB-001-ATO-CONTAINMENT`): Multi-step ATO containment (`freeze_transaction`, `revoke_session`, `block_ip`).
+    - `pb_002_mule_account_freeze.yaml` (`PB-002-MULE-FREEZE`): Mule syndicate containment (`freeze_transaction`, `disable_beneficiary`, `lock_account`).
+    - `pb_003_credential_stuffing_defense.yaml` (`PB-003-CRED-STUFFING`): Credential spray defense (`block_ip`, `require_step_up`).
+    - `pb_004_insider_data_exfiltration.yaml` (`PB-004-INSIDER-EXFIL`): Insider threat mitigation (`revoke_session`, `require_step_up`, `lock_account`).
+  - **Standardized Response Connectors**: Unified control contracts in `core/app/services/playbook_service.py` for target operations: `freeze_transaction`, `revoke_session`, `block_ip`, `require_step_up`, `disable_beneficiary`, `lock_account`.
+  - **Reversibility & Idempotent Rollback**: `rollback_action` / `revert_target_action` reversing actions or safely verifying idempotent undo state.
+  - **Dry-run Simulation**: Simulation engine (`dry_run=True`) evaluating condition matching and connector actions without mutating target systems.
+  - **Dual-Custody / Two-Person Approvals**: Risky action approval workflow (`action_approvals` table) requiring dual distinct analyst sign-offs before execution.
+  - REST API routes (`/api/response/*`) for playbooks, approvals, modes, guardrails, allowlists, and execution logs.
