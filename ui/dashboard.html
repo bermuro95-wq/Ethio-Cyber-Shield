@@ -21,7 +21,13 @@
         </div>
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
             <h3 class="page-title mb-0"><i class="bi bi-speedometer2 me-2 text-success"></i>Security Dashboard</h3>
-            <a href="live-threats.html" class="btn btn-outline-danger btn-sm"><i class="bi bi-activity"></i> Open Live Threats</a>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-dark border border-secondary text-muted"><i class="bi bi-broadcast text-danger me-1"></i>Real-Time Stream Active</span>
+                <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshDashboard()">
+                    <i class="bi bi-arrow-repeat me-1"></i> Refresh
+                </button>
+                <a href="live-threats.html" class="btn btn-outline-danger btn-sm"><i class="bi bi-activity"></i> Open Live Threats</a>
+            </div>
         </div>
         
         <div class="row g-3 mb-4" id="statsRow">
@@ -135,9 +141,24 @@
             }
         }
 
+        async function manualRefreshDashboard() {
+            const btn = document.getElementById('btnRefresh');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Refreshing...';
+            }
+            await loadDashboard();
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Refresh';
+            }
+            showToast('Dashboard metrics refreshed', 'success');
+        }
+
         loadDashboard();
-        // Auto-refresh dashboard every 20 seconds for near real-time view
-        setInterval(loadDashboard, 20000);
+        // Real-time hooks: instantaneous update on SSE event + 4-second poll fallback
+        window._onRealtimeAlert = function() { loadDashboard(); };
+        setInterval(loadDashboard, 4000);
     </script>
 </body>
 </html>

@@ -61,7 +61,7 @@ def _get_sliding_window_events(account_id: str = None, source_ip: str = None,
         in_memory = get_recent_in_memory_events()
         matches = []
         for ev in in_memory:
-            ev_acc = ev.get('account_id') or ev.get('account_id_pub')
+            ev_acc = ev.get('account_id') or ev.get('account_id_pub') or (ev.get('attributes') or {}).get('identifier') or ev.get('user_id') or ev.get('user_id_pub')
             ev_ip = ev.get('source_ip')
             ev_dev = ev.get('device_id') or ev.get('device_id_pub')
 
@@ -79,6 +79,9 @@ def _get_sliding_window_events(account_id: str = None, source_ip: str = None,
 
         if matches:
             return matches
+        # If in-memory buffer is active and holds recent telemetry, avoid slow network DB queries
+        if len(in_memory) > 0:
+            return []
     except Exception as e_mem:
         logger.debug(f"In-memory sliding window check: {e_mem}")
 
@@ -116,10 +119,20 @@ def _get_sliding_window_events(account_id: str = None, source_ip: str = None,
         return []
 
 
+_IOC_CACHE = {}
+_IOC_CACHE_EXPIRY = {}
+
 def check_ip_in_ioc_watchlists(ip: str) -> dict | None:
-    """Checks if an IP matches a known malicious indicator or watchlist."""
+    """Checks if an IP matches a known malicious indicator or watchlist (cached 60s)."""
     if not ip:
         return None
+
+    import time
+    now_ts = time.time()
+    if ip in _IOC_CACHE and now_ts < _IOC_CACHE_EXPIRY.get(ip, 0):
+        return _IOC_CACHE[ip]
+
+    matched_result = None
     try:
         sb = get_service_supabase()
         # Check indicators
@@ -127,17 +140,21 @@ def check_ip_in_ioc_watchlists(ip: str) -> dict | None:
         if res.data and isinstance(res.data, list) and len(res.data) > 0:
             item = res.data[0]
             if isinstance(item, dict) and item.get('status') == 'malicious':
-                return {'source': 'Threat Indicators', 'data': item}
+                matched_result = {'source': 'Threat Indicators', 'data': item}
 
-        # Check watchlists
-        w_res = sb.table('watchlists').select('*').eq('entity_type', 'ip').eq('value', ip).eq('is_active', True).limit(1).execute()
-        if w_res.data and isinstance(w_res.data, list) and len(w_res.data) > 0:
-            item = w_res.data[0]
-            if isinstance(item, dict):
-                return {'source': 'Watchlists', 'data': item}
+        if not matched_result:
+            # Check watchlists
+            w_res = sb.table('watchlists').select('*').eq('entity_type', 'ip').eq('value', ip).eq('is_active', True).limit(1).execute()
+            if w_res.data and isinstance(w_res.data, list) and len(w_res.data) > 0:
+                item = w_res.data[0]
+                if isinstance(item, dict):
+                    matched_result = {'source': 'Watchlists', 'data': item}
     except Exception as e:
         logger.warning(f"Error checking IOC match for {ip}: {e}")
-    return None
+
+    _IOC_CACHE[ip] = matched_result
+    _IOC_CACHE_EXPIRY[ip] = now_ts + 60
+    return matched_result
 
 
 # =========================================================================
@@ -424,6 +441,19 @@ def evaluate_event_stream(event: dict) -> dict:
                     alert_record = alert_res.data[0]
             except Exception as direct_err:
                 logger.error(f"Direct alert insert fallback failed: {direct_err}")
+                try:
+                    clean_cand = {
+                        'title': candidate_alert.get('title', 'Security Alert'),
+                        'description': candidate_alert.get('description', ''),
+                        'severity': candidate_alert.get('severity', 'medium'),
+                        'status': candidate_alert.get('status', 'open'),
+                        'alert_type': candidate_alert.get('alert_type', 'high_risk'),
+                    }
+                    alert_res = sb.table('alerts').insert(clean_cand).execute()
+                    if alert_res and alert_res.data and len(alert_res.data) > 0:
+                        alert_record = alert_res.data[0]
+                except Exception as e_clean:
+                    logger.error(f"Clean alert insert fallback failed: {e_clean}")
 
     # Auto-promote Critical or High risk alerts to formal Incidents (Part 4, SRS §10 & §21)
     incident_record = None

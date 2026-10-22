@@ -14,7 +14,12 @@
     <div class="container-fluid py-4 px-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h3 class="page-title mb-0"><i class="bi bi-cash-stack me-2 text-success"></i>Fraud & Transactions</h3>
-            <span class="badge bg-dark border border-secondary text-muted"><i class="bi bi-cpu me-1 text-success"></i>Live Telemetry Ingestion</span>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-dark border border-secondary text-muted"><i class="bi bi-cpu me-1 text-success"></i>Live Telemetry Ingestion</span>
+                <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshFraud()">
+                    <i class="bi bi-arrow-repeat me-1"></i> Refresh
+                </button>
+            </div>
         </div>
 
         <div class="card mb-3">
@@ -51,8 +56,8 @@
         if (!requireAuth()) { /* redirect */ }
         document.getElementById('navbar').innerHTML = renderNavbar('fraud');
 
-        async function loadTx() {
-            loadingSpinner('tableArea');
+        async function loadTx(silent = false) {
+            if (!silent) loadingSpinner('tableArea');
             try {
                 const params = {};
                 const s = document.getElementById('searchInput').value.trim();
@@ -60,8 +65,8 @@
                 if (s) params.search = s;
                 if (sus) params.suspicious = sus;
                 const data = await API.getTransactions(params);
-                if (!data.length) {
-                    document.getElementById('tableArea').innerHTML = noData();
+                if (!data || !data.length) {
+                    document.getElementById('tableArea').innerHTML = noData('No transactions recorded yet.');
                     return;
                 }
                 const rows = data.map(t => {
@@ -87,15 +92,33 @@
                         <tbody>${rows}</tbody>
                     </table>`;
             } catch (e) {
-                document.getElementById('tableArea').innerHTML = noData(e.message);
+                if (!silent) document.getElementById('tableArea').innerHTML = noData(e.message);
             }
+        }
+
+        async function manualRefreshFraud() {
+            const btn = document.getElementById('btnRefresh');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Refreshing...';
+            }
+            await loadTx(false);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Refresh';
+            }
+            showToast('Transactions list refreshed', 'success');
         }
 
         async function delTx(id) {
             if (!confirm('Delete this transaction?')) return;
-            try { await API.deleteTransaction(id); showToast('Deleted'); loadTx(); }
+            try { await API.deleteTransaction(id); showToast('Deleted'); loadTx(true); }
             catch (e) { showToast(e.message, 'error'); }
         }
+
+        // Real-time hooks: instantaneous update on SSE event + 5-second poll fallback
+        window._onRealtimeAlert = function() { loadTx(true); };
+        setInterval(() => loadTx(true), 5000);
         loadTx();
     </script>
 </body>

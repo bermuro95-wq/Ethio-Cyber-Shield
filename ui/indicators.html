@@ -14,7 +14,12 @@
     <div class="container-fluid py-4 px-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h3 class="page-title mb-0"><i class="bi bi-crosshair me-2 text-success"></i>Threat Indicators</h3>
-            <span class="badge bg-dark border border-secondary text-muted"><i class="bi bi-shield-check me-1 text-success"></i>Automated IOC Extraction</span>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-dark border border-secondary text-muted"><i class="bi bi-shield-check me-1 text-success"></i>Automated IOC Extraction</span>
+                <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshIndicators()">
+                    <i class="bi bi-arrow-repeat me-1"></i> Refresh
+                </button>
+            </div>
         </div>
 
         <div class="card mb-3">
@@ -64,8 +69,8 @@
         if (!requireAuth()) { /* redirect */ }
         document.getElementById('navbar').innerHTML = renderNavbar('indicators');
 
-        async function loadIndicators() {
-            loadingSpinner('tableArea');
+        async function loadIndicators(silent = false) {
+            if (!silent) loadingSpinner('tableArea');
             try {
                 const params = {};
                 const s = document.getElementById('searchInput').value.trim();
@@ -75,8 +80,8 @@
                 if (t) params.type = t;
                 if (st) params.status = st;
                 const data = await API.getIndicators(params);
-                if (!data.length) {
-                    document.getElementById('tableArea').innerHTML = noData();
+                if (!data || !data.length) {
+                    document.getElementById('tableArea').innerHTML = noData('No threat indicators recorded yet.');
                     return;
                 }
                 const rows = data.map(i => `
@@ -94,10 +99,27 @@
                         <tbody>${rows}</tbody>
                     </table>`;
             } catch (e) {
-                document.getElementById('tableArea').innerHTML = noData(e.message);
+                if (!silent) document.getElementById('tableArea').innerHTML = noData(e.message);
             }
         }
 
+        async function manualRefreshIndicators() {
+            const btn = document.getElementById('btnRefresh');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Refreshing...';
+            }
+            await loadIndicators(false);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Refresh';
+            }
+            showToast('Threat indicators refreshed', 'success');
+        }
+
+        // Real-time hooks: instantaneous update on SSE event + 6-second poll fallback
+        window._onRealtimeAlert = function() { loadIndicators(true); };
+        setInterval(() => loadIndicators(true), 6000);
         loadIndicators();
     </script>
 </body>

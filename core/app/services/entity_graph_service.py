@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 # In-memory stores for ultra-low latency graph traversal and unit test isolation
 _LOCAL_ENTITIES: Dict[str, Dict[str, Any]] = {}
 _LOCAL_LINKS: Dict[str, Dict[str, Any]] = {}
+_ENTITIES_TABLE_EXISTS = True
+_ENTITY_LINKS_TABLE_EXISTS = True
 
 
 def clear_entity_graph_stores():
@@ -79,11 +81,15 @@ def upsert_entity(
         _LOCAL_ENTITIES[key] = record
 
     # Sync to database if available
-    try:
-        sb = get_service_supabase()
-        sb.table('entities').upsert(record, on_conflict='organization_id,entity_type,entity_value').execute()
-    except Exception as e:
-        logger.debug(f"Entity upsert DB fallback: {e}")
+    global _ENTITIES_TABLE_EXISTS
+    if _ENTITIES_TABLE_EXISTS:
+        try:
+            sb = get_service_supabase()
+            sb.table('entities').upsert(record, on_conflict='organization_id,entity_type,entity_value').execute()
+        except Exception as e:
+            if 'PGRST205' in str(e) or 'does not exist' in str(e):
+                _ENTITIES_TABLE_EXISTS = False
+            logger.debug(f"Entity upsert DB fallback: {e}")
 
     return record
 
@@ -136,11 +142,15 @@ def upsert_entity_link(
         _LOCAL_LINKS[key] = record
 
     # Sync to database if available
-    try:
-        sb = get_service_supabase()
-        sb.table('entity_links').upsert(record, on_conflict='organization_id,source_type,source_value,target_type,target_value,link_type').execute()
-    except Exception as e:
-        logger.debug(f"Entity link upsert DB fallback: {e}")
+    global _ENTITY_LINKS_TABLE_EXISTS
+    if _ENTITY_LINKS_TABLE_EXISTS:
+        try:
+            sb = get_service_supabase()
+            sb.table('entity_links').upsert(record, on_conflict='organization_id,source_type,source_value,target_type,target_value,link_type').execute()
+        except Exception as e:
+            if 'PGRST205' in str(e) or 'does not exist' in str(e):
+                _ENTITY_LINKS_TABLE_EXISTS = False
+            logger.debug(f"Entity link upsert DB fallback: {e}")
 
     return record
 

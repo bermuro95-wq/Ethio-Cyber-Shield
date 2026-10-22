@@ -14,7 +14,12 @@
     <div class="container-fluid py-4 px-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h3 class="page-title mb-0"><i class="bi bi-exclamation-triangle me-2 text-success"></i>Incidents</h3>
-            <span class="badge bg-dark border border-secondary text-muted"><i class="bi bi-robot me-1 text-success"></i>Automated Threat Correlation</span>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-dark border border-secondary text-muted"><i class="bi bi-robot me-1 text-success"></i>Automated Threat Correlation</span>
+                <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshIncidents()">
+                    <i class="bi bi-arrow-repeat me-1"></i> Refresh
+                </button>
+            </div>
         </div>
 
         <!-- Filters -->
@@ -77,8 +82,8 @@
         if (!requireAuth()) { /* redirect */ }
         document.getElementById('navbar').innerHTML = renderNavbar('incidents');
 
-        async function loadIncidents() {
-            loadingSpinner('incidentTable');
+        async function loadIncidents(silent = false) {
+            if (!silent) loadingSpinner('incidentTable');
             try {
                 const params = {};
                 const s = document.getElementById('searchInput').value.trim();
@@ -92,7 +97,7 @@
 
                 const data = await API.getIncidents(params);
                 if (!data || data.length === 0) {
-                    document.getElementById('incidentTable').innerHTML = noData();
+                    document.getElementById('incidentTable').innerHTML = noData('No incidents matching filter criteria.');
                     return;
                 }
                 const rows = data.map(i => `
@@ -113,11 +118,30 @@
                         <tbody>${rows}</tbody>
                     </table>`;
             } catch (e) {
-                showToast(e.message, 'error');
-                document.getElementById('incidentTable').innerHTML = noData(e.message);
+                if (!silent) {
+                    showToast(e.message, 'error');
+                    document.getElementById('incidentTable').innerHTML = noData(e.message);
+                }
             }
         }
 
+        async function manualRefreshIncidents() {
+            const btn = document.getElementById('btnRefresh');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Refreshing...';
+            }
+            await loadIncidents(false);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Refresh';
+            }
+            showToast('Incidents list refreshed', 'success');
+        }
+
+        // Real-time hooks: instantaneous update on SSE event + 5-second poll fallback
+        window._onRealtimeAlert = function() { loadIncidents(true); };
+        setInterval(() => loadIncidents(true), 5000);
         loadIncidents();
     </script>
 </body>

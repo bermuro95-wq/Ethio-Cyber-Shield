@@ -33,6 +33,7 @@ RULES_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'rules
 _LOADED_RULES: Dict[str, Any] = {}
 # (org_id, rule_id) -> override_dict
 _TENANT_OVERRIDES: Dict[Tuple[str, str], Dict[str, Any]] = {}
+_TENANT_OVERRIDES_TABLE_EXISTS = True
 
 
 def clear_rule_engine_caches():
@@ -163,6 +164,11 @@ class RuleEngine:
         if key in _TENANT_OVERRIDES:
             return _TENANT_OVERRIDES[key]
 
+        global _TENANT_OVERRIDES_TABLE_EXISTS
+        if not _TENANT_OVERRIDES_TABLE_EXISTS:
+            _TENANT_OVERRIDES[key] = None
+            return None
+
         try:
             sb = get_service_supabase()
             res = sb.table('tenant_rule_overrides').select('*').eq('organization_id', str(org_id)).eq('rule_id', str(rule_id)).limit(1).execute()
@@ -170,7 +176,13 @@ class RuleEngine:
                 record = res.data[0]
                 _TENANT_OVERRIDES[key] = record
                 return record
+            else:
+                _TENANT_OVERRIDES[key] = None
+                return None
         except Exception as e:
+            if 'PGRST205' in str(e) or 'does not exist' in str(e):
+                _TENANT_OVERRIDES_TABLE_EXISTS = False
+            _TENANT_OVERRIDES[key] = None
             logger.debug(f"Tenant override DB lookup fallback: {e}")
 
         return None
@@ -300,7 +312,7 @@ class RuleEngine:
             if sliding_window_events is not None:
                 matches = []
                 for e in sliding_window_events:
-                    e_acc = e.get('account_id') or e.get('account_id_pub')
+                    e_acc = e.get('account_id') or e.get('account_id_pub') or (e.get('attributes') or {}).get('identifier') or e.get('user_id') or e.get('user_id_pub')
                     e_ip = e.get('source_ip')
                     if match_acc and e_acc != match_acc:
                         continue
@@ -351,17 +363,18 @@ class RuleEngine:
             summary = ""
 
             # --- Rule 1: AUTH-001 (Login Failure Burst) ---
-            if rule_id == 'AUTH-001' and event_type == 'LOGIN_FAILED':
+            if rule_id == 'AUTH-001' and event_type in ('LOGIN_FAILED', 'AUTH_LOGIN_FAILED'):
                 burst_thresh = int(thresholds.get('burst_count', 5))
                 consecutive = int(attributes.get('consecutive_failures_for_identifier') or 0)
-                recent_failures = get_window(60, match_acc=account)
-                failed_count = sum(1 for e in recent_failures if e.get('event_type') in ('LOGIN_FAILED', 'auth.login.failed'))
+                acc_ident = account or attributes.get('identifier') or attributes.get('username') or event.get('user_id') or event.get('user_id_pub')
+                recent_failures = get_window(60, match_acc=acc_ident)
+                failed_count = sum(1 for e in recent_failures if e.get('event_type') in ('LOGIN_FAILED', 'AUTH_LOGIN_FAILED', 'auth.login.failed'))
                 max_fails = max(consecutive, failed_count)
 
                 if max_fails >= burst_thresh:
                     matched = True
-                    evidence = {'failed_count': max_fails, 'account': account, 'threshold': burst_thresh}
-                    summary = f"Rapid login failures ({max_fails} attempts) on account {account or 'unknown'} within 60s"
+                    evidence = {'failed_count': max_fails, 'account': acc_ident or account, 'threshold': burst_thresh}
+                    summary = f"Rapid login failures ({max_fails} attempts) on account {acc_ident or account or 'unknown'} within 60s"
 
             # --- Rule 2: AUTH-002 (Credential Stuffing) ---
             elif rule_id == 'AUTH-002' and event_type == 'LOGIN_FAILED' and source_ip:

@@ -268,17 +268,18 @@ def live_stream():
 
     last_seen = request.args.get('since')  # ISO timestamp
     if not last_seen:
-        last_seen = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        # Default to now - 15 seconds to catch immediately preceding alert
+        last_seen = (datetime.now(timezone.utc) - timedelta(seconds=15)).isoformat()
 
     def generate():
         nonlocal last_seen
         # Heartbeat + poll loop (client reconnects if needed)
-        for _ in range(120):  # ~4 minutes of connection then client reconnects
+        for _ in range(180):  # ~3 minutes of connection then client reconnects
             try:
                 sb = get_service_supabase()
                 res = sb.table('alerts').select(
                     'id, title, description, severity, status, alert_type, created_at, related_transaction_id'
-                ).gt('created_at', last_seen).order('created_at', asc=True).limit(20).execute()
+                ).gt('created_at', last_seen).order('created_at', desc=False).limit(20).execute()
                 rows = res.data or []
                 for row in rows:
                     last_seen = row['created_at']
@@ -288,7 +289,7 @@ def live_stream():
                 yield f"event: ping\ndata: {json.dumps({'ts': datetime.now(timezone.utc).isoformat()})}\n\n"
             except Exception as e:
                 yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
-            time.sleep(2)
+            time.sleep(1)
 
     return Response(
         stream_with_context(generate()),

@@ -29,6 +29,27 @@ def login():
     user = authenticate_user(email, password)
     if not user:
         log_action(None, 'login_failed', details={'email': email})
+        try:
+            from app.services.event_service import ingest_event
+            import uuid
+            ingest_event({
+                'event_id': f"ev-auth-{uuid.uuid4().hex[:12]}",
+                'event_type': 'LOGIN_FAILED',
+                'source_system': 'ECS Admin Portal',
+                'user_id': email,
+                'account_id': email,
+                'source_ip': request.remote_addr or '127.0.0.1',
+                'endpoint': request.path,
+                'result': 'FAILURE',
+                'attributes': {
+                    'identifier': email,
+                    'failure_reason': 'BAD_PASSWORD',
+                    'consecutive_failures_for_identifier': 1,
+                    'user_agent': request.headers.get('User-Agent', '')
+                }
+            })
+        except Exception as e_ev:
+            logger.debug(f"Auth failure ingest notice: {e_ev}")
         return jsonify({'error': 'Invalid credentials'}), 401
 
     # Check if MFA is required for this user
