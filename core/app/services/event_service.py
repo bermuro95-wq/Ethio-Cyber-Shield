@@ -115,6 +115,9 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
         'result': result,
         'attributes': attributes,
     }
+    if norm_event.get('seq') is not None:
+        canonical_event['seq'] = norm_event['seq']
+
     extended_fields = {
         'seq': norm_event.get('seq'),
         'user_id_pub': user_id_pub,
@@ -139,7 +142,7 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
     if target_id:
         canonical_event['target_system_id'] = target_id
 
-    legacy_cols = {'event_id', 'event_type', 'occurred_at', 'source_system', 'user_id', 'account_id', 'session_id', 'device_id', 'source_ip', 'endpoint', 'result', 'attributes', 'processed'}
+    legacy_cols = {'event_id', 'seq', 'event_type', 'occurred_at', 'source_system', 'user_id', 'account_id', 'session_id', 'device_id', 'source_ip', 'endpoint', 'result', 'attributes', 'processed'}
     clean_sec_ev = {k: v for k, v in canonical_event.items() if k in legacy_cols}
     try:
         sb.table('security_events').upsert(clean_sec_ev, on_conflict='event_id').execute()
@@ -150,7 +153,6 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
     if event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED') and amount_major:
         try:
             tx_record = {
-                'organization_id': org_id,
                 'account_number': account_id_pub or 'ACC_UNKNOWN',
                 'amount': float(amount_major),
                 'currency': currency or 'ETB',
@@ -160,17 +162,7 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
                 'status': 'flagged' if attributes.get('held_for_review') else 'completed',
                 'is_suspicious': bool(attributes.get('held_for_review') or lab_scenario),
             }
-            if target_id:
-                tx_record['target_system_id'] = target_id
-            if event_id:
-                tx_record['raw_event_id'] = event_id
-
-            try:
-                tx_res = sb.table('transactions').insert(tx_record).execute()
-            except Exception:
-                tx_record.pop('target_system_id', None)
-                tx_record.pop('raw_event_id', None)
-                tx_res = sb.table('transactions').insert(tx_record).execute()
+            tx_res = sb.table('transactions').insert(tx_record).execute()
 
             if tx_res.data:
                 analyze_transaction(tx_res.data[0]['id'])

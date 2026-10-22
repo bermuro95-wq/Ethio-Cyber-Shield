@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 # In-memory stores for revocation and token caching (works in test & standalone, backed by DB)
 _REVOKED_TOKENS = set()
+_ACTIVE_USER_SESSIONS = {}  # user_id -> {'jti': str, 'token': str, 'logged_in_at': str, 'ip': str, 'user_agent': str}
 _API_TOKENS = {}
 _USER_MFA_SECRETS = {}
 
@@ -56,27 +57,67 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 def create_token(user_id: str, email: str, role: str, organization_id: str = None) -> str:
     org_id = organization_id or get_current_organization_id()
+    new_jti = str(uuid.uuid4())
+
+    # Enforce single active device session for admin accounts
+    if role == 'admin':
+        old_session = _ACTIVE_USER_SESSIONS.get(user_id)
+        if old_session and old_session.get('token'):
+            revoke_token(old_session['token'])
+            logger.info(f"Terminated previous admin session for user {user_id} due to new device login.")
+
     payload = {
         'sub': user_id,
-        'jti': str(uuid.uuid4()),
+        'jti': new_jti,
         'email': email,
         'role': role,
         'organization_id': org_id,
         'iat': datetime.now(timezone.utc),
         'exp': datetime.now(timezone.utc) + timedelta(hours=Config.JWT_EXPIRY_HOURS)
     }
-    return jwt.encode(payload, Config.JWT_SECRET, algorithm='HS256')
+    token = jwt.encode(payload, Config.JWT_SECRET, algorithm='HS256')
+
+    if role == 'admin':
+        from flask import has_request_context
+        req_ip = request.remote_addr if has_request_context() else None
+        req_ua = request.headers.get('User-Agent', '')[:300] if has_request_context() else None
+        _ACTIVE_USER_SESSIONS[user_id] = {
+            'jti': new_jti,
+            'token': token,
+            'logged_in_at': datetime.now(timezone.utc).isoformat(),
+            'ip': req_ip,
+            'user_agent': req_ua
+        }
+
+    return token
 
 
 def decode_token(token: str) -> dict | None:
     if is_token_revoked(token):
         return None
     try:
-        return jwt.decode(token, Config.JWT_SECRET, algorithms=['HS256'])
+        payload = jwt.decode(token, Config.JWT_SECRET, algorithms=['HS256'])
     except jwt.ExpiredSignatureError:
         return None
     except jwt.InvalidTokenError:
         return None
+
+    # Single active session validation: if admin, jti must match active device session
+    user_id = payload.get('sub')
+    role = payload.get('role')
+    jti = payload.get('jti')
+    if role == 'admin' and user_id in _ACTIVE_USER_SESSIONS:
+        active_session = _ACTIVE_USER_SESSIONS[user_id]
+        if active_session.get('jti') != jti:
+            logger.warning(f"Admin session rejected for {user_id}: jti {jti} superseded by new device login.")
+            return None
+
+    return payload
+
+
+def clear_user_active_session(user_id: str):
+    """Clears tracked active session on explicit user logout."""
+    _ACTIVE_USER_SESSIONS.pop(user_id, None)
 
 
 def revoke_token(token: str):

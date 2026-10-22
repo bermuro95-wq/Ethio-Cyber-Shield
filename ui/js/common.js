@@ -20,67 +20,62 @@ function requireAuth(roles = null) {
 
 function renderNavbar(activePage = '') {
     const user = API.getUser();
-    const name = user ? user.full_name : 'User';
+    const name = user ? user.full_name : 'Admin';
     const role = (user && user.role) ? user.role.toLowerCase() : 'viewer';
     const orgId = user && user.organization_id ? user.organization_id.slice(0, 8) + '...' : 'Default Org';
 
     // Role-aware navigation permissions
     const canViewSoc = ['admin', 'analyst', 'responder', 'viewer'].includes(role);
     const canViewIncidents = ['admin', 'analyst', 'responder', 'auditor'].includes(role);
-    const canViewLive = ['admin', 'analyst', 'responder'].includes(role);
-    const canViewReports = ['admin', 'analyst', 'auditor'].includes(role);
     const canViewAudit = ['admin', 'analyst', 'auditor'].includes(role);
     const canViewAdmin = ['admin'].includes(role);
 
     let linksHtml = '';
     if (canViewSoc) {
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='dashboard'?'active':''}" href="dashboard.html">Dashboard</a></li>`;
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='dashboard' || activePage==='live' ?'active':''}" href="dashboard.html"><i class="bi bi-grid-1x2 me-1"></i>Overview</a></li>`;
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='alerts'?'active':''}" href="alerts.html"><i class="bi bi-bell me-1"></i>Alerts</a></li>`;
     }
     if (canViewIncidents) {
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='incidents'?'active':''}" href="incidents.html">Incidents</a></li>`;
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='incidents' || activePage==='incident-detail' ?'active':''}" href="incidents.html"><i class="bi bi-shield-exclamation me-1"></i>Incidents</a></li>`;
     }
     if (['admin', 'analyst', 'viewer'].includes(role)) {
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='indicators'?'active':''}" href="indicators.html">Indicators</a></li>`;
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='fraud'?'active':''}" href="fraud.html">Fraud</a></li>`;
-    }
-    if (canViewLive) {
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='live'?'active':''}" href="live-threats.html"><i class="bi bi-activity"></i> Live Threats</a></li>`;
-    }
-    if (['admin', 'analyst'].includes(role)) {
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='watchlists'?'active':''}" href="watchlists.html">Watchlists</a></li>`;
-    }
-    if (canViewSoc) {
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='alerts'?'active':''}" href="alerts.html">Alerts</a></li>`;
-    }
-    if (canViewReports) {
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='reports'?'active':''}" href="reports.html">Reports</a></li>`;
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='intelligence' || activePage==='indicators' || activePage==='fraud' || activePage==='watchlists' ?'active':''}" href="intelligence.html"><i class="bi bi-cpu me-1"></i>Intelligence</a></li>`;
     }
     if (canViewAudit) {
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='audit'?'active':''}" href="audit.html"><i class="bi bi-shield-check"></i> Audit Log</a></li>`;
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='audit' || activePage==='reports' ?'active':''}" href="audit.html"><i class="bi bi-journal-check me-1"></i>Audit & Reports</a></li>`;
     }
     if (canViewAdmin) {
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='settings'?'active':''}" href="settings.html">Settings</a></li>`;
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='users'?'active':''}" href="users.html">Users</a></li>`;
+        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='settings' || activePage==='users' ?'active':''}" href="settings.html"><i class="bi bi-sliders me-1"></i>Settings</a></li>`;
     }
 
     return `
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-success">
-        <div class="container-fluid">
-            <a class="navbar-brand fw-bold text-success d-flex align-items-center gap-2" href="dashboard.html">
-                <img src="assets/logo-shield.jpg" alt="ECS" class="navbar-logo" width="36" height="36">
-                <span>Ethio-Cyber-Shield (ECS)</span>
+    <nav class="navbar navbar-expand-lg ecs-navbar sticky-top">
+        <div class="container-fluid px-3">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="dashboard.html">
+                <img src="assets/logo-shield.jpg" alt="ECS" class="navbar-logo" width="30" height="30">
+                <span class="brand-text">Ethio-Cyber Shield</span>
             </a>
+            <div class="d-flex align-items-center me-3 d-none d-md-flex">
+                <span class="live-pill"><span class="live-pulse"></span>LIVE</span>
+            </div>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navMain">
-                <ul class="navbar-nav me-auto">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     ${linksHtml}
                 </ul>
-                <div class="d-flex align-items-center text-light">
-                    <span class="badge bg-dark border border-secondary text-light me-2"><i class="bi bi-building"></i> ${orgId}</span>
-                    <span class="me-3 small"><i class="bi bi-person-badge"></i> ${name} <span class="badge bg-secondary">${role.toUpperCase()}</span></span>
-                    <button class="btn btn-outline-danger btn-sm" onclick="doLogout()">Logout</button>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-dark border border-secondary text-secondary d-none d-lg-inline-flex align-items-center gap-1 font-mono">
+                        <i class="bi bi-building"></i> ${escapeHtml(orgId)}
+                    </span>
+                    <span class="small text-muted d-flex align-items-center gap-1 me-2">
+                        <i class="bi bi-person-circle"></i> <strong class="text-light">${escapeHtml(name)}</strong>
+                        <span class="badge bg-secondary ms-1">${escapeHtml(role.toUpperCase())}</span>
+                    </span>
+                    <button class="btn btn-outline-danger btn-sm py-1 px-2" onclick="doLogout()" title="Sign out current device">
+                        <i class="bi bi-box-arrow-right me-1"></i>Sign Out
+                    </button>
                 </div>
             </div>
         </div>
@@ -296,10 +291,19 @@ function initRealTimeStream() {
             // Heartbeat ok
         });
 
-        _ecsEventSource.onerror = () => {
+        _ecsEventSource.onerror = async () => {
             if (_ecsEventSource) {
                 try { _ecsEventSource.close(); } catch (e) {}
                 _ecsEventSource = null;
+            }
+            // Check if token was invalidated / superseded by another device
+            if (typeof API !== 'undefined' && API.isAuthenticated()) {
+                try {
+                    await API.me();
+                } catch (e) {
+                    // API.request handles 401 redirect automatically
+                    return;
+                }
             }
             if (!_ecsReconnectTimer) {
                 _ecsReconnectTimer = setTimeout(() => {

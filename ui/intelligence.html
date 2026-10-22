@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligence | Ethio-Cyber Shield</title>
+    <link rel="icon" type="image/jpeg" href="assets/logo-shield.jpg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <div id="navbar"></div>
+
+    <div class="container-fluid py-3 px-3 px-md-4">
+        <!-- Header & Tab Pill Switcher -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary gap-2">
+            <div class="d-flex align-items-center gap-3">
+                <h4 class="mb-0 fw-bold text-light">Threat & Entity Intelligence</h4>
+                <div class="sub-tabs">
+                    <button class="tab-btn active" id="tabBtnIndicators" onclick="switchTab('indicators')">
+                        <i class="bi bi-crosshair me-1"></i> Threat Indicators (IoCs)
+                    </button>
+                    <button class="tab-btn" id="tabBtnFraud" onclick="switchTab('fraud')">
+                        <i class="bi bi-cash-stack me-1"></i> Transactions & Rails
+                    </button>
+                    <button class="tab-btn" id="tabBtnWatchlists" onclick="switchTab('watchlists')">
+                        <i class="bi bi-eye me-1"></i> Watchlists
+                    </button>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshCurrentTab()">
+                    <i class="bi bi-arrow-repeat me-1"></i> Refresh
+                </button>
+                <button class="btn btn-success btn-sm d-none" id="btnAddWatchlist" onclick="openWatchlistModal()">
+                    <i class="bi bi-plus-lg me-1"></i> Add Watchlist
+                </button>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 1: THREAT INDICATORS (IoCs)           -->
+        <!-- ========================================== -->
+        <div id="sectionIndicators">
+            <div class="card mb-3">
+                <div class="card-body py-2">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control form-control-sm" id="iocSearchInput" placeholder="Search IP, hash, domain, or URL..." oninput="debounceIocSearch()">
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select form-select-sm" id="iocFilterType" onchange="loadIndicators()">
+                                <option value="">All Indicator Types</option>
+                                <option value="ip">IP Address</option>
+                                <option value="domain">Domain Name</option>
+                                <option value="url">URL Endpoint</option>
+                                <option value="email">Email Address</option>
+                                <option value="file_hash">File Hash (SHA-256)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select form-select-sm" id="iocFilterStatus" onchange="loadIndicators()">
+                                <option value="">All Statuses</option>
+                                <option value="malicious">Malicious</option>
+                                <option value="suspicious">Suspicious</option>
+                                <option value="unknown">Unknown</option>
+                                <option value="benign">Benign</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-outline-success btn-sm w-100" onclick="loadIndicators()">Filter</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body p-0" id="iocTableArea">
+                    <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 2: TRANSACTIONS & RAILS               -->
+        <!-- ========================================== -->
+        <div id="sectionFraud" class="d-none">
+            <div class="card mb-3">
+                <div class="card-body py-2">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control form-control-sm" id="txSearchInput" placeholder="Search account number or device ID..." oninput="debounceTxSearch()">
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select form-select-sm" id="txFilterSuspicious" onchange="loadTransactions()">
+                                <option value="">All Ingested Transactions</option>
+                                <option value="true" selected>Flagged / Suspicious Only</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-outline-success btn-sm w-100" onclick="loadTransactions()">Filter</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body p-0" id="txTableArea">
+                    <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 3: ENTITY WATCHLISTS                  -->
+        <!-- ========================================== -->
+        <div id="sectionWatchlists" class="d-none">
+            <div class="card mb-3">
+                <div class="card-body py-2 d-flex justify-content-between align-items-center">
+                    <div class="small text-muted">
+                        <i class="bi bi-info-circle me-1 text-info"></i>
+                        Monitored entity watchlists automatically escalate incoming transactions and telemetry matching account numbers, device IDs, or IPs.
+                    </div>
+                    <button class="btn btn-outline-danger btn-sm" id="btnClearWatchlists" onclick="clearAllWatchlists()">
+                        Deactivate All
+                    </button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body p-0" id="wlTableArea">
+                    <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Add / Edit Watchlist -->
+    <div class="modal fade" id="watchlistModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="wlModalTitle"><i class="bi bi-eye text-success me-2"></i>Add Watchlist Entity</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="wlId">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Entity Type</label>
+                        <select class="form-select" id="wlType">
+                            <option value="account">Bank Account Number</option>
+                            <option value="device">Device Identifier</option>
+                            <option value="ip">IP Address</option>
+                            <option value="email">Email Address</option>
+                            <option value="domain">Domain</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Entity Value</label>
+                        <input class="form-control font-mono" id="wlValue" placeholder="e.g. 1000123456 or 192.168.1.100" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Label / Reference Name</label>
+                        <input class="form-control" id="wlLabel" placeholder="e.g. Mule Account Syndicate A">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Risk Severity</label>
+                        <select class="form-select" id="wlSeverity">
+                            <option value="critical">Critical (Immediate containment)</option>
+                            <option value="high" selected>High (Priority investigation)</option>
+                            <option value="medium">Medium (Flag & monitor)</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Investigation Notes</label>
+                        <textarea class="form-control" id="wlNotes" rows="2" placeholder="Origin of intelligence or case reference"></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="wlActive" checked>
+                        <label class="form-check-label text-light small" for="wlActive">Active Rule Enforcement</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-success" onclick="saveWatchlistItem()">Save Entity</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/common.js"></script>
+    <script>
+        if (!requireAuth()) { /* redirect */ }
+
+        document.getElementById('navbar').innerHTML = renderNavbar('intelligence');
+        const currentUser = API.getUser() || {};
+        const role = (currentUser.role || 'viewer').toLowerCase();
+        let wlModalInstance = null;
+
+        // Tab state management
+        let currentTab = 'indicators';
+
+        function switchTab(tabName) {
+            currentTab = tabName;
+            const tabs = ['indicators', 'fraud', 'watchlists'];
+            tabs.forEach(t => {
+                const btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+                const sec = document.getElementById('section' + t.charAt(0).toUpperCase() + t.slice(1));
+                if (t === tabName) {
+                    btn.classList.add('active');
+                    sec.classList.remove('d-none');
+                } else {
+                    btn.classList.remove('active');
+                    sec.classList.add('d-none');
+                }
+            });
+
+            const addWlBtn = document.getElementById('btnAddWatchlist');
+            if (tabName === 'watchlists' && role !== 'viewer') {
+                addWlBtn.classList.remove('d-none');
+            } else {
+                addWlBtn.classList.add('d-none');
+            }
+
+            // Sync URL query without reloading
+            const url = new URL(window.location);
+            url.searchParams.set('tab', tabName);
+            window.history.replaceState({}, '', url);
+
+            // Load data for the selected tab
+            if (tabName === 'indicators') loadIndicators();
+            else if (tabName === 'fraud') loadTransactions();
+            else if (tabName === 'watchlists') loadWatchlists();
+        }
+
+        // ==========================================
+        // TAB 1: INDICATORS
+        // ==========================================
+        let _iocDebounceTimer = null;
+        function debounceIocSearch() {
+            clearTimeout(_iocDebounceTimer);
+            _iocDebounceTimer = setTimeout(() => loadIndicators(true), 300);
+        }
+
+        async function loadIndicators(silent = false) {
+            if (!silent) loadingSpinner('iocTableArea');
+            try {
+                const params = {};
+                const s = document.getElementById('iocSearchInput').value.trim();
+                const t = document.getElementById('iocFilterType').value;
+                const st = document.getElementById('iocFilterStatus').value;
+                if (s) params.search = s;
+                if (t) params.type = t;
+                if (st) params.status = st;
+
+                const data = await API.getIndicators(params);
+                if (!data || !data.length) {
+                    document.getElementById('iocTableArea').innerHTML = noData('No threat indicators recorded matching criteria.');
+                    return;
+                }
+
+                const rows = data.map(i => `
+                    <tr>
+                        <td><code class="font-mono text-light">${escapeHtml(i.value)}</code></td>
+                        <td><span class="badge bg-secondary font-mono">${escapeHtml((i.indicator_type || '').toUpperCase())}</span></td>
+                        <td>${statusBadge(i.status)}</td>
+                        <td class="small text-muted">${escapeHtml(i.source || 'Automated Detection')}</td>
+                        <td class="small font-mono text-muted">${formatDate(i.created_at)}</td>
+                    </tr>
+                `).join('');
+
+                document.getElementById('iocTableArea').innerHTML = `
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Indicator Value</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Source</th>
+                                <th>First Seen (EAT)</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>`;
+            } catch (err) {
+                if (!silent) document.getElementById('iocTableArea').innerHTML = noData(err.message);
+            }
+        }
+
+        // ==========================================
+        // TAB 2: TRANSACTIONS & RAILS
+        // ==========================================
+        let _txDebounceTimer = null;
+        function debounceTxSearch() {
+            clearTimeout(_txDebounceTimer);
+            _txDebounceTimer = setTimeout(() => loadTransactions(true), 300);
+        }
+
+        async function loadTransactions(silent = false) {
+            if (!silent) loadingSpinner('txTableArea');
+            try {
+                const params = {};
+                const s = document.getElementById('txSearchInput').value.trim();
+                const sus = document.getElementById('txFilterSuspicious').value;
+                if (s) params.search = s;
+                if (sus) params.suspicious = sus;
+
+                const data = await API.getTransactions(params);
+                if (!data || !data.length) {
+                    document.getElementById('txTableArea').innerHTML = noData('No transactions recorded yet.');
+                    return;
+                }
+
+                const rows = data.map(t => {
+                    const reasons = (t.suspicion_reasons || []).join('; ') || '-';
+                    const isSus = t.is_suspicious;
+                    const canEdit = ['admin', 'analyst'].includes(role);
+
+                    return `
+                    <tr class="${isSus ? 'table-danger' : ''}">
+                        <td><code class="font-mono">${escapeHtml(t.account_number)}</code></td>
+                        <td class="fw-bold font-mono text-light">${Number(t.amount || 0).toLocaleString()} ${escapeHtml(t.currency || 'ETB')}</td>
+                        <td><span class="badge bg-dark border border-secondary text-light font-mono">${escapeHtml(t.transaction_type || 'TRANSFER')}</span></td>
+                        <td><span class="small font-mono text-muted">${escapeHtml(t.device_id || '-')}</span></td>
+                        <td>${isSus ? '<span class="badge badge-critical">FLAGGED</span>' : statusBadge(t.status)}</td>
+                        <td class="small text-muted" title="${escapeHtml(reasons)}">${escapeHtml(reasons).substring(0, 50)}${reasons.length > 50 ? '...' : ''}</td>
+                        <td class="small font-mono text-muted">${formatDate(t.transaction_time)}</td>
+                        <td>
+                            ${canEdit ? `<button class="btn btn-outline-danger btn-sm py-0 px-2 font-mono" style="font-size:0.75rem;" onclick="deleteTransaction('${t.id}')">Delete</button>` : '-'}
+                        </td>
+                    </tr>`;
+                }).join('');
+
+                document.getElementById('txTableArea').innerHTML = `
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th>Amount</th>
+                                <th>Rail / Type</th>
+                                <th>Device ID</th>
+                                <th>Status</th>
+                                <th>Suspicion Reasons</th>
+                                <th>Time (EAT)</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>`;
+            } catch (err) {
+                if (!silent) document.getElementById('txTableArea').innerHTML = noData(err.message);
+            }
+        }
+
+        async function deleteTransaction(id) {
+            if (!confirm('Remove this transaction record?')) return;
+            try {
+                await API.deleteTransaction(id);
+                showToast('Transaction removed', 'success');
+                loadTransactions(true);
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // ==========================================
+        // TAB 3: WATCHLISTS
+        // ==========================================
+        async function loadWatchlists(silent = false) {
+            if (!silent) loadingSpinner('wlTableArea');
+            try {
+                const data = await API.getWatchlists();
+                if (!data || !data.length) {
+                    document.getElementById('wlTableArea').innerHTML = noData('No watched entities configured. Add entities to flag matching activity.');
+                    return;
+                }
+
+                const canEdit = ['admin', 'analyst'].includes(role);
+                const rows = data.map(w => `
+                    <tr>
+                        <td><span class="badge bg-dark border border-secondary text-light font-mono">${escapeHtml((w.entity_type || '').toUpperCase())}</span></td>
+                        <td><code class="font-mono text-light">${escapeHtml(w.entity_value)}</code></td>
+                        <td>${escapeHtml(w.label || '-')}</td>
+                        <td>${severityBadge(w.severity)}</td>
+                        <td>
+                            ${w.is_active ? 
+                                '<span class="badge bg-success font-mono">ACTIVE</span>' : 
+                                '<span class="badge bg-secondary font-mono">INACTIVE</span>'}
+                        </td>
+                        <td class="small text-muted">${escapeHtml(w.notes || '-')}</td>
+                        <td>
+                            ${canEdit ? `
+                                <button class="btn btn-outline-info btn-sm py-0 px-2 me-1 font-mono" style="font-size:0.75rem;" onclick='openWatchlistModal(${JSON.stringify(w).replace(/'/g, "&#39;")})'>Edit</button>
+                                <button class="btn btn-outline-danger btn-sm py-0 px-2 font-mono" style="font-size:0.75rem;" onclick="deleteWatchlistItem('${w.id}')">Delete</button>
+                            ` : '-'}
+                        </td>
+                    </tr>
+                `).join('');
+
+                document.getElementById('wlTableArea').innerHTML = `
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Entity Type</th>
+                                <th>Value</th>
+                                <th>Label</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                                <th>Notes</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>`;
+            } catch (err) {
+                if (!silent) document.getElementById('wlTableArea').innerHTML = noData(err.message);
+            }
+        }
+
+        function openWatchlistModal(item = null) {
+            if (!wlModalInstance) {
+                wlModalInstance = new bootstrap.Modal(document.getElementById('watchlistModal'));
+            }
+            if (item) {
+                document.getElementById('wlModalTitle').innerHTML = '<i class="bi bi-pencil-square text-info me-2"></i>Edit Watchlist Entity';
+                document.getElementById('wlId').value = item.id;
+                document.getElementById('wlType').value = item.entity_type || 'account';
+                document.getElementById('wlValue').value = item.entity_value || '';
+                document.getElementById('wlLabel').value = item.label || '';
+                document.getElementById('wlSeverity').value = item.severity || 'high';
+                document.getElementById('wlNotes').value = item.notes || '';
+                document.getElementById('wlActive').checked = !!item.is_active;
+            } else {
+                document.getElementById('wlModalTitle').innerHTML = '<i class="bi bi-eye text-success me-2"></i>Add Watchlist Entity';
+                document.getElementById('wlId').value = '';
+                document.getElementById('wlType').value = 'account';
+                document.getElementById('wlValue').value = '';
+                document.getElementById('wlLabel').value = '';
+                document.getElementById('wlSeverity').value = 'high';
+                document.getElementById('wlNotes').value = '';
+                document.getElementById('wlActive').checked = true;
+            }
+            wlModalInstance.show();
+        }
+
+        async function saveWatchlistItem() {
+            const id = document.getElementById('wlId').value;
+            const entity_type = document.getElementById('wlType').value;
+            const entity_value = document.getElementById('wlValue').value.trim();
+            const label = document.getElementById('wlLabel').value.trim();
+            const severity = document.getElementById('wlSeverity').value;
+            const notes = document.getElementById('wlNotes').value.trim();
+            const is_active = document.getElementById('wlActive').checked;
+
+            if (!entity_value) {
+                alert('Please enter entity value');
+                return;
+            }
+
+            try {
+                if (id) {
+                    await API.updateWatchlist(id, { entity_type, entity_value, label, severity, notes, is_active });
+                    showToast('Watchlist entity updated', 'success');
+                } else {
+                    await API.createWatchlist({ entity_type, entity_value, label, severity, notes, is_active });
+                    showToast('Watchlist entity added', 'success');
+                }
+                if (wlModalInstance) wlModalInstance.hide();
+                loadWatchlists(true);
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        async function deleteWatchlistItem(id) {
+            if (!confirm('Remove this entity from watchlists?')) return;
+            try {
+                await API.deleteWatchlist(id);
+                showToast('Entity removed from watchlists', 'success');
+                loadWatchlists(true);
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        async function clearAllWatchlists() {
+            if (!confirm('Are you sure you want to deactivate all watchlist entries?')) return;
+            try {
+                await API.clearWatchlists();
+                showToast('All watchlists cleared / deactivated', 'success');
+                loadWatchlists(true);
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        async function manualRefreshCurrentTab() {
+            const btn = document.getElementById('btnRefresh');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Refreshing...';
+            }
+            if (currentTab === 'indicators') await loadIndicators(false);
+            else if (currentTab === 'fraud') await loadTransactions(false);
+            else if (currentTab === 'watchlists') await loadWatchlists(false);
+
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Refresh';
+            }
+            showToast('Intelligence data refreshed', 'success');
+        }
+
+        // Initialize from URL param if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const initialTab = urlParams.get('tab') || 'indicators';
+        switchTab(initialTab);
+    </script>
+</body>
+</html>

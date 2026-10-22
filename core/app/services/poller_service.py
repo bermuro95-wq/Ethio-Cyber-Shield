@@ -55,7 +55,10 @@ def poll_target_once(target_id: str) -> dict:
                 'error': resp.text,
             }
 
-        body = resp.json()
+        try:
+            body = resp.json() if resp.text else {}
+        except Exception:
+            body = {}
         events = body.get('events', [])
         next_seq = body.get('next_seq')
 

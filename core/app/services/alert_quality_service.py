@@ -386,28 +386,28 @@ class AlertQualityService:
 
         _LOCAL_OPEN_ALERTS[fp_key] = created_record
 
-        # Persist to database if available
+        # Persist to database
         try:
             sb = get_service_supabase()
-            res_ins = sb.table('alerts').insert(created_record).execute()
+            valid_alert_types = {'account_takeover', 'suspicious_transaction', 'high_risk', 'other'}
+            raw_atype = created_record.get('alert_type')
+            if raw_atype not in valid_alert_types:
+                clean_type = 'high_risk' if created_record.get('severity') in ('high', 'critical') else 'other'
+            else:
+                clean_type = raw_atype
+
+            clean_alert = {
+                'title': created_record.get('title', 'Security Alert'),
+                'description': created_record.get('description', ''),
+                'severity': created_record.get('severity', 'medium'),
+                'status': created_record.get('status', 'open'),
+                'alert_type': clean_type,
+            }
+            res_ins = sb.table('alerts').insert(clean_alert).execute()
             if res_ins.data and len(res_ins.data) > 0:
                 created_record['id'] = res_ins.data[0]['id']
         except Exception as e:
-            logger.debug(f"Full alert insert failed ({e}), attempting schema-compatible fallback...")
-            try:
-                sb = get_service_supabase()
-                clean_alert = {
-                    'title': created_record.get('title', 'Security Alert'),
-                    'description': created_record.get('description', ''),
-                    'severity': created_record.get('severity', 'medium'),
-                    'status': created_record.get('status', 'open'),
-                    'alert_type': created_record.get('alert_type', 'high_risk'),
-                }
-                res_clean = sb.table('alerts').insert(clean_alert).execute()
-                if res_clean.data and len(res_clean.data) > 0:
-                    created_record['id'] = res_clean.data[0]['id']
-            except Exception as e_clean:
-                logger.error(f"Alert insertion db fallback failed: {e_clean}")
+            logger.error(f"Alert insertion failed: {e}")
 
         return {
             'action': 'created',

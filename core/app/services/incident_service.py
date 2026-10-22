@@ -5,12 +5,23 @@ links IOCs, resolves active incident deduplication windows, and builds visual at
 Conforms to SRS §10, §21, and §22.
 """
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from dateutil import parser
 from app.services.db import get_service_supabase
 from app.services.audit_service import log_action
 
 logger = logging.getLogger(__name__)
+
+
+def _is_valid_uuid(val) -> bool:
+    if not val:
+        return False
+    try:
+        uuid.UUID(str(val))
+        return True
+    except (ValueError, AttributeError):
+        return False
 
 
 def _parse_time(ts_val) -> datetime:
@@ -207,7 +218,7 @@ def promote_alert_to_incident(alert: dict = None, event: dict = None, detection_
             try:
                 sb.table('alerts').update({'related_incident_id': incident_id}).eq('id', alert_id).execute()
             except Exception as e:
-                logger.warning(f"Could not link alert {alert_id} to existing incident {incident_id}: {e}")
+                logger.debug(f"Could not link alert {alert_id} to existing incident {incident_id}: {e}")
 
         # Link threat indicators
         link_threat_indicators(incident_id, event, detection_result)
@@ -222,11 +233,16 @@ def promote_alert_to_incident(alert: dict = None, event: dict = None, detection_
         incident_type = 'fraud'
         title = f"HIGH: Suspicious Transaction Incident on {entity_val}"
     elif any('AUTH' in r for r in detection_result.get('rules_fired', [])):
-        incident_type = 'suspicious_login'
+        incident_type = 'account_takeover'
         title = f"HIGH: Credential Attack Incident on {entity_val}"
     else:
         incident_type = 'other'
         title = f"HIGH: Threat Incident on {entity_val}"
+
+    # Ensure incident_type complies with check constraint
+    valid_inc_types = {'account_takeover', 'fraud', 'phishing', 'malware', 'other'}
+    if incident_type not in valid_inc_types:
+        incident_type = 'other'
 
     rules_list_str = "\n".join(f"- {r}" for r in detection_result.get('reasons', []))
     description = (
@@ -242,7 +258,6 @@ def promote_alert_to_incident(alert: dict = None, event: dict = None, detection_
     )
 
     incident_payload = {
-        'organization_id': org_id,
         'title': title,
         'description': description,
         'incident_type': incident_type,
@@ -254,24 +269,13 @@ def promote_alert_to_incident(alert: dict = None, event: dict = None, detection_
         'risk_reasons': detection_result.get('reasons', []),
     }
 
-    # Support optional target_system_id if present
-    if target_id:
-        incident_payload['target_system_id'] = target_id
-
     created_incident = None
     try:
         res = sb.table('incidents').insert(incident_payload).execute()
         if res.data:
             created_incident = res.data[0]
-    except Exception:
-        # Fallback without v3 target_system_id column
-        try:
-            incident_payload.pop('target_system_id', None)
-            res = sb.table('incidents').insert(incident_payload).execute()
-            if res.data:
-                created_incident = res.data[0]
-        except Exception as e:
-            logger.error(f"Failed to auto-create incident: {e}")
+    except Exception as e:
+        logger.error(f"Failed to auto-create incident: {e}")
 
     if not created_incident:
         import uuid
@@ -287,7 +291,7 @@ def promote_alert_to_incident(alert: dict = None, event: dict = None, detection_
         try:
             sb.table('alerts').update({'related_incident_id': incident_id}).eq('id', alert_id).execute()
         except Exception as e:
-            logger.warning(f"Could not link alert {alert_id} to new incident {incident_id}: {e}")
+            logger.debug(f"Could not link alert {alert_id} to new incident {incident_id}: {e}")
 
     # Link threat indicators
     link_threat_indicators(incident_id, event, detection_result)

@@ -343,12 +343,33 @@
 
 ---
 
-### Platform Hardening & Operational Polish (ADR-032)
+### Platform Hardening & Operational Polish (ADR-032 & ADR-033)
 - [x] **Thread-isolated DB clients**: `db.py` uses `threading.local()` to prevent HTTP/2 HPACK table collisions (`deque mutated during iteration`).
 - [x] **Resilient poller**: Suppressed offline target connection refused noise; updated default target to `http://127.0.0.1:8081`; graceful in-memory health cache fallback.
 - [x] **Supervisor process protection**: Poller daemon restricted to worker process under Flask debug reloader (`WERKZEUG_RUN_MAIN`).
 - [x] **Telemetry-only UI enforcement**: Removed manual creation buttons and forms across `fraud.html`, `incidents.html`, and `indicators.html`.
 - [x] **Concurrency verification**: Verified 20/20 concurrent REST requests succeed without error under active SSE threat stream.
+- [x] **PostgREST Schema Compatibility (ADR-033)**: Sanitized database write payloads across `security_events`, `indicators`, `transactions`, `alerts`, `incidents`, and `audit_logs` to match remote schema cache; eliminated `PGRST204` errors.
+- [x] **Check Constraint Normalization**: Normalized `alert_type` and `incident_type` to values permitted by database constraints (`alerts_alert_type_check` & `incidents_incident_type_check`).
+- [x] **Total Seeded Data Purge**: Emptied all synthetic seeded rows in ECS database (0 rows in alerts, incidents, indicators, events, audit logs); preserved only `admin@ethiocybershield.et`.
+- [x] **Target System Seed Removal**: Removed customer seed loop in `targetsys/src/integrations/supabase/local-store.ts` and customer quick-fill buttons in `routes/login.tsx`; preserved only `admin@shieldbank.test`.
+- [x] **Target System Lab Page Removal**: Deleted `targetsys/src/routes/admin/lab.tsx` and `targetsys/src/lib/scenario.server.ts`; removed `/api/public/lab/run-scenario` route; updated navigation and routing tests (100% passing).
+- [x] **Single-Device Admin Concurrency Enforcement (ADR-034)**:
+  - Enforced single active device session per administrator in `auth_service.py` using per-user active `jti` tracking (`_ACTIVE_USER_SESSIONS`).
+  - Superseded sessions are revoked immediately and return HTTP 401 Unauthorized (`Authentication required`).
+  - Frontend `api.js` and `common.js` automatically redirect superseded tabs to `login.html?session_expired=concurrent`.
+  - Automated test script verifies login from Device B terminates Device A immediately.
+- [x] **Real-Time Explainable Attack Dossier & Instant SOC SSE Synchronization (ADR-035)**:
+  - Built attack dossier synthesis engine in `enrichment_service.py` extracting MaxMind GeoIP origin, ISP/carrier (Ethio Telecom, Safaricom), ASN, proxy/Tor flags, threat intelligence reputation, client tool fingerprint (Burp Suite Pro, sqlmap, Nikto, cURL, Python, browsers), OS architecture, targeted banking assets, and SHA-256 evidence seals.
+  - Broadcasts rich forensic dossiers directly across Server-Sent Events (`/api/live/stream`) and REST alert endpoints (`/api/alerts`, `/api/alerts/<id>/dossier`) with sub-millisecond memory caching (`_ALERT_DOSSIER_STORE`).
+  - Integrated high-density **Attack Investigation Dossier Modal** into `dashboard.html` and `alerts.html` with real-time SSE DOM injection, sound effects, and row highlight animations.
+  - Enabled one-click containment controls (`blockAttackerIp`, `revokeAttackerSession`, `freezeSuspiciousTransaction`, `revertAction`) with bidirectional HMAC-SHA256 signature verification and scoped access (`control:revert`).
+  - Verified closed-loop mitigation and rollback with ShieldBank (`targetsys`) on port 8080.
+  - Resolved multi-tenancy token isolation in `test_part7`, sequence persistence in `test_part2`, and cryptographic hash-chain envelope sealing in `test_part10`.
+  - All test suites passing.
+
+
+
 
 
 

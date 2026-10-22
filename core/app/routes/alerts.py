@@ -47,6 +47,21 @@ def list_alerts():
             a for a in alerts
             if not _get_alert_org(a.get('id'), a) or _get_alert_org(a.get('id'), a) == str(org_id)
         ]
+
+    # Enrich alerts with full attack dossier & device telemetry
+    try:
+        from app.services.enrichment_service import get_alert_dossier, synthesize_attack_dossier
+        for a in alerts:
+            dossier = get_alert_dossier(a.get('id')) or synthesize_attack_dossier(a)
+            a['dossier'] = dossier
+            a['source_ip'] = dossier['geo']['ip']
+            a['risk_score'] = dossier['risk_score']
+            a['device_details'] = dossier['device']
+            a['geo_details'] = dossier['geo']
+            a['target_details'] = dossier['target']
+    except Exception as e:
+        logger.debug(f"Alert dossier enrichment warning: {e}")
+
     return jsonify(alerts)
 
 @alerts_bp.route('/<alert_id>', methods=['GET'])
@@ -61,7 +76,33 @@ def get_alert(alert_id):
     a_org = _get_alert_org(alert.get('id'), alert)
     if org_id and a_org and a_org != str(org_id):
         return jsonify({'error': 'Alert not found'}), 404
+
+    try:
+        from app.services.enrichment_service import get_alert_dossier, synthesize_attack_dossier
+        dossier = get_alert_dossier(alert.get('id')) or synthesize_attack_dossier(alert)
+        alert['dossier'] = dossier
+        alert['source_ip'] = dossier['geo']['ip']
+        alert['risk_score'] = dossier['risk_score']
+        alert['device_details'] = dossier['device']
+        alert['geo_details'] = dossier['geo']
+        alert['target_details'] = dossier['target']
+    except Exception as e:
+        logger.debug(f"Single alert dossier enrichment warning: {e}")
+
     return jsonify(alert)
+
+@alerts_bp.route('/<alert_id>/dossier', methods=['GET'])
+@login_required
+def get_alert_dossier_route(alert_id):
+    from app.services.enrichment_service import get_alert_dossier, synthesize_attack_dossier
+    dossier = get_alert_dossier(alert_id)
+    if not dossier:
+        sb = get_service_supabase()
+        res = sb.table('alerts').select('*').eq('id', alert_id).execute()
+        if not res.data:
+            return jsonify({'error': 'Alert not found'}), 404
+        dossier = synthesize_attack_dossier(res.data[0])
+    return jsonify(dossier), 200
 
 @alerts_bp.route('/<alert_id>/acknowledge', methods=['POST'])
 @role_required('admin', 'analyst')

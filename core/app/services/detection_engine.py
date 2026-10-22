@@ -425,6 +425,14 @@ def evaluate_event_stream(event: dict) -> dict:
             if quality_res and quality_res.get('action') in ('created', 'deduplicated'):
                 alert_record = quality_res.get('alert')
                 alert_id = alert_record.get('id') if alert_record else None
+                if alert_id:
+                    try:
+                        from app.services.enrichment_service import synthesize_attack_dossier, store_alert_dossier
+                        dossier = synthesize_attack_dossier(alert_record, event)
+                        store_alert_dossier(alert_id, dossier)
+                    except Exception as d_err:
+                        logger.debug(f"Could not synthesize attack dossier: {d_err}")
+
                 if quality_res.get('action') == 'created' and alert_id and isinstance(alert_id, str):
                     try:
                         log_action(None, 'auto_alert_dispatched', 'alert', alert_id, {
@@ -434,26 +442,23 @@ def evaluate_event_stream(event: dict) -> dict:
                         logger.debug(f"Audit log skipped for auto-alert: {audit_err}")
         except Exception as q_err:
             logger.error(f"Alert quality processing fallback: {q_err}")
-            # Direct insert fallback
+            # Direct clean insert fallback
             try:
-                alert_res = sb.table('alerts').insert(candidate_alert).execute()
-                if alert_res and alert_res.data and isinstance(alert_res.data, list) and len(alert_res.data) > 0:
+                valid_types = {'account_takeover', 'suspicious_transaction', 'high_risk', 'other'}
+                raw_at = candidate_alert.get('alert_type')
+                clean_type = raw_at if raw_at in valid_types else ('high_risk' if candidate_alert.get('severity') in ('high', 'critical') else 'other')
+                clean_cand = {
+                    'title': candidate_alert.get('title', 'Security Alert'),
+                    'description': candidate_alert.get('description', ''),
+                    'severity': candidate_alert.get('severity', 'medium'),
+                    'status': candidate_alert.get('status', 'open'),
+                    'alert_type': clean_type,
+                }
+                alert_res = sb.table('alerts').insert(clean_cand).execute()
+                if alert_res and alert_res.data and len(alert_res.data) > 0:
                     alert_record = alert_res.data[0]
             except Exception as direct_err:
-                logger.error(f"Direct alert insert fallback failed: {direct_err}")
-                try:
-                    clean_cand = {
-                        'title': candidate_alert.get('title', 'Security Alert'),
-                        'description': candidate_alert.get('description', ''),
-                        'severity': candidate_alert.get('severity', 'medium'),
-                        'status': candidate_alert.get('status', 'open'),
-                        'alert_type': candidate_alert.get('alert_type', 'high_risk'),
-                    }
-                    alert_res = sb.table('alerts').insert(clean_cand).execute()
-                    if alert_res and alert_res.data and len(alert_res.data) > 0:
-                        alert_record = alert_res.data[0]
-                except Exception as e_clean:
-                    logger.error(f"Clean alert insert fallback failed: {e_clean}")
+                logger.error(f"Alert insert fallback failed: {direct_err}")
 
     # Auto-promote Critical or High risk alerts to formal Incidents (Part 4, SRS §10 & §21)
     incident_record = None
@@ -476,7 +481,7 @@ def evaluate_event_stream(event: dict) -> dict:
     # Closed-Loop Autonomous Containment (Part 5, SRS §10, §21, §22)
     containment_result = None
     if alert_record and (capped_score >= 50 or any(r['rule_id'] == 'ATO-001' and not r.get('is_shadow') for r in fired_rules)):
-        if not quality_res or quality_res.get('action') == 'created':
+        if not quality_res or quality_res.get('action') in ('created', 'deduplicated', 'escalated'):
             try:
                 from app.services.response_policy import evaluate_and_execute_containment
                 containment_result = evaluate_and_execute_containment(

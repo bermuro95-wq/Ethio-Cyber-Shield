@@ -11,27 +11,32 @@
 </head>
 <body>
     <div id="navbar"></div>
-    <div class="container-fluid py-4 px-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h3 class="page-title mb-0"><i class="bi bi-exclamation-triangle me-2 text-success"></i>Incidents</h3>
+
+    <div class="container-fluid py-3 px-3 px-md-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary gap-2">
+            <div class="d-flex align-items-center gap-3">
+                <h4 class="mb-0 fw-bold text-light">Security Incidents</h4>
+                <span class="badge bg-dark border border-secondary text-muted font-mono">
+                    <i class="bi bi-robot text-success me-1"></i>Automated Correlation
+                </span>
+            </div>
             <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-dark border border-secondary text-muted"><i class="bi bi-robot me-1 text-success"></i>Automated Threat Correlation</span>
                 <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshIncidents()">
                     <i class="bi bi-arrow-repeat me-1"></i> Refresh
                 </button>
             </div>
         </div>
 
-        <!-- Filters -->
+        <!-- Filter Bar -->
         <div class="card mb-3">
             <div class="card-body py-2">
                 <div class="row g-2 align-items-center">
                     <div class="col-md-3">
-                        <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Search title...">
+                        <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Search title or ID..." oninput="debounceIncidentSearch()">
                     </div>
                     <div class="col-md-2">
-                        <select class="form-select form-select-sm" id="filterStatus">
-                            <option value="">All Status</option>
+                        <select class="form-select form-select-sm" id="filterStatus" onchange="loadIncidents()">
+                            <option value="">All Statuses</option>
                             <option value="open">Open</option>
                             <option value="investigating">Investigating</option>
                             <option value="contained">Contained</option>
@@ -40,24 +45,22 @@
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <select class="form-select form-select-sm" id="filterSeverity">
-                            <option value="">All Severity</option>
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
+                        <select class="form-select form-select-sm" id="filterSeverity" onchange="loadIncidents()">
+                            <option value="">All Severities</option>
                             <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
-                        <select class="form-select form-select-sm" id="filterType">
-                            <option value="">All Types</option>
-                            <option value="phishing">Phishing</option>
-                            <option value="account_takeover">Account Takeover</option>
+                    <div class="col-md-3">
+                        <select class="form-select form-select-sm" id="filterType" onchange="loadIncidents()">
+                            <option value="">All Incident Types</option>
+                            <option value="account_takeover">Account Takeover (ATO)</option>
                             <option value="suspicious_login">Suspicious Login</option>
-                            <option value="fraud">Fraud</option>
-                            <option value="malware">Malware</option>
-                            <option value="social_engineering">Social Engineering</option>
-                            <option value="other">Other</option>
+                            <option value="fraud">Fraud / Unauthorized Transfer</option>
+                            <option value="malware">Malware / Bot</option>
+                            <option value="other">Other Detections</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -67,6 +70,7 @@
             </div>
         </div>
 
+        <!-- Incidents Table -->
         <div class="card">
             <div class="card-body p-0" id="incidentTable">
                 <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
@@ -80,7 +84,14 @@
     <script src="js/common.js"></script>
     <script>
         if (!requireAuth()) { /* redirect */ }
+
         document.getElementById('navbar').innerHTML = renderNavbar('incidents');
+
+        let _incSearchDebounce = null;
+        function debounceIncidentSearch() {
+            clearTimeout(_incSearchDebounce);
+            _incSearchDebounce = setTimeout(() => loadIncidents(true), 300);
+        }
 
         async function loadIncidents(silent = false) {
             if (!silent) loadingSpinner('incidentTable');
@@ -100,27 +111,52 @@
                     document.getElementById('incidentTable').innerHTML = noData('No incidents matching filter criteria.');
                     return;
                 }
+
                 const rows = data.map(i => `
                     <tr>
-                        <td><a href="incident-detail.html?id=${i.id}" class="text-success text-decoration-none fw-semibold">${escapeHtml(i.title)}</a></td>
-                        <td class="text-capitalize small">${(i.incident_type||'').replace(/_/g,' ')}</td>
+                        <td>
+                            <a href="incident-detail.html?id=${i.id}" class="text-decoration-none fw-semibold text-light d-flex align-items-center gap-1">
+                                <i class="bi bi-shield-exclamation text-warning"></i>
+                                <span>${escapeHtml(i.title)}</span>
+                            </a>
+                            <div class="small text-muted font-mono">${(i.id || '').slice(0, 12)}...</div>
+                        </td>
+                        <td><span class="badge bg-dark border border-secondary text-light font-mono">${escapeHtml((i.incident_type || '').replace(/_/g, ' ').toUpperCase())}</span></td>
                         <td>${severityBadge(i.severity)}</td>
                         <td>${statusBadge(i.status)}</td>
-                        <td>${riskBadge(i.risk_level)}</td>
-                        <td class="small text-muted">${formatDate(i.incident_date || i.created_at)}</td>
+                        <td>
+                            ${i.risk_level ? `<span class="badge bg-dark border border-secondary font-mono text-warning">Risk ${escapeHtml(i.risk_level)}</span>` : '-'}
+                        </td>
+                        <td class="small font-mono text-muted">${formatDate(i.incident_date || i.created_at)}</td>
+                        <td>
+                            <a href="incident-detail.html?id=${i.id}" class="btn btn-outline-info btn-sm py-0 px-2 font-mono" style="font-size: 0.75rem;">
+                                Manage &rarr;
+                            </a>
+                        </td>
                     </tr>
                 `).join('');
+
                 document.getElementById('incidentTable').innerHTML = `
-                    <table class="table table-hover mb-0">
-                        <thead><tr>
-                            <th>Title</th><th>Type</th><th>Severity</th><th>Status</th><th>Risk</th><th>Date</th>
-                        </tr></thead>
-                        <tbody>${rows}</tbody>
-                    </table>`;
-            } catch (e) {
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Incident Title</th>
+                                    <th>Classification</th>
+                                    <th>Severity</th>
+                                    <th>Status</th>
+                                    <th>Risk Posture</th>
+                                    <th>Reported (EAT)</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>`;
+            } catch (err) {
                 if (!silent) {
-                    showToast(e.message, 'error');
-                    document.getElementById('incidentTable').innerHTML = noData(e.message);
+                    showToast(err.message, 'error');
+                    document.getElementById('incidentTable').innerHTML = noData(err.message);
                 }
             }
         }
@@ -136,12 +172,9 @@
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Refresh';
             }
-            showToast('Incidents list refreshed', 'success');
+            showToast('Incidents refreshed', 'success');
         }
 
-        // Real-time hooks: instantaneous update on SSE event + 5-second poll fallback
-        window._onRealtimeAlert = function() { loadIncidents(true); };
-        setInterval(() => loadIncidents(true), 5000);
         loadIncidents();
     </script>
 </body>

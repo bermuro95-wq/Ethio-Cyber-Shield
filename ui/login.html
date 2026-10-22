@@ -374,9 +374,20 @@
             return typeof API !== 'undefined' && API && typeof API.login === 'function';
         }
 
-        if (hasAPI() && API.isAuthenticated()) {
+        var urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('session_expired')) {
+            if (hasAPI()) {
+                API.clearAuth();
+            }
+            var alertEl = document.getElementById('loginAlert');
+            alertEl.className = 'alert-box err show';
+            if (urlParams.get('session_expired') === 'concurrent') {
+                alertEl.innerHTML = '<i class="bi bi-shield-exclamation me-1"></i> <strong>Session Terminated:</strong> This account was logged in from another device. Only one device login is permitted at a time.';
+            } else {
+                alertEl.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i> <strong>Session Expired:</strong> Please sign in again.';
+            }
+        } else if (hasAPI() && API.isAuthenticated()) {
             window.location.href = 'dashboard.html';
-            return;
         }
 
         // ---- Login submit ----

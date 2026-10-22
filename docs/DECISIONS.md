@@ -877,6 +877,98 @@
   - Startup logs are clean without repetitive connection refused tracebacks.
   - UI strictly reflects automated ingestion from live target telemetry and log streams.
 
+---
+
+## ADR-033: PostgREST Schema Compatibility Sanitization, Seeded Data Purge & Target System Lab Page Removal
+
+* **Context**:
+  - Remote Supabase PostgREST schema cache on the shared instance lacks `organization_id` on legacy entity tables (`security_events`, `indicators`, `alerts`, `incidents`, `transactions`, `audit_logs`). Attempting to insert or update with `organization_id` triggered fatal `PGRST204` errors (`Could not find the 'organization_id' column of ... in the schema cache`).
+  - Target system (`targetsys`) included hardcoded synthetic customer seeds (Amina, Bekele, Chaltu, Dawit, Eden, Fikru), demo quick-login buttons, and synthetic utility payments that cluttered databases with fake records.
+  - Target system had a `/admin/lab` attack scenario console and runner that simulated attacks internally rather than letting operators execute real attacks via security testing tools (e.g., Burp Suite).
+
+* **Decision**:
+  1. **PostgREST Schema Compatibility Sanitization**:
+     - Filter all database payload dicts for `security_events`, `indicators`, `transactions`, `alerts`, `incidents`, and `audit_logs` to their exact PostgREST-supported columns before database calls.
+     - Normalize `alert_type` and `incident_type` to values permitted by database check constraints (`alerts_alert_type_check` & `incidents_incident_type_check`).
+  2. **Total Seeded Data Purge**:
+     - Empty all seeded test rows across `alerts`, `incidents`, `incident_indicators`, `response_actions`, `transactions`, `indicators`, `security_events`, and `audit_logs` in ECS database.
+     - Retain exclusively the administrative accounts (`admin@ethiocybershield.et` in ECS; `admin@shieldbank.test` in Target System).
+     - Remove the customer seed generator from `targetsys/src/integrations/supabase/local-store.ts`.
+     - Remove customer quick-fill buttons from `targetsys/src/routes/login.tsx`.
+  3. **Target System Lab Page & Scenario Runner Elimination**:
+     - Delete `targetsys/src/routes/admin/lab.tsx` and `targetsys/src/lib/scenario.server.ts`.
+     - Remove `/api/public/lab/run-scenario` route and `runLabScenario` functions.
+     - Update admin navigation to route exclusively to real operational views (Overview, Customers, Transactions, Events, Sessions, IP Blocklist, Responses, Audit, Integration, Self-Test, Docs).
+     - Regenerate TanStack router tree and update test suites (all 8 test files, 101 tests pass 100%).
+
+* **Consequences**:
+  - Zero `PGRST204` errors in backend terminal logs.
+  - Databases in both ECS and Target System are clean with zero synthetic records.
+  - Burp Suite attacks now produce real live detection alerts in ECS in real time.
+
+---
+
+## ADR-034: Minimalist UI/UX Architecture Consolidation & Single-Device Admin Concurrency Enforcement
+
+* **Context**:
+  - The ECS user interface previously suffered from navigation clutter with 11 disjointed navbar items (`Dashboard`, `Incidents`, `Indicators`, `Fraud`, `Live Threats`, `Watchlists`, `Alerts`, `Reports`, `Audit Log`, `Settings`, `Users`), creating fragmented workflows, redundant monitoring pages, and high cognitive load.
+  - Administrative accounts could concurrently log in across multiple browsers or machines, violating strict SOC single-operator accountability principles.
+
+* **Decision**:
+  1. **Strict Single-Device Admin Session Enforcement**:
+     - Implemented active session tracking (`_ACTIVE_USER_SESSIONS`) in `core/app/services/auth_service.py` mapping each admin `user_id` to its unique JWT `jti`, IP address, and timestamp.
+     - When an administrator signs in on a new device, any previous active token for that user is immediately revoked and invalidated.
+     - The token validation interceptor rejects any superseded session with HTTP 401 Unauthorized (`Authentication required`).
+     - `ui/js/api.js` intercepts 401 responses and immediately redirects superseded browser sessions to `login.html?session_expired=concurrent`.
+     - `ui/js/common.js` SSE stream error handler detects superseded sessions automatically on background connection drops and terminates unauthorized tabs.
+     - `ui/login.html` presents a clear security notice explaining single-device policy enforcement.
+  2. **Consolidation into 5 Standardized Minimalist Sections**:
+     - **Overview (`dashboard.html`)**: Fully unifies executive metrics and the real-time live threat monitoring console into a single, high-density operations center. Displays real-time SSE stream, live KPI stats, target pipeline status, and manual refresh controls.
+     - **Alerts & Incidents (`alerts.html` & `incidents.html`)**: Standardized tabular views for deterministic rule detections and escalated incident triage with fast filtering and live SSE synchronization.
+     - **Threat & Entity Intelligence (`intelligence.html`)**: Consolidates `indicators.html` (IoCs), `fraud.html` (Transaction rails), and `watchlists.html` (Entity watchlists) into an ultra-clean 3-tab pill switcher.
+     - **Audit & Compliance (`audit.html`)**: Consolidates `audit.html` (Cryptographic SHA-256 seal verification) and `reports.html` (Forensic replay station and regulatory CSV exports) into a 2-tab interface.
+     - **Settings & Access (`settings.html`)**: Consolidates `settings.html` (Target HMAC endpoints and closed-loop containment) and `users.html` (User & role administration) into a 3-tab configuration dashboard.
+  3. **Zero-Breaking Backward Compatibility**:
+     - Maintained lightweight redirect stubs on legacy routes (`live-threats.html`, `indicators.html`, `fraud.html`, `watchlists.html`, `reports.html`, `users.html`) redirecting instantly to the appropriate tab in the unified views.
+
+---
+
+## ADR-035: Real-Time Explainable Attack Dossier, Geolocation & Device Fingerprinting, and Safe Closed-Loop Remediation
+
+* **Context**:
+  - Security operations center (SOC) analysts responding to active threats require immediate, explainable forensic context on any ongoing cyber attack:
+    1. Origin network and geographic intelligence (source IP, flag, country, city, ASN, ISP/carrier like Ethio Telecom / Safaricom Ethiopia, and proxy/Tor/VPN indicators).
+    2. Attacker client and device fingerprint (automated tool recognition e.g. Burp Suite Pro, sqlmap, Nikto, cURL, Python scripting engines; operating system architecture; raw User-Agent; and client device IDs).
+    3. Targeted banking assets (target system name, victim account number, impacted endpoint URL, HTTP verb, and sequence ID).
+    4. Deterministic rule attribution and cryptographic SHA-256 evidence seal.
+  - Real-time threat detection must populate instantaneously in the browser via Server-Sent Events (SSE) without requiring page refreshes, and provide interactive one-click closed-loop containment (`block-ip`, `revoke-session`, `freeze-transaction`) with immediate cryptographic rollback (`revert`).
+
+* **Decision**:
+  1. **Attack Dossier & Telemetry Synthesis Engine**:
+     - Implemented `parse_client_device_details` in `core/app/services/enrichment_service.py` to identify security testing tools, browsers, operating systems, and device fingerprints.
+     - Implemented `synthesize_attack_dossier(alert, event)` combining MaxMind GeoIP resolution, Ethiopian ISP/ASN tagging, threat intelligence scoring, target asset context, and SHA-256 evidence seals.
+     - Backed by an in-memory thread-safe `_ALERT_DOSSIER_STORE` for instantaneous sub-millisecond retrieval.
+  2. **Real-Time Zero-Latency SSE and REST Enrichment**:
+     - Updated `core/app/routes/live.py` (`/api/live/stream`) to broadcast the complete attack dossier directly within `event: alert` SSE payloads.
+     - Updated `core/app/routes/alerts.py` to automatically attach dossiers to all alert queries and exposed `GET /api/alerts/<alert_id>/dossier`.
+  3. **High-Density Attack Investigation Modal & Instant DOM Injection**:
+     - Built the forensic Attack Investigation Dossier Modal (`#attackDossierModal`) into `ui/dashboard.html` and `ui/alerts.html`.
+     - Displays 4 detailed diagnostic cards: Origin Geolocation, Attacker Device Fingerprint, Targeted Asset, and Deterministic Rule Attribution.
+     - Features instant one-click containment action buttons with status feedback and evidence package export.
+  4. **Target Control Normalization & Idempotent Revert**:
+     - Normalized action parameter aliases (`action_type` hyphen/underscore tolerance, `target_entity_id`/`entity_id` normalization) in `core/app/routes/targets.py` and `target_system_service.py`.
+     - Added `"control:revert"` scope to target system inbound credentials in `targetsys/src/integrations/supabase/local-store.ts`, verifying bidirectional containment and rollback over signed HMAC-SHA256 APIs.
+  5. **Cryptographic Audit Envelope Sealing**:
+     - Implemented envelope sealing in `core/app/services/audit_service.py` (`_audit_seal`) guaranteeing multi-tenant hash-chain integrity verification over standard Postgres JSONB storage.
+
+* **Consequences**:
+  - Live attack telemetry populates into the SOC console instantaneously with audio chimes and highlighted table rows.
+  - Analysts have full explainability and origin context down to the exact penetration testing tool, OS, and carrier.
+  - Closed-loop remediation actions and rollback verified end-to-end between ECS and the banking target system.
+
+
+
+
 
 
 

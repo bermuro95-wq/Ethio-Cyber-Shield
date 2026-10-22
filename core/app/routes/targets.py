@@ -340,8 +340,8 @@ def dispatch_target_control(target_id):
         return jsonify({'error': 'Target system not found'}), 404
 
     data = request.get_json() or {}
-    action_type = data.get('action_type')
-    target_entity_id = data.get('target_entity_id')
+    action_type = (data.get('action_type') or '').replace('-', '_')
+    target_entity_id = data.get('target_entity_id') or data.get('entity_id')
     reason = data.get('reason') or f"Manual analyst containment via ECS"
     alert_id = data.get('alert_id')
     incident_id = data.get('incident_id')

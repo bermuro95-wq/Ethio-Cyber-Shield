@@ -255,30 +255,32 @@ def execute_target_control(action_type: str, target_entity_id: str, reason: str,
             logger.warning(f"Could not record response_action: {e}")
 
     # Map action to endpoint and payload
-    endpoint = f"/api/public/security/controls/{action_type.replace('_', '-')}"
+    act_norm = action_type.replace('_', '-')
+    act_key = action_type.replace('-', '_')
+    endpoint = f"/api/public/security/controls/{act_norm}"
     payload = {
         'reason': reason,
         'alert_id': alert_id or f"ALT-{int(time.time())}",
         **(extra_payload or {})
     }
 
-    if action_type == 'freeze_transaction':
+    if act_key == 'freeze_transaction':
         payload['transaction_id'] = target_entity_id
         payload['idempotency_key'] = f"{alert_id or 'auto'}-freeze-{target_entity_id}"
-    elif action_type == 'revoke_session':
+    elif act_key == 'revoke_session':
         payload['session_id'] = target_entity_id
         payload['user_id'] = (extra_payload or {}).get('user_id')
-    elif action_type == 'block_ip':
+    elif act_key == 'block_ip':
         payload['ip'] = target_entity_id
         payload['duration_hours'] = (extra_payload or {}).get('duration_hours', 24)
-    elif action_type == 'require_step_up':
+    elif act_key == 'require_step_up':
         payload['user_id'] = target_entity_id
-    elif action_type == 'disable_beneficiary':
+    elif act_key == 'disable_beneficiary':
         payload['beneficiary_id'] = target_entity_id
-    elif action_type == 'lock_account':
+    elif act_key == 'lock_account':
         payload['account_id'] = target_entity_id
         payload['account_number'] = target_entity_id
-    elif action_type == 'revert':
+    elif act_key == 'revert':
         endpoint = "/api/public/security/controls/revert"
         payload['control_action_id'] = target_entity_id
 

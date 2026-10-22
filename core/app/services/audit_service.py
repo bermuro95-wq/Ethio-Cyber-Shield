@@ -124,10 +124,25 @@ def log_action(user_id: str | None, action: str, entity_type: str = None,
     _AUDIT_CHAINS[org_id].append(entry)
     _LATEST_HASHES[org_id] = entry_hash
 
-    # Persist to database
+    # Persist to database with envelope-sealed hash metadata
     try:
         sb = get_service_supabase()
-        sb.table('audit_logs').insert(entry).execute()
+        persisted_details = dict(details or {})
+        persisted_details['_audit_seal'] = {
+            'organization_id': org_id,
+            'prev_hash': prev_hash,
+            'entry_hash': entry_hash,
+        }
+        clean_audit = {
+            'user_id': user_id,
+            'action': action,
+            'entity_type': entity_type,
+            'entity_id': entity_id,
+            'details': persisted_details,
+            'ip_address': remote_ip,
+            'user_agent': ua,
+        }
+        sb.table('audit_logs').insert(clean_audit).execute()
     except Exception as e:
         logger.debug(f"Audit log database insert fallback to memory: {e}")
 
@@ -140,28 +155,43 @@ def get_audit_logs(organization_id: str = None, limit: int = 100, chronological:
     Defaults to chronological order (for verification) or reverse (for UI display).
     """
     org_id = str(organization_id or get_current_organization_id())
-    logs = []
 
-    try:
-        sb = get_service_supabase()
-        q = sb.table('audit_logs').select('*').eq('organization_id', org_id)
-        if chronological:
-            res = q.order('created_at', desc=False).limit(limit).execute()
-        else:
-            res = q.order('created_at', desc=True).limit(limit).execute()
-        if res.data:
-            logs = res.data
-    except Exception:
-        pass
-
-    if not logs:
-        cached = _AUDIT_CHAINS.get(org_id, [])
-        logs = list(cached)
+    # 1. Check in-memory chain cache first for deterministic, hash-sealed tenant chain
+    if org_id in _AUDIT_CHAINS and len(_AUDIT_CHAINS[org_id]) > 0:
+        logs = [dict(e) for e in _AUDIT_CHAINS[org_id]]
         if not chronological:
             logs.reverse()
-        logs = logs[:limit]
+        return logs[:limit]
 
-    return logs
+    logs = []
+    try:
+        sb = get_service_supabase()
+        q = sb.table('audit_logs').select('*')
+        if chronological:
+            res = q.order('created_at', desc=False).limit(limit * 2).execute()
+        else:
+            res = q.order('created_at', desc=True).limit(limit * 2).execute()
+        if res.data:
+            for r in res.data:
+                det = dict(r.get('details') or {})
+                seal = det.pop('_audit_seal', None)
+                if seal:
+                    r['organization_id'] = seal.get('organization_id')
+                    r['prev_hash'] = seal.get('prev_hash')
+                    r['entry_hash'] = seal.get('entry_hash')
+                    r['details'] = det
+                elif 'entry_hash' in det:
+                    r['entry_hash'] = det.pop('entry_hash', None)
+                    r['prev_hash'] = det.pop('prev_hash', None)
+                    r['organization_id'] = det.pop('organization_id', None)
+                    r['details'] = det
+
+                if not organization_id or r.get('organization_id') == org_id:
+                    logs.append(r)
+    except Exception as e:
+        logger.debug(f"Could not load audit logs from DB: {e}")
+
+    return logs[:limit]
 
 
 def verify_audit_chain(logs: list = None, organization_id: str = None) -> dict:

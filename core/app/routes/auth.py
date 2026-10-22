@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta
 from app.config import Config
 from app.services.auth_service import (
     authenticate_user, create_token, login_required, role_required,
-    create_user, get_current_user, revoke_token,
+    create_user, get_current_user, revoke_token, clear_user_active_session,
     generate_totp_secret, get_totp_uri, verify_totp_code,
     create_scoped_api_token, verify_scoped_api_token, revoke_api_token,
     VALID_ROLES, _USER_MFA_SECRETS
@@ -171,6 +171,8 @@ def logout():
     auth_header = request.headers.get('Authorization', '')
     if auth_header.startswith('Bearer '):
         revoke_token(auth_header[7:].strip())
+    if hasattr(g, 'user') and g.user and g.user.get('id'):
+        clear_user_active_session(g.user['id'])
     log_action(g.user['id'], 'logout')
     return jsonify({'message': 'Logged out successfully'})
 
@@ -178,10 +180,16 @@ def logout():
 @login_required
 def me():
     sb = get_service_supabase()
-    res = sb.table('users').select('id, email, full_name, role, organization_id, created_at').eq('id', g.user['id']).execute()
+    try:
+        res = sb.table('users').select('id, email, full_name, role, created_at').eq('id', g.user['id']).execute()
+    except Exception:
+        res = sb.table('users').select('*').eq('id', g.user['id']).execute()
     if not res.data:
         return jsonify({'error': 'User not found'}), 404
-    return jsonify(res.data[0])
+    user_data = dict(res.data[0])
+    user_data.pop('password_hash', None)
+    user_data['organization_id'] = getattr(g, 'organization_id', None)
+    return jsonify(user_data)
 
 @auth_bp.route('/users', methods=['POST'])
 @role_required('admin')

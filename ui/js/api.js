@@ -65,7 +65,7 @@ const API = {
         if (res.status === 401) {
             this.clearAuth();
             if (!window.location.pathname.includes('login')) {
-                window.location.href = 'login.html';
+                window.location.href = 'login.html?session_expired=concurrent';
             }
             throw new Error('Unauthorized');
         }
@@ -140,6 +140,12 @@ const API = {
     getAlerts(params = {}) {
         const q = new URLSearchParams(params).toString();
         return this.request('GET', `/alerts${q ? '?' + q : ''}`);
+    },
+    getAlert(id) {
+        return this.request('GET', `/alerts/${id}`);
+    },
+    getAlertDossier(id) {
+        return this.request('GET', `/alerts/${id}/dossier`);
     },
     acknowledgeAlert(id) {
         return this.request('POST', `/alerts/${id}/acknowledge`);
@@ -262,20 +268,32 @@ const API = {
     getTargets() {
         return this.request('GET', '/targets');
     },
+    getTargetSystems() {
+        return this.getTargets();
+    },
     getTarget(id) {
         return this.request('GET', `/targets/${id}`);
     },
     registerTarget(data) {
         return this.request('POST', '/targets', data);
     },
+    registerTargetSystem(data) {
+        return this.registerTarget(data);
+    },
     deleteTarget(id) {
         return this.request('DELETE', `/targets/${id}`);
+    },
+    deleteTargetSystem(id) {
+        return this.deleteTarget(id);
     },
     testTargetHealth(id) {
         return this.request('POST', `/targets/${id}/test-health`);
     },
-    pollTargetNow(id) {
+    pollTargetNow(id = 'default-target-shieldbank') {
         return this.request('POST', `/targets/${id}/poll-now`);
+    },
+    pollTargetTelemetry(id = 'default-target-shieldbank') {
+        return this.pollTargetNow(id);
     },
     getTargetStats(id) {
         return this.request('GET', `/targets/${id}/stats`);
@@ -308,6 +326,27 @@ const API = {
     },
     executeTargetControl(targetId, data) {
         return this.request('POST', `/targets/${targetId}/execute-control`, data);
+    },
+    blockAttackerIp(ip, reason = 'Attacker containment dispatched by ECS') {
+        return this.executeTargetControl('default-target-shieldbank', {
+            action_type: 'block-ip',
+            entity_id: ip,
+            reason: reason
+        });
+    },
+    revokeAttackerSession(accountOrSession, reason = 'Compromised session revoked by ECS') {
+        return this.executeTargetControl('default-target-shieldbank', {
+            action_type: 'revoke-session',
+            entity_id: accountOrSession,
+            reason: reason
+        });
+    },
+    freezeSuspiciousTransaction(accountOrTx, reason = 'Transaction held for review') {
+        return this.executeTargetControl('default-target-shieldbank', {
+            action_type: 'freeze-transaction',
+            entity_id: accountOrTx,
+            reason: reason
+        });
     },
     revertAction(actionId, reason = 'Analyst rollback') {
         return this.request('POST', `/targets/actions/${actionId}/revert`, { reason });

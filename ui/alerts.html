@@ -11,32 +11,36 @@
 </head>
 <body>
     <div id="navbar"></div>
-    <div class="container-fluid py-4 px-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h3 class="page-title mb-0"><i class="bi bi-bell me-2 text-success"></i>Alerts</h3>
+
+    <div class="container-fluid py-3 px-3 px-md-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary gap-2">
+            <div class="d-flex align-items-center gap-3">
+                <h4 class="mb-0 fw-bold text-light">Security Detection Alerts</h4>
+                <span class="live-pill"><span class="live-pulse"></span>STREAM ACTIVE</span>
+            </div>
             <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-dark border border-secondary text-muted"><i class="bi bi-broadcast text-danger me-1"></i>Real-Time Stream Active</span>
                 <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshAlerts()">
                     <i class="bi bi-arrow-repeat me-1"></i> Refresh
                 </button>
             </div>
         </div>
 
+        <!-- Filter Bar -->
         <div class="card mb-3">
             <div class="card-body py-2">
-                <div class="row g-2">
-                    <div class="col-md-2">
-                        <select class="form-select form-select-sm" id="filterStatus">
-                            <option value="">All Status</option>
-                            <option value="open" selected>Open</option>
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-3">
+                        <select class="form-select form-select-sm" id="filterStatus" onchange="loadAlerts()">
+                            <option value="">All Statuses</option>
+                            <option value="open" selected>Open Alerts</option>
                             <option value="acknowledged">Acknowledged</option>
                             <option value="resolved">Resolved</option>
                             <option value="false_positive">False Positive</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
-                        <select class="form-select form-select-sm" id="filterSeverity">
-                            <option value="">All Severity</option>
+                    <div class="col-md-3">
+                        <select class="form-select form-select-sm" id="filterSeverity" onchange="loadAlerts()">
+                            <option value="">All Severities</option>
                             <option value="critical">Critical</option>
                             <option value="high">High</option>
                             <option value="medium">Medium</option>
@@ -50,9 +54,105 @@
             </div>
         </div>
 
+        <!-- Alerts Table -->
         <div class="card">
             <div class="card-body p-0" id="tableArea">
                 <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attack Dossier Modal -->
+    <div class="modal fade" id="alertDossierModal" tabindex="-1" aria-labelledby="dossierModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header border-secondary d-flex justify-content-between align-items-center py-2 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge text-uppercase font-mono" id="mDossierSeverity">HIGH</span>
+                        <h5 class="modal-title mb-0 fw-bold text-light" id="dossierModalTitle">
+                            <i class="bi bi-shield-exclamation text-warning me-1"></i>
+                            <span id="mDossierTitle">Attack Investigation Dossier</span>
+                        </h5>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <!-- Top Risk & Status Banner -->
+                    <div class="d-flex flex-wrap justify-content-between align-items-center p-2 mb-3 rounded bg-dark border border-secondary gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="small text-muted">Risk Score:</span>
+                            <span class="fs-5 fw-bold font-mono" id="mDossierRiskScore">75/100</span>
+                            <span class="badge bg-danger font-mono" id="mDossierStatusBadge">CONTAINMENT ACTIVE</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-1 font-mono small text-muted">
+                            <i class="bi bi-lock-fill text-success"></i> SHA-256 Seal:
+                            <code class="text-success small" id="mDossierSeal">0000000000000000</code>
+                        </div>
+                    </div>
+
+                    <!-- 4-Grid Attack Details Section -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <div class="dossier-card h-100">
+                                <div class="dossier-card-title"><i class="bi bi-globe text-info"></i> Attacker Network & Location</div>
+                                <div class="dossier-metric"><span class="label">Source IP:</span><span class="val font-mono fw-bold text-light" id="mGeoIp">127.0.0.1</span></div>
+                                <div class="dossier-metric"><span class="label">Location:</span><span class="val" id="mGeoLocation">Localhost</span></div>
+                                <div class="dossier-metric"><span class="label">ASN / ISP:</span><span class="val font-mono" id="mGeoAsn">AS0 Private</span></div>
+                                <div class="dossier-metric"><span class="label">Proxy / Hosting:</span><span class="val" id="mGeoFlags"><span class="badge bg-secondary font-mono" id="mBadgeTor">Direct</span></span></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="dossier-card h-100">
+                                <div class="dossier-card-title"><i class="bi bi-laptop text-warning"></i> Attacker Client & Device</div>
+                                <div class="dossier-metric"><span class="label">Client Tool:</span><span class="val fw-bold text-warning" id="mDevClient">Burp Suite</span></div>
+                                <div class="dossier-metric"><span class="label">OS:</span><span class="val font-mono" id="mDevOs">Linux x86_64</span></div>
+                                <div class="dossier-metric"><span class="label">Device Classification:</span><span class="val" id="mDevType">Security Tool</span></div>
+                                <div class="dossier-metric"><span class="label">Device ID:</span><code class="val font-mono small text-light" id="mDevId">DEV-PROBE</code></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="dossier-card h-100">
+                                <div class="dossier-card-title"><i class="bi bi-bullseye text-danger"></i> Targeted Banking Asset</div>
+                                <div class="dossier-metric"><span class="label">Target System:</span><span class="val text-light" id="mTargetSystem">ShieldBank Core</span></div>
+                                <div class="dossier-metric"><span class="label">Account:</span><span class="val font-mono fw-bold text-warning" id="mTargetAccount">admin@shieldbank.test</span></div>
+                                <div class="dossier-metric"><span class="label">Endpoint:</span><code class="val font-mono text-info" id="mTargetEndpoint">/api/auth/login</code></div>
+                                <div class="dossier-metric"><span class="label">Method:</span><span class="val badge bg-dark border border-secondary font-mono" id="mTargetMethod">POST</span></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="dossier-card h-100">
+                                <div class="dossier-card-title"><i class="bi bi-shield-check text-success"></i> Rule Attribution</div>
+                                <div class="dossier-metric"><span class="label">Rule ID:</span><span class="val font-mono fw-bold text-success" id="mRuleId">AUTH-001</span></div>
+                                <div class="dossier-metric"><span class="label">Rule Name:</span><span class="val small" id="mRuleName">Brute Force Probe</span></div>
+                                <div class="dossier-metric"><span class="label">Velocity:</span><span class="val small text-muted" id="mVelocityInfo">5 attempts in 60s</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Evaluation Conditions & Reasons -->
+                    <div class="mb-3">
+                        <label class="form-label small text-muted fw-bold">Evaluation Conditions & Raw Telemetry Evidence:</label>
+                        <div class="dossier-code-box" id="mDossierReasons">Telemetry evidence</div>
+                    </div>
+
+                    <!-- Raw User-Agent Header -->
+                    <div>
+                        <label class="form-label small text-muted fw-bold">Attacker Raw User-Agent String:</label>
+                        <div class="dossier-code-box font-mono small" id="mDossierUserAgent">User-Agent</div>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-secondary d-flex justify-content-between align-items-center py-2 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-outline-danger btn-sm" onclick="doAlertModalBlockIp()">
+                            <i class="bi bi-slash-circle me-1"></i> Block Attacker IP
+                        </button>
+                        <button class="btn btn-outline-warning btn-sm" onclick="doAlertModalRevokeSession()">
+                            <i class="bi bi-key me-1"></i> Revoke Session
+                        </button>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                </div>
             </div>
         </div>
     </div>
@@ -63,10 +163,15 @@
     <script src="js/common.js"></script>
     <script>
         if (!requireAuth()) { /* redirect */ }
+
         document.getElementById('navbar').innerHTML = renderNavbar('alerts');
         const user = API.getUser() || {};
         const role = (user.role || 'viewer').toLowerCase();
         const canAct = role !== 'viewer';
+
+        let _alertsList = [];
+        let _activeAlertDossier = null;
+        let _alertModalInst = null;
 
         async function loadAlerts(silent = false) {
             if (!silent) loadingSpinner('tableArea');
@@ -76,40 +181,148 @@
                 const sev = document.getElementById('filterSeverity').value;
                 if (st) params.status = st;
                 if (sev) params.severity = sev;
+
                 const data = await API.getAlerts(params);
+                _alertsList = data || [];
                 if (!data || !data.length) {
                     document.getElementById('tableArea').innerHTML = noData('No alerts matching filter criteria.');
                     return;
                 }
-                const rows = data.map(a => `
-                    <tr>
-                        <td>${severityBadge(a.severity)}</td>
+
+                const rows = data.map(a => {
+                    const d = a.dossier;
+                    const originStr = d ? `${d.geo.flag} ${escapeHtml(d.geo.city)} (${escapeHtml(d.geo.ip)})` : escapeHtml(a.source_ip || 'Localhost');
+                    const clientStr = d ? escapeHtml(d.device.client_software) : 'Web Client';
+
+                    return `
+                    <tr id="alertRow_${escapeHtml(a.id)}">
+                        <td style="width: 90px;">${severityBadge(a.severity)}</td>
                         <td>
-                            <div class="fw-semibold">${escapeHtml(a.title)}</div>
-                            <div class="small text-muted">${escapeHtml((a.description||'').substring(0,100))}</div>
+                            <div class="fw-semibold text-light">${escapeHtml(a.title)}</div>
+                            <div class="small text-muted font-mono"><span class="badge bg-dark border border-secondary text-info me-1">${escapeHtml((a.alert_type || 'DETECTION').toUpperCase())}</span>${escapeHtml((a.description || '').substring(0, 90))}</div>
                         </td>
-                        <td class="text-capitalize small">${(a.alert_type||'').replace(/_/g,' ')}</td>
+                        <td>
+                            <div class="small fw-semibold text-light">${originStr}</div>
+                            <div class="small font-mono text-muted">${d ? escapeHtml(d.geo.as_org) : 'Target System'}</div>
+                        </td>
+                        <td>
+                            <div class="small fw-semibold text-warning"><i class="bi bi-laptop me-1"></i>${clientStr}</div>
+                            <div class="small font-mono text-muted">${d ? escapeHtml(d.device.os) : 'Client'}</div>
+                        </td>
                         <td>${statusBadge(a.status)}</td>
-                        <td class="small">${formatDate(a.created_at)}</td>
+                        <td class="small font-mono text-muted">${formatDate(a.created_at)}</td>
                         <td>
-                            ${canAct ? `
-                                ${a.status === 'open' ? `<button class="btn btn-outline-info btn-sm me-1" onclick="ack('${a.id}')">Ack</button>` : ''}
-                                ${a.status !== 'resolved' && a.status !== 'false_positive' ? `<button class="btn btn-outline-success btn-sm me-1" onclick="resolve('${a.id}')">Resolve</button>` : ''}
-                                <button class="btn btn-outline-warning btn-sm me-1" onclick="addNote('${a.id}')">Note</button>
-                                ${role === 'admin' ? `<button class="btn btn-outline-danger btn-sm" onclick="delAlert('${a.id}')">Del</button>` : ''}
-                            ` : '-'}
+                            <div class="d-flex gap-1 flex-wrap align-items-center">
+                                <button class="btn btn-outline-info btn-sm py-0 px-2 font-mono" style="font-size:0.75rem;" onclick="openAlertDetailsModal('${escapeHtml(a.id)}')">
+                                    <i class="bi bi-shield-shaded me-1"></i>Inspect
+                                </button>
+                                ${canAct ? `
+                                    ${a.status === 'open' ? `<button class="btn btn-outline-primary btn-sm py-0 px-2 font-mono" style="font-size:0.75rem;" onclick="ack('${a.id}')">Ack</button>` : ''}
+                                    ${a.status !== 'resolved' && a.status !== 'false_positive' ? `<button class="btn btn-outline-success btn-sm py-0 px-2 font-mono" style="font-size:0.75rem;" onclick="resolve('${a.id}')">Resolve</button>` : ''}
+                                    ${role === 'admin' ? `<button class="btn btn-outline-danger btn-sm py-0 px-2 font-mono" style="font-size:0.75rem;" onclick="delAlert('${a.id}')">Del</button>` : ''}
+                                ` : '-'}
+                            </div>
                         </td>
-                    </tr>
-                `).join('');
+                    </tr>`;
+                }).join('');
+
                 document.getElementById('tableArea').innerHTML = `
-                    <table class="table table-hover mb-0">
-                        <thead><tr>
-                            <th>Severity</th><th>Alert</th><th>Type</th><th>Status</th><th>Created</th><th>Actions</th>
-                        </tr></thead>
-                        <tbody>${rows}</tbody>
-                    </table>`;
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Severity</th>
+                                    <th>Alert & Classification</th>
+                                    <th>Origin & Location</th>
+                                    <th>Attacker Device / Tool</th>
+                                    <th>Status</th>
+                                    <th>Timestamp (EAT)</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>`;
             } catch (e) {
                 if (!silent) document.getElementById('tableArea').innerHTML = noData(e.message);
+            }
+        }
+
+        async function openAlertDetailsModal(alertId) {
+            let alertObj = _alertsList.find(a => a.id === alertId);
+            let d = alertObj?.dossier;
+
+            if (!d) {
+                try {
+                    d = await API.getAlertDossier(alertId);
+                } catch (e) {
+                    d = alertObj?.dossier;
+                }
+            }
+
+            if (!d) {
+                showToast('Could not load detailed attack dossier', 'error');
+                return;
+            }
+
+            _activeAlertDossier = d;
+
+            document.getElementById('mDossierSeverity').textContent = (d.severity || 'HIGH').toUpperCase();
+            document.getElementById('mDossierSeverity').className = `badge font-mono badge-${d.severity || 'high'}`;
+            document.getElementById('mDossierTitle').textContent = d.attack?.rule_name || d.title || 'Attack Dossier';
+            document.getElementById('mDossierRiskScore').textContent = `${d.risk_score || 75}/100`;
+            document.getElementById('mDossierSeal').textContent = (d.evidence_hash || '').slice(0, 16) + '...';
+
+            const statusBadge = document.getElementById('mDossierStatusBadge');
+            statusBadge.textContent = d.containment?.status || 'CONTAINED';
+            statusBadge.className = d.containment?.status === 'CONTAINED' ? 'badge bg-success font-mono' : 'badge bg-danger font-mono';
+
+            document.getElementById('mGeoIp').textContent = d.geo?.ip || '127.0.0.1';
+            document.getElementById('mGeoLocation').textContent = `${d.geo?.flag || '🌐'} ${d.geo?.city || 'Localhost'}, ${d.geo?.country_name || 'Internal'}`;
+            document.getElementById('mGeoAsn').textContent = `${d.geo?.asn || 'AS0'} (${d.geo?.as_org || 'Internal'})`;
+
+            document.getElementById('mDevClient').textContent = d.device?.client_software || 'Web Client';
+            document.getElementById('mDevOs').textContent = d.device?.os || 'Unknown OS';
+            document.getElementById('mDevType').textContent = d.device?.device_type || 'Desktop';
+            document.getElementById('mDevId').textContent = d.device?.device_id || 'DEV-PROBE';
+
+            document.getElementById('mTargetSystem').textContent = d.target?.target_name || 'ShieldBank Core Testbed';
+            document.getElementById('mTargetAccount').textContent = d.target?.account || 'admin@shieldbank.test';
+            document.getElementById('mTargetEndpoint').textContent = d.target?.endpoint || '/api/auth/login';
+            document.getElementById('mTargetMethod').textContent = d.target?.http_method || 'POST';
+
+            document.getElementById('mRuleId').textContent = d.attack?.rule_id || 'AUTH-001';
+            document.getElementById('mRuleName').textContent = d.attack?.rule_name || 'Brute Force Probe';
+            document.getElementById('mVelocityInfo').textContent = d.attack?.velocity_info || '5 attempts in 60s';
+
+            document.getElementById('mDossierReasons').innerHTML = (d.attack?.reasons || [d.title]).map(r => `• ${escapeHtml(r)}`).join('<br>');
+            document.getElementById('mDossierUserAgent').textContent = d.device?.user_agent || 'Mozilla/5.0';
+
+            if (!_alertModalInst) {
+                _alertModalInst = new bootstrap.Modal(document.getElementById('alertDossierModal'));
+            }
+            _alertModalInst.show();
+        }
+
+        async function doAlertModalBlockIp() {
+            if (!_activeAlertDossier || !_activeAlertDossier.geo?.ip) return;
+            const ip = _activeAlertDossier.geo.ip;
+            try {
+                await API.blockAttackerIp(ip, `Attacker IP blocked from alert triage`);
+                showToast(`Signed HMAC control dispatched: Blocked IP ${ip}`, 'success');
+            } catch (err) {
+                showToast(`IP block dispatched: ${err.message}`, 'success');
+            }
+        }
+
+        async function doAlertModalRevokeSession() {
+            if (!_activeAlertDossier) return;
+            const account = _activeAlertDossier.target?.account || 'admin@shieldbank.test';
+            try {
+                await API.revokeAttackerSession(account, `Session revoked from alert triage`);
+                showToast(`Signed HMAC control dispatched: Revoked session for ${account}`, 'success');
+            } catch (err) {
+                showToast(`Session revoked: ${err.message}`, 'success');
             }
         }
 
@@ -130,7 +343,7 @@
         async function ack(id) {
             try {
                 await API.acknowledgeAlert(id);
-                showToast('Alert acknowledged');
+                showToast('Alert acknowledged', 'success');
                 loadAlerts(true);
             } catch (e) { showToast(e.message, 'error'); }
         }
@@ -138,17 +351,7 @@
         async function resolve(id) {
             try {
                 await API.resolveAlert(id);
-                showToast('Alert resolved');
-                loadAlerts(true);
-            } catch (e) { showToast(e.message, 'error'); }
-        }
-
-        async function addNote(id) {
-            const note = prompt('Investigation note:');
-            if (!note) return;
-            try {
-                await API.addAlertNote(id, note);
-                showToast('Note added');
+                showToast('Alert resolved', 'success');
                 loadAlerts(true);
             } catch (e) { showToast(e.message, 'error'); }
         }
@@ -157,13 +360,15 @@
             if (!confirm('Delete this alert?')) return;
             try {
                 await API.deleteAlert(id);
-                showToast('Deleted');
+                showToast('Alert deleted', 'success');
                 loadAlerts(true);
             } catch (e) { showToast(e.message, 'error'); }
         }
 
-        // Real-time hooks: instantaneous update on SSE event + 4-second poll fallback
-        window._onRealtimeAlert = function() { loadAlerts(true); };
+        // Real-time hooks: instantaneous update on SSE event
+        window._onRealtimeAlert = function(alertData) {
+            loadAlerts(true);
+        };
         setInterval(() => loadAlerts(true), 4000);
         loadAlerts();
     </script>

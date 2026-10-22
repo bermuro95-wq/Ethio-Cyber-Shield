@@ -283,6 +283,17 @@ def live_stream():
                 rows = res.data or []
                 for row in rows:
                     last_seen = row['created_at']
+                    try:
+                        from app.services.enrichment_service import get_alert_dossier, synthesize_attack_dossier
+                        dossier = get_alert_dossier(row.get('id')) or synthesize_attack_dossier(row)
+                        row['dossier'] = dossier
+                        row['source_ip'] = dossier['geo']['ip']
+                        row['risk_score'] = dossier['risk_score']
+                        row['device_details'] = dossier['device']
+                        row['geo_details'] = dossier['geo']
+                        row['target_details'] = dossier['target']
+                    except Exception as en_err:
+                        pass
                     data = json.dumps(row)
                     yield f"event: alert\ndata: {data}\n\n"
                 # heartbeat so proxies don't kill the connection

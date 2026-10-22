@@ -3,134 +3,251 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings & Access | Ethio-Cyber Shield</title>
     <link rel="icon" type="image/jpeg" href="assets/logo-shield.jpg">
-    <title>Settings | Ethio-Cyber Shield</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="css/style.css" rel="stylesheet">
 </head>
 <body>
     <div id="navbar"></div>
-    <div class="container-fluid py-4 px-4">
-        <!-- Autonomous Containment Policy Switch (SRS §11) -->
-        <div class="card mb-4 border-success">
-            <div class="card-header bg-dark d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-shield-lock text-success me-2"></i><strong>Autonomous Mitigation & Containment Engine (SRS §11)</strong></span>
-                <span class="badge bg-secondary">Closed-Loop Mitigations</span>
-            </div>
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="mb-1 text-light">Automatic Target Containment Dispatcher</h6>
-                        <p class="text-muted small mb-0">
-                            When enabled, high-confidence critical detections (e.g. <code>ATO-001</code> with risk &ge; 50) automatically sign and dispatch containment controls (<code>freeze-transaction</code>, <code>revoke-session</code>, <code>block-ip</code>) directly to connected target systems via HMAC-SHA256 authenticated channels.
-                        </p>
-                    </div>
-                    <div class="form-check form-switch fs-4 ms-3">
-                        <input class="form-check-input" type="checkbox" id="toggleAutoContainment" onchange="toggleAutoContainment(this.checked)">
-                    </div>
-                </div>
-                <div id="containmentStatusBadge" class="mt-2 small text-success">
-                    <i class="bi bi-check-circle-fill me-1"></i> Autonomous containment is ACTIVE. Threats are contained in real time.
-                </div>
-            </div>
-        </div>
 
-        <!-- Connected Target Systems (SRS §10, §22) -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-bank text-info me-2"></i><strong>Connected Banking & Target Systems (HMAC-SHA256 Authenticated Endpoints)</strong></span>
-                <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#registerTargetModal" id="btnAddTarget">
-                    <i class="bi bi-plus-circle me-1"></i> Register Target System
+    <div class="container-fluid py-3 px-3 px-md-4">
+        <!-- Header & Tab Pill Switcher -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary gap-2">
+            <div class="d-flex align-items-center gap-3">
+                <h4 class="mb-0 fw-bold text-light">System Settings & Access</h4>
+                <div class="sub-tabs">
+                    <button class="tab-btn active" id="tabBtnConnectors" onclick="switchTab('connectors')">
+                        <i class="bi bi-bank me-1"></i> Target Connectors
+                    </button>
+                    <button class="tab-btn" id="tabBtnMitigation" onclick="switchTab('mitigation')">
+                        <i class="bi bi-shield-lock me-1"></i> Autonomous Mitigation & Rules
+                    </button>
+                    <button class="tab-btn" id="tabBtnUsers" onclick="switchTab('users')">
+                        <i class="bi bi-people me-1"></i> Users & Access
+                    </button>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshCurrentTab()">
+                    <i class="bi bi-arrow-repeat me-1"></i> Refresh
+                </button>
+                <button class="btn btn-success btn-sm" id="btnActionTop" onclick="handleTopAction()">
+                    <i class="bi bi-plus-lg me-1"></i> <span id="topActionText">Register Target</span>
                 </button>
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-dark table-hover table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th>Target Name & System Type</th>
-                                <th>Base URL</th>
-                                <th>Key ID / Auth</th>
-                                <th>Sync Mode</th>
-                                <th>Health Status</th>
-                                <th>Last Sync / Polled</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="targetsTableBody">
-                            <tr><td colspan="7" class="text-center py-3 text-muted">Loading target systems...</td></tr>
-                        </tbody>
-                    </table>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 1: TARGET CONNECTORS                  -->
+        <!-- ========================================== -->
+        <div id="sectionConnectors">
+            <div class="card mb-3">
+                <div class="card-body py-2 small text-muted">
+                    <i class="bi bi-info-circle me-1 text-info"></i>
+                    Connected banking targets stream security events over HMAC-SHA256 authenticated channels. ECS ingests push webhooks and durable sequence polls.
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-cpu text-success me-2"></i><strong>Registered Target Systems</strong></span>
+                    <span class="badge bg-secondary font-mono" id="targetsCount">0 systems</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Target System Name</th>
+                                    <th>Endpoint Base URL</th>
+                                    <th>Auth Key ID</th>
+                                    <th>Sync Mode</th>
+                                    <th>Health</th>
+                                    <th>Last Sync (EAT)</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="targetsTableBody">
+                                <tr><td colspan="7" class="text-center py-4 text-muted">Loading target connectors...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Rule Thresholds -->
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-sliders me-2 text-warning"></i><strong>Multi-Layer Detection Engine Thresholds</strong>
-                <span class="text-muted small ms-2">(Admin only. Changes apply dynamically to live evaluation without restart)</span>
+        <!-- ========================================== -->
+        <!-- TAB 2: AUTONOMOUS MITIGATION & RULES      -->
+        <!-- ========================================== -->
+        <div id="sectionMitigation" class="d-none">
+            <!-- Containment Switch -->
+            <div class="card mb-3 border-success">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-shield-lock text-success me-2"></i><strong>Closed-Loop Containment Dispatcher</strong></span>
+                    <span class="badge bg-success font-mono">Real-Time Controls</span>
+                </div>
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1 text-light fw-bold">Automated Target Mitigation Dispatching</h6>
+                            <p class="text-muted small mb-0">
+                                When enabled, high-risk deterministic detections (e.g., <code>ATO-001</code> account takeover or <code>TX-001</code> velocity spikes) dispatch HMAC-signed containment actions (<code>freeze-transaction</code>, <code>revoke-session</code>, <code>block-ip</code>) to connected target systems.
+                            </p>
+                        </div>
+                        <div class="form-check form-switch fs-4 ms-3">
+                            <input class="form-check-input" type="checkbox" id="toggleAutoContainment" onchange="toggleAutoContainment(this.checked)">
+                        </div>
+                    </div>
+                    <div id="containmentStatusBadge" class="mt-2 small text-success font-mono">
+                        <i class="bi bi-check-circle-fill me-1"></i> Autonomous containment is ACTIVE.
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <div class="row g-3" id="fields"></div>
-                <button class="btn btn-success mt-3" id="btnSave" onclick="save()">Save thresholds</button>
+
+            <!-- Detection Engine Thresholds -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-sliders text-warning me-2"></i><strong>Multi-Layer Detection Engine Thresholds</strong></span>
+                    <span class="small text-muted font-mono">Dynamic in-memory update</span>
+                </div>
+                <div class="card-body p-3">
+                    <div class="row g-3" id="ruleFields"></div>
+                    <button class="btn btn-success btn-sm mt-3" id="btnSaveThresholds" onclick="saveThresholds()">
+                        <i class="bi bi-check-lg me-1"></i> Save Thresholds
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 3: USERS & ACCESS                     -->
+        <!-- ========================================== -->
+        <div id="sectionUsers" class="d-none">
+            <div class="card mb-3">
+                <div class="card-body py-2 small text-muted">
+                    <i class="bi bi-shield-person me-1 text-info"></i>
+                    Role-Based Access Control: <strong>Admin</strong> (full management & settings), <strong>Analyst</strong> (triage, investigate, contain), <strong>Viewer</strong> (read-only posture). Single-device session concurrency is enforced for all administrators.
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-people text-success me-2"></i><strong>Organization Users</strong></span>
+                    <span class="badge bg-secondary font-mono" id="usersCount">0 users</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Full Name</th>
+                                    <th>Email Address</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Created (EAT)</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr><td colspan="6" class="text-center py-4 text-muted">Loading users...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Register Target System Modal -->
+    <!-- Modal: Register Target System -->
     <div class="modal fade" id="registerTargetModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-bank me-2 text-success"></i>Register Target System</h5>
+                    <h5 class="modal-title"><i class="bi bi-bank text-success me-2"></i>Register Target System</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-2">
+                    <div class="mb-3">
                         <label class="form-label small text-muted">System Name</label>
                         <input type="text" class="form-control" id="targetName" placeholder="e.g. ShieldBank Core Testbed" required>
                     </div>
-                    <div class="mb-2">
+                    <div class="mb-3">
                         <label class="form-label small text-muted">System Type</label>
                         <select class="form-select" id="targetType">
                             <option value="testbed" selected>Lab Testbed (ShieldBank)</option>
                             <option value="core_banking">Core Banking System (CBS)</option>
-                            <option value="payment_gateway">Payment Gateway / Switch</option>
-                            <option value="mobile_money">Mobile Money / Telebirr</option>
+                            <option value="payment_gateway">Payment Switch / Gateway</option>
                         </select>
                     </div>
-                    <div class="mb-2">
-                        <label class="form-label small text-muted">Base URL (Target Root)</label>
-                        <input type="url" class="form-control" id="targetBaseUrl" placeholder="http://localhost:3000" required>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Base URL</label>
+                        <input type="url" class="form-control font-mono" id="targetBaseUrl" value="http://127.0.0.1:3000" placeholder="http://127.0.0.1:3000" required>
                     </div>
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <label class="form-label small text-muted">HMAC Key ID</label>
-                            <input type="text" class="form-control" id="targetKeyId" placeholder="ecs-key-01" required>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small text-muted">Sync Mode</label>
-                            <select class="form-select" id="targetSyncMode">
-                                <option value="bidirectional" selected>Bidirectional (Push + Pull)</option>
-                                <option value="pull">Pull Polling Only</option>
-                                <option value="push">Push Webhook Only</option>
-                            </select>
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">HMAC Shared Secret</label>
+                        <input type="password" class="form-control font-mono" id="targetHmacSecret" value="shieldbank-ecs-shared-secret-2026" placeholder="Shared secret key">
                     </div>
-                    <div class="mb-2">
-                        <label class="form-label small text-muted">HMAC Secret Key (Hex or Base64)</label>
-                        <input type="password" class="form-control" id="targetSecretKey" placeholder="e.g. supersecret-key-32bytes..." required>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Key Identifier (Key ID)</label>
+                        <input type="text" class="form-control font-mono" id="targetKeyId" value="sb-key-2026-01" placeholder="Key ID">
                     </div>
-                    <div class="mb-2">
-                        <label class="form-label small text-muted">Polling Interval (Seconds)</label>
-                        <input type="number" class="form-control" id="targetPollInterval" value="10" min="2" max="3600">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Telemetry Ingestion Mode</label>
+                        <select class="form-select" id="targetSyncMode">
+                            <option value="poll_and_push" selected>Hybrid (Push Webhooks + Polling Fallback)</option>
+                            <option value="poll">Poll Only</option>
+                            <option value="push">Push Webhook Only</option>
+                        </select>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button class="btn btn-success" onclick="doRegisterTarget()"><i class="bi bi-check2-circle me-1"></i> Register & Verify</button>
+                    <button class="btn btn-success" onclick="saveTargetSystem()">Register System</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Add / Edit User -->
+    <div class="modal fade" id="userModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="userModalTitle"><i class="bi bi-person-plus text-success me-2"></i>Add User</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="uId">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Full Name</label>
+                        <input class="form-control" id="uName" placeholder="e.g. Abebe Bikila" required>
+                    </div>
+                    <div class="mb-3" id="emailRow">
+                        <label class="form-label small text-muted">Email Address</label>
+                        <input class="form-control font-mono" id="uEmail" type="email" placeholder="name@organization.et" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Role</label>
+                        <select class="form-select" id="uRole">
+                            <option value="analyst" selected>Security Analyst</option>
+                            <option value="admin">Administrator</option>
+                            <option value="viewer">Viewer (Read-Only)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Password</label>
+                        <input class="form-control" id="uPass" type="password" placeholder="Minimum 8 characters">
+                    </div>
+                    <div class="form-check" id="activeRow" style="display:none">
+                        <input class="form-check-input" type="checkbox" id="uActive" checked>
+                        <label class="form-check-label text-light small" for="uActive">Account Active</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-success" onclick="saveUser()">Save User</button>
                 </div>
             </div>
         </div>
@@ -141,48 +258,174 @@
     <script src="js/api.js"></script>
     <script src="js/common.js"></script>
     <script>
-        if (!requireAuth()) {}
+        if (!requireAuth(['admin'])) { /* redirect */ }
+
         document.getElementById('navbar').innerHTML = renderNavbar('settings');
-        const role = (API.getUser() || {}).role;
 
-        const labels = {
-            high_amount: 'High amount (ETB)',
-            critical_amount: 'Critical amount (ETB)',
-            night_amount: 'Night-time amount threshold (ETB)',
-            burst_count: 'Burst transaction count',
-            burst_window_minutes: 'Burst window (minutes)',
-            velocity_amount: 'Velocity amount in window (ETB)',
-            new_device_amount: 'New device + amount (ETB)',
-            multi_account_device: 'Device multi-account threshold',
-            shared_ip_accounts: 'Shared IP account threshold',
-            large_withdrawal: 'Large withdrawal (ETB)',
-            rapid_transfer_amount: 'Rapid transfer amount (ETB)',
-            rapid_window_minutes: 'Rapid window (minutes)'
-        };
+        let currentTab = 'connectors';
+        let targetModalInstance = null;
+        let userModalInstance = null;
 
-        async function loadAutoContainment() {
-            try {
-                const res = await API.getAutoContainment();
-                const enabled = res?.auto_containment_enabled !== false;
-                const toggle = document.getElementById('toggleAutoContainment');
-                toggle.checked = enabled;
-                updateContainmentBadge(enabled);
-                if (role !== 'admin') {
-                    toggle.disabled = true;
+        function switchTab(tabName) {
+            currentTab = tabName;
+            const tabs = ['connectors', 'mitigation', 'users'];
+            tabs.forEach(t => {
+                const btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+                const sec = document.getElementById('section' + t.charAt(0).toUpperCase() + t.slice(1));
+                if (t === tabName) {
+                    btn.classList.add('active');
+                    sec.classList.remove('d-none');
+                } else {
+                    btn.classList.remove('active');
+                    sec.classList.add('d-none');
                 }
+            });
+
+            const topActionBtn = document.getElementById('btnActionTop');
+            const topActionText = document.getElementById('topActionText');
+            if (tabName === 'connectors') {
+                topActionBtn.classList.remove('d-none');
+                topActionText.textContent = 'Register Target';
+                loadTargets();
+            } else if (tabName === 'users') {
+                topActionBtn.classList.remove('d-none');
+                topActionText.textContent = 'Add User';
+                loadUsers();
+            } else {
+                topActionBtn.classList.add('d-none');
+                loadMitigationSettings();
+            }
+
+            const url = new URL(window.location);
+            url.searchParams.set('tab', tabName);
+            window.history.replaceState({}, '', url);
+        }
+
+        function handleTopAction() {
+            if (currentTab === 'connectors') {
+                openTargetModal();
+            } else if (currentTab === 'users') {
+                openCreateUserModal();
+            }
+        }
+
+        // ==========================================
+        // TAB 1: TARGET CONNECTORS
+        // ==========================================
+        async function loadTargets() {
+            try {
+                const targets = await API.getTargetSystems();
+                document.getElementById('targetsCount').textContent = `${targets.length} systems`;
+                if (!targets || !targets.length) {
+                    document.getElementById('targetsTableBody').innerHTML = `
+                        <tr><td colspan="7" class="text-center py-4 text-muted">${noData('No target systems registered.')}</td></tr>`;
+                    return;
+                }
+
+                document.getElementById('targetsTableBody').innerHTML = targets.map(t => `
+                    <tr>
+                        <td>
+                            <div class="fw-semibold text-light">${escapeHtml(t.name)}</div>
+                            <div class="small text-muted font-mono">${escapeHtml(t.system_type)}</div>
+                        </td>
+                        <td><code class="font-mono">${escapeHtml(t.base_url)}</code></td>
+                        <td><span class="badge bg-dark border border-secondary font-mono">${escapeHtml(t.key_id || 'default')}</span></td>
+                        <td><span class="small font-mono text-muted">${escapeHtml(t.sync_mode || 'poll_and_push')}</span></td>
+                        <td>
+                            ${t.status === 'error' ? 
+                                '<span class="badge bg-danger font-mono">ERROR</span>' : 
+                                '<span class="badge bg-success font-mono">HEALTHY</span>'}
+                        </td>
+                        <td class="small font-mono text-muted">${formatDate(t.last_sync_at)}</td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-outline-info btn-sm py-0 px-2 font-mono" style="font-size:0.75rem;" onclick="triggerPoll('${t.id}')">Poll</button>
+                                <button class="btn btn-outline-danger btn-sm py-0 px-2 font-mono" style="font-size:0.75rem;" onclick="deleteTarget('${t.id}')">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
             } catch (err) {
-                console.warn('Could not load auto-containment state', err);
+                document.getElementById('targetsTableBody').innerHTML = `
+                    <tr><td colspan="7" class="text-center py-4 text-danger font-mono">Failed to load target systems: ${escapeHtml(err.message)}</td></tr>`;
+            }
+        }
+
+        function openTargetModal() {
+            if (!targetModalInstance) {
+                targetModalInstance = new bootstrap.Modal(document.getElementById('registerTargetModal'));
+            }
+            targetModalInstance.show();
+        }
+
+        async function saveTargetSystem() {
+            const name = document.getElementById('targetName').value.trim();
+            const system_type = document.getElementById('targetType').value;
+            const base_url = document.getElementById('targetBaseUrl').value.trim();
+            const hmac_secret = document.getElementById('targetHmacSecret').value.trim();
+            const key_id = document.getElementById('targetKeyId').value.trim();
+            const sync_mode = document.getElementById('targetSyncMode').value;
+
+            if (!name || !base_url) {
+                alert('Please enter system name and base URL');
+                return;
+            }
+
+            try {
+                await API.registerTargetSystem({ name, system_type, base_url, hmac_secret, key_id, sync_mode });
+                showToast('Target system registered', 'success');
+                if (targetModalInstance) targetModalInstance.hide();
+                loadTargets();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        async function triggerPoll(targetId) {
+            try {
+                const res = await API.pollTargetTelemetry(targetId);
+                showToast(`Polled ${res.events_ingested || 0} events from target system`, 'success');
+                loadTargets();
+            } catch (err) {
+                showToast('Target poll failed: ' + err.message, 'error');
+            }
+        }
+
+        async function deleteTarget(targetId) {
+            if (!confirm('Remove this target system registration?')) return;
+            try {
+                await API.deleteTargetSystem(targetId);
+                showToast('Target system removed', 'success');
+                loadTargets();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // ==========================================
+        // TAB 2: AUTONOMOUS MITIGATION & THRESHOLDS
+        // ==========================================
+        async function loadMitigationSettings() {
+            try {
+                const auto = await API.getAutoContainmentStatus();
+                document.getElementById('toggleAutoContainment').checked = !!auto.auto_containment;
+                updateContainmentBadge(!!auto.auto_containment);
+
+                const current = await API.getSettings();
+                renderRuleThresholds(current);
+            } catch (err) {
+                console.error(err);
             }
         }
 
         function updateContainmentBadge(enabled) {
-            const el = document.getElementById('containmentStatusBadge');
+            const badge = document.getElementById('containmentStatusBadge');
             if (enabled) {
-                el.className = 'mt-2 small text-success';
-                el.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Autonomous containment is <strong>ACTIVE</strong>. Threats are contained in real time.';
+                badge.className = 'mt-2 small text-success font-mono';
+                badge.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Autonomous containment is ACTIVE. High-confidence threats are mitigated in real time.';
             } else {
-                el.className = 'mt-2 small text-warning';
-                el.innerHTML = '<i class="bi bi-pause-circle-fill me-1"></i> Autonomous containment is <strong>PAUSED</strong>. Alerts will require manual mitigation.';
+                badge.className = 'mt-2 small text-muted font-mono';
+                badge.innerHTML = '<i class="bi bi-slash-circle me-1"></i> Autonomous containment is PAUSED. Mitigations require manual confirmation.';
             }
         }
 
@@ -190,155 +433,186 @@
             try {
                 await API.setAutoContainment(enabled);
                 updateContainmentBadge(enabled);
-                showToast(`Auto-containment ${enabled ? 'enabled' : 'disabled'}`);
+                showToast(enabled ? 'Autonomous containment activated' : 'Autonomous containment paused', 'success');
             } catch (err) {
-                showToast(`Failed to update containment policy: ${err.message}`, 'error');
-                loadAutoContainment();
+                showToast(err.message, 'error');
+                document.getElementById('toggleAutoContainment').checked = !enabled;
             }
         }
 
-        async function loadTargets() {
+        function renderRuleThresholds(settings) {
+            const container = document.getElementById('ruleFields');
+            const definitions = [
+                { key: 'AUTH_001_FAILURES', label: 'AUTH-001: Brute Force Max Failures (Count)', desc: 'Failed login attempts before brute force alert', default: 5 },
+                { key: 'AUTH_001_WINDOW', label: 'AUTH-001: Brute Force Window (Minutes)', desc: 'Observation time window for failure aggregation', default: 10 },
+                { key: 'TX_001_MAX_AMOUNT', label: 'TX-001: Single Txn Threshold (ETB)', desc: 'Amounts exceeding this threshold trigger high-value alert', default: 100000 },
+                { key: 'TX_002_VELOCITY_COUNT', label: 'TX-002: Velocity Burst Count', desc: 'Number of rapid transactions from same account', default: 4 },
+                { key: 'TX_002_VELOCITY_WINDOW', label: 'TX-002: Velocity Window (Minutes)', desc: 'Time window for velocity evaluation', default: 5 },
+                { key: 'ATO_001_RISK_THRESHOLD', label: 'ATO-001: Account Takeover Escalation Risk', desc: 'Correlation score required for automatic session termination', default: 50 }
+            ];
+
+            container.innerHTML = definitions.map(def => {
+                const val = (settings && settings[def.key] !== undefined) ? settings[def.key] : def.default;
+                return `
+                    <div class="col-md-6">
+                        <label class="form-label small text-muted fw-bold">${escapeHtml(def.label)}</label>
+                        <input type="number" class="form-control font-mono" id="rule_${def.key}" value="${val}">
+                        <div class="small text-dim mt-1">${escapeHtml(def.desc)}</div>
+                    </div>`;
+            }).join('');
+        }
+
+        async function saveThresholds() {
+            const btn = document.getElementById('btnSaveThresholds');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+            }
             try {
-                const targets = await API.getTargets();
-                const tbody = document.getElementById('targetsTableBody');
-                if (!targets || !targets.length) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">No target systems registered. Click "+ Register Target System" to connect a bank.</td></tr>';
+                const payload = {};
+                const inputs = document.querySelectorAll('[id^="rule_"]');
+                inputs.forEach(inp => {
+                    const k = inp.id.replace('rule_', '');
+                    payload[k] = parseFloat(inp.value) || 0;
+                });
+                await API.updateSettings(payload);
+                showToast('Detection thresholds saved', 'success');
+            } catch (err) {
+                showToast('Failed to save thresholds: ' + err.message, 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save Thresholds';
+                }
+            }
+        }
+
+        // ==========================================
+        // TAB 3: USERS & ACCESS
+        // ==========================================
+        async function loadUsers() {
+            try {
+                const users = await API.getUsers();
+                document.getElementById('usersCount').textContent = `${users.length} users`;
+                if (!users || !users.length) {
+                    document.getElementById('usersTableBody').innerHTML = `
+                        <tr><td colspan="6" class="text-center py-4 text-muted">${noData('No users found.')}</td></tr>`;
                     return;
                 }
 
-                tbody.innerHTML = targets.map(t => {
-                    const healthCls = t.health_status === 'healthy' ? 'bg-success' : (t.health_status === 'down' ? 'bg-danger' : 'bg-secondary');
-                    const isAdm = role === 'admin';
-                    return `
-                        <tr>
-                            <td>
-                                <strong>${escapeHtml(t.name)}</strong>
-                                <div><span class="badge bg-dark border text-muted">${escapeHtml(t.system_type || 'generic')}</span></div>
-                            </td>
-                            <td><code>${escapeHtml(t.base_url)}</code></td>
-                            <td><code>${escapeHtml(t.key_id)}</code> <small class="text-muted">(HMAC-SHA256)</small></td>
-                            <td><span class="badge bg-secondary">${escapeHtml(t.sync_mode || 'bidirectional')}</span> <small class="text-muted">(${t.poll_interval_seconds || 10}s)</small></td>
-                            <td><span class="badge ${healthCls} text-uppercase">${escapeHtml(t.health_status || 'unknown')}</span></td>
-                            <td class="small text-muted">${t.last_synced_at ? formatDate(t.last_synced_at) : (t.last_health_check ? formatDate(t.last_health_check) : 'Never')}</td>
-                            <td>
-                                <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-info" title="Test Connection Health" onclick="pingTarget('${t.id}')">
-                                        <i class="bi bi-activity"></i> Ping
-                                    </button>
-                                    <button class="btn btn-outline-primary" title="Poll Telemetry Now" onclick="pollTarget('${t.id}')">
-                                        <i class="bi bi-arrow-repeat"></i> Poll
-                                    </button>
-                                    ${isAdm ? `
-                                    <button class="btn btn-outline-danger" title="Delete Target" onclick="deleteTarget('${t.id}')">
-                                        <i class="bi bi-trash"></i>
-                                    </button>` : ''}
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
+                document.getElementById('usersTableBody').innerHTML = users.map(u => `
+                    <tr>
+                        <td class="fw-semibold text-light">${escapeHtml(u.full_name)}</td>
+                        <td><code class="font-mono text-muted">${escapeHtml(u.email)}</code></td>
+                        <td><span class="badge bg-secondary font-mono">${escapeHtml((u.role || '').toUpperCase())}</span></td>
+                        <td>${u.is_active ? '<span class="badge bg-success font-mono">ACTIVE</span>' : '<span class="badge bg-danger font-mono">INACTIVE</span>'}</td>
+                        <td class="small font-mono text-muted">${formatDate(u.created_at)}</td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-outline-info btn-sm py-0 px-2 font-mono" style="font-size:0.75rem;" onclick='openEditUserModal(${JSON.stringify(u).replace(/'/g, "&#39;")})'>Edit</button>
+                                <button class="btn btn-outline-danger btn-sm py-0 px-2 font-mono" style="font-size:0.75rem;" onclick="deactivateUser('${u.id}')">Deactivate</button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
             } catch (err) {
-                console.error(err);
-                document.getElementById('targetsTableBody').innerHTML = `<tr><td colspan="7" class="text-danger text-center py-3">Failed to load target systems: ${escapeHtml(err.message)}</td></tr>`;
+                document.getElementById('usersTableBody').innerHTML = `
+                    <tr><td colspan="6" class="text-center py-4 text-danger font-mono">${escapeHtml(err.message)}</td></tr>`;
             }
         }
 
-        async function pingTarget(targetId) {
-            try {
-                showToast('Testing target connection health...', 'warning');
-                const res = await API.testTargetHealth(targetId);
-                showToast(`Target health status: ${(res.health_status || 'ok').toUpperCase()}`, res.health_status === 'healthy' ? 'success' : 'error');
-                loadTargets();
-            } catch (err) {
-                showToast(`Health check error: ${err.message}`, 'error');
+        function openCreateUserModal() {
+            if (!userModalInstance) {
+                userModalInstance = new bootstrap.Modal(document.getElementById('userModal'));
             }
+            document.getElementById('userModalTitle').innerHTML = '<i class="bi bi-person-plus text-success me-2"></i>Add User';
+            document.getElementById('uId').value = '';
+            document.getElementById('uName').value = '';
+            document.getElementById('uEmail').value = '';
+            document.getElementById('uPass').value = '';
+            document.getElementById('uRole').value = 'analyst';
+            document.getElementById('emailRow').style.display = '';
+            document.getElementById('activeRow').style.display = 'none';
+            userModalInstance.show();
         }
 
-        async function pollTarget(targetId) {
-            try {
-                showToast('Polling telemetry from target...', 'warning');
-                const res = await API.pollTargetNow(targetId);
-                showToast(`Ingested ${res.events_ingested || 0} telemetry events from target`, 'success');
-                loadTargets();
-            } catch (err) {
-                showToast(`Poll failed: ${err.message}`, 'error');
+        function openEditUserModal(u) {
+            if (!userModalInstance) {
+                userModalInstance = new bootstrap.Modal(document.getElementById('userModal'));
             }
+            document.getElementById('userModalTitle').innerHTML = '<i class="bi bi-pencil-square text-info me-2"></i>Edit User';
+            document.getElementById('uId').value = u.id;
+            document.getElementById('uName').value = u.full_name || '';
+            document.getElementById('uEmail').value = u.email || '';
+            document.getElementById('uRole').value = u.role || 'viewer';
+            document.getElementById('uPass').value = '';
+            document.getElementById('uActive').checked = !!u.is_active;
+            document.getElementById('emailRow').style.display = 'none';
+            document.getElementById('activeRow').style.display = '';
+            userModalInstance.show();
         }
 
-        async function deleteTarget(targetId) {
-            if (!confirm('Are you sure you want to disconnect and delete this target system registration?')) return;
-            try {
-                await API.deleteTarget(targetId);
-                showToast('Target system removed');
-                loadTargets();
-            } catch (err) {
-                showToast(`Delete failed: ${err.message}`, 'error');
-            }
-        }
-
-        async function doRegisterTarget() {
-            const name = document.getElementById('targetName').value.trim();
-            const system_type = document.getElementById('targetType').value;
-            const base_url = document.getElementById('targetBaseUrl').value.trim();
-            const key_id = document.getElementById('targetKeyId').value.trim();
-            const secret_key = document.getElementById('targetSecretKey').value.trim();
-            const sync_mode = document.getElementById('targetSyncMode').value;
-            const poll_interval_seconds = parseInt(document.getElementById('targetPollInterval').value, 10) || 10;
-
-            if (!name || !base_url || !key_id || !secret_key) {
-                showToast('Please fill in all target credentials', 'error');
-                return;
-            }
+        async function saveUser() {
+            const id = document.getElementById('uId').value;
+            const full_name = document.getElementById('uName').value.trim();
+            const email = document.getElementById('uEmail').value.trim();
+            const role = document.getElementById('uRole').value;
+            const password = document.getElementById('uPass').value;
+            const is_active = document.getElementById('uActive').checked;
 
             try {
-                showToast('Registering target system and checking health...', 'warning');
-                await API.registerTarget({
-                    name,
-                    system_type,
-                    base_url,
-                    key_id,
-                    secret_key,
-                    sync_mode,
-                    poll_interval_seconds,
-                    is_active: true
-                });
-                showToast('Target system successfully registered!', 'success');
-                bootstrap.Modal.getInstance(document.getElementById('registerTargetModal')).hide();
-                loadTargets();
+                if (id) {
+                    const payload = { full_name, role, is_active };
+                    if (password) payload.password = password;
+                    await API.updateUser(id, payload);
+                    showToast('User profile updated', 'success');
+                } else {
+                    if (!full_name || !email || !password) {
+                        alert('Name, email, and password are required');
+                        return;
+                    }
+                    await API.createUser({ full_name, email, role, password });
+                    showToast('User account created', 'success');
+                }
+                if (userModalInstance) userModalInstance.hide();
+                loadUsers();
             } catch (err) {
-                showToast(`Registration failed: ${err.message}`, 'error');
+                showToast(err.message, 'error');
             }
         }
 
-        async function loadRules() {
-            const rules = await API.getFraudRules();
-            const el = document.getElementById('fields');
-            el.innerHTML = Object.keys(labels).map(k => `
-                <div class="col-md-4">
-                    <label class="form-label">${labels[k]}</label>
-                    <input type="number" class="form-control" id="f_${k}" value="${rules[k] ?? ''}">
-                </div>`).join('');
-            if (role !== 'admin') {
-                document.getElementById('btnSave').disabled = true;
-                document.getElementById('btnAddTarget')?.setAttribute('disabled', 'true');
-                document.querySelectorAll('#fields input').forEach(i => i.disabled = true);
-            }
-        }
-
-        async function save() {
-            const data = {};
-            Object.keys(labels).forEach(k => { data[k] = document.getElementById('f_' + k).value; });
+        async function deactivateUser(id) {
+            if (!confirm('Deactivate this user account?')) return;
             try {
-                await API.updateFraudRules(data);
-                showToast('Thresholds saved');
-                loadRules();
-            } catch (e) { showToast(e.message, 'error'); }
+                await API.updateUser(id, { is_active: false });
+                showToast('User deactivated', 'success');
+                loadUsers();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
         }
 
-        loadAutoContainment();
-        loadTargets();
-        loadRules().catch(e => showToast(e.message, 'error'));
+        async function manualRefreshCurrentTab() {
+            const btn = document.getElementById('btnRefresh');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Refreshing...';
+            }
+            if (currentTab === 'connectors') await loadTargets();
+            else if (currentTab === 'mitigation') await loadMitigationSettings();
+            else if (currentTab === 'users') await loadUsers();
+
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Refresh';
+            }
+            showToast('Settings refreshed', 'success');
+        }
+
+        // Initialize from URL param if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const initialTab = urlParams.get('tab') || 'connectors';
+        switchTab(initialTab);
     </script>
 </body>
 </html>
-

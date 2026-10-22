@@ -41,10 +41,10 @@ class TestMultiTenancyIsolation(unittest.TestCase):
         except Exception:
             pass
 
-        cls.user_admin_a = valid_user_id
-        cls.user_analyst_a = valid_user_id
-        cls.user_admin_b = valid_user_id
-        cls.user_analyst_b = valid_user_id
+        cls.user_admin_a = str(uuid.uuid4())
+        cls.user_analyst_a = str(uuid.uuid4())
+        cls.user_admin_b = str(uuid.uuid4())
+        cls.user_analyst_b = str(uuid.uuid4())
 
         # Tokens for distinct organizations
         cls.token_admin_a = create_token(cls.user_admin_a, "admin@orga.et", "admin", organization_id=cls.org_a)

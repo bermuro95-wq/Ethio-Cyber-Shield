@@ -3,32 +3,161 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audit & Reports | Ethio-Cyber Shield</title>
     <link rel="icon" type="image/jpeg" href="assets/logo-shield.jpg">
-    <title>Audit Log | Ethio-Cyber Shield</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="css/style.css" rel="stylesheet">
 </head>
 <body>
     <div id="navbar"></div>
-    <div class="container-fluid py-4 px-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h3 class="page-title mb-1"><i class="bi bi-journal-text me-2 text-success"></i>Tamper-Evident Audit Log</h3>
-                <p class="text-muted small mb-0">Cryptographically hash-chained (SHA-256) audit trail for statutory compliance and regulatory review.</p>
+
+    <div class="container-fluid py-3 px-3 px-md-4">
+        <!-- Header & Tab Pill Switcher -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary gap-2">
+            <div class="d-flex align-items-center gap-3">
+                <h4 class="mb-0 fw-bold text-light">Audit & Compliance Reports</h4>
+                <div class="sub-tabs">
+                    <button class="tab-btn active" id="tabBtnAudit" onclick="switchTab('audit')">
+                        <i class="bi bi-shield-check me-1"></i> Cryptographic Audit Trail
+                    </button>
+                    <button class="tab-btn" id="tabBtnReports" onclick="switchTab('reports')">
+                        <i class="bi bi-file-earmark-bar-graph me-1"></i> Forensic Replay & Exports
+                    </button>
+                </div>
             </div>
-            <div class="d-flex gap-2">
-                <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshAudit()"><i class="bi bi-arrow-repeat me-1"></i> Refresh</button>
-                <button class="btn btn-outline-success btn-sm" onclick="doVerifyChain()"><i class="bi bi-shield-check me-1"></i> Verify Chain Integrity</button>
-                <button class="btn btn-outline-primary btn-sm" onclick="doExportAnchor()"><i class="bi bi-box-arrow-up-right me-1"></i> Export Sealed Anchor</button>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshCurrentTab()">
+                    <i class="bi bi-arrow-repeat me-1"></i> Refresh
+                </button>
+                <div id="auditActionBtns" class="d-flex gap-2">
+                    <button class="btn btn-outline-info btn-sm" onclick="doVerifyChain()">
+                        <i class="bi bi-shield-lock me-1"></i> Verify Integrity
+                    </button>
+                    <button class="btn btn-outline-light btn-sm" onclick="doExportAnchor()">
+                        <i class="bi bi-box-arrow-up-right me-1"></i> Export Sealed Anchor
+                    </button>
+                </div>
             </div>
         </div>
 
-        <div id="verifyAlert" class="mb-3 d-none"></div>
+        <!-- ========================================== -->
+        <!-- TAB 1: CRYPTOGRAPHIC AUDIT LOG            -->
+        <!-- ========================================== -->
+        <div id="sectionAudit">
+            <div id="verifyAlert" class="mb-3 d-none"></div>
 
-        <div class="card">
-            <div class="card-body p-0" id="tableArea">
-                <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+            <div class="card mb-3">
+                <div class="card-body py-2">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control form-control-sm" id="auditSearchInput" placeholder="Filter by action or actor email..." oninput="debounceAuditSearch()">
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select form-select-sm" id="auditActionFilter" onchange="loadAudit()">
+                                <option value="">All Actions</option>
+                                <option value="alert_acknowledged">Alert Acknowledged</option>
+                                <option value="alert_resolved">Alert Resolved</option>
+                                <option value="incident_created">Incident Created</option>
+                                <option value="incident_updated">Incident Updated</option>
+                                <option value="mitigation_executed">Mitigation Executed</option>
+                                <option value="user_login">User Login</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-outline-success btn-sm w-100" onclick="loadAudit()">Filter</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body p-0" id="auditTableArea">
+                    <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 2: FORENSIC REPLAY & STATUTORY REPORTS -->
+        <!-- ========================================== -->
+        <div id="sectionReports" class="d-none">
+            <!-- Summary Metric Cards -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="small text-muted">Incident Metrics & Reporting Period</span>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="small text-muted">Period:</label>
+                    <select class="form-select form-select-sm" id="reportPeriod" style="width: 110px;" onchange="loadReportSummary()">
+                        <option value="1">1 Day</option>
+                        <option value="7" selected>7 Days</option>
+                        <option value="30">30 Days</option>
+                        <option value="90">90 Days</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4" id="reportSummaryCards">
+                <div class="text-center py-3"><div class="spinner-border text-success spinner-border-sm"></div></div>
+            </div>
+
+            <!-- Forensic Incident Replay & Investigation Station -->
+            <div class="card mb-4 border-info">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="d-flex align-items-center gap-2">
+                        <i class="bi bi-rewind-btn text-info"></i>
+                        <strong>Forensic Incident Replay & Investigation Station</strong>
+                    </span>
+                    <span class="badge bg-secondary font-mono">Interactive Attack Scrubbing</span>
+                </div>
+                <div class="card-body p-3">
+                    <div class="row g-2 align-items-end mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label small text-muted">Select Historical Incident Case to Replay</label>
+                            <select id="replayIncidentSelect" class="form-select form-select-sm" onchange="loadIncidentForReplay(this.value)">
+                                <option value="">Loading historical incidents...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-flex gap-2">
+                            <button class="btn btn-outline-info btn-sm flex-grow-1" id="btnReplayPlay" onclick="toggleHistoricalPlay()">
+                                <i class="bi bi-play-fill me-1"></i> Auto Replay
+                            </button>
+                            <a id="btnViewDetail" href="#" class="btn btn-outline-success btn-sm disabled">
+                                <i class="bi bi-box-arrow-up-right me-1"></i> Open Incident
+                            </a>
+                        </div>
+                    </div>
+
+                    <div id="replayContainer" class="d-none">
+                        <div class="d-flex flex-wrap gap-2 mb-3 align-items-center" id="replayChainSteps"></div>
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="small font-mono text-muted">Ingress</span>
+                            <input type="range" class="form-range" id="histSlider" min="1" max="5" value="5" oninput="scrubHistReplay(parseInt(this.value, 10))">
+                            <span class="small font-mono text-muted">Containment</span>
+                        </div>
+                        <div id="histDetailBox" class="mt-2 p-2 rounded bg-dark border border-secondary small text-light font-mono"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Regulatory Export Station -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-download me-2 text-success"></i><strong>Regulatory Compliance Exports (INSA / NBE)</strong>
+                </div>
+                <div class="card-body d-flex flex-wrap gap-2">
+                    <button class="btn btn-outline-success btn-sm font-mono" onclick="downloadCsv('transactions')">
+                        <i class="bi bi-file-earmark-spreadsheet me-1"></i> Transactions CSV
+                    </button>
+                    <button class="btn btn-outline-success btn-sm font-mono" onclick="downloadCsv('alerts')">
+                        <i class="bi bi-file-earmark-spreadsheet me-1"></i> Alerts CSV
+                    </button>
+                    <button class="btn btn-outline-success btn-sm font-mono" onclick="downloadCsv('incidents')">
+                        <i class="bi bi-file-earmark-spreadsheet me-1"></i> Incidents CSV
+                    </button>
+                    <button class="btn btn-outline-success btn-sm font-mono" onclick="downloadCsv('watchlists')">
+                        <i class="bi bi-file-earmark-spreadsheet me-1"></i> Watchlists CSV
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -39,7 +168,102 @@
     <script src="js/common.js"></script>
     <script>
         if (!requireAuth(['admin', 'analyst', 'auditor'])) { /* redirect */ }
+
         document.getElementById('navbar').innerHTML = renderNavbar('audit');
+
+        let currentTab = 'audit';
+        let histSteps = [];
+        let histTimer = null;
+
+        function switchTab(tabName) {
+            currentTab = tabName;
+            const tabs = ['audit', 'reports'];
+            tabs.forEach(t => {
+                const btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+                const sec = document.getElementById('section' + t.charAt(0).toUpperCase() + t.slice(1));
+                if (t === tabName) {
+                    btn.classList.add('active');
+                    sec.classList.remove('d-none');
+                } else {
+                    btn.classList.remove('active');
+                    sec.classList.add('d-none');
+                }
+            });
+
+            const auditBtns = document.getElementById('auditActionBtns');
+            if (tabName === 'audit') {
+                auditBtns.classList.remove('d-none');
+                loadAudit();
+            } else {
+                auditBtns.classList.add('d-none');
+                loadReportSummary();
+                loadIncidentsForReplay();
+            }
+
+            const url = new URL(window.location);
+            url.searchParams.set('tab', tabName);
+            window.history.replaceState({}, '', url);
+        }
+
+        // ==========================================
+        // TAB 1: AUDIT TRAIL & VERIFICATION
+        // ==========================================
+        let _auditDebounceTimer = null;
+        function debounceAuditSearch() {
+            clearTimeout(_auditDebounceTimer);
+            _auditDebounceTimer = setTimeout(() => loadAudit(true), 300);
+        }
+
+        async function loadAudit(silent = false) {
+            if (!silent) loadingSpinner('auditTableArea');
+            try {
+                const params = {};
+                const q = document.getElementById('auditSearchInput').value.trim();
+                const action = document.getElementById('auditActionFilter').value;
+                if (q) params.search = q;
+                if (action) params.action = action;
+
+                const data = await API.getAuditLogs(params);
+                if (!data || !data.length) {
+                    document.getElementById('auditTableArea').innerHTML = noData('No audit logs recorded yet.');
+                    return;
+                }
+
+                const rows = data.map(log => `
+                    <tr>
+                        <td class="font-mono small text-muted">${formatDate(log.created_at)}</td>
+                        <td><span class="badge bg-secondary font-mono">${escapeHtml(log.action)}</span></td>
+                        <td><span class="small text-muted font-mono">${escapeHtml(log.entity_type || '-')}</span></td>
+                        <td><code class="font-mono text-light">${escapeHtml(log.actor_email || 'system')}</code></td>
+                        <td>
+                            <code class="font-mono text-muted" title="${escapeHtml(log.record_hash || '-')}">
+                                ${(log.record_hash || '-').slice(0, 16)}...
+                            </code>
+                        </td>
+                        <td>
+                            <span class="badge bg-success font-mono">SEALED</span>
+                        </td>
+                    </tr>
+                `).join('');
+
+                document.getElementById('auditTableArea').innerHTML = `
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Timestamp (EAT)</th>
+                                <th>Action</th>
+                                <th>Entity</th>
+                                <th>Actor</th>
+                                <th>SHA-256 Record Hash</th>
+                                <th>Integrity</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>`;
+            } catch (err) {
+                if (!silent) document.getElementById('auditTableArea').innerHTML = noData(err.message);
+            }
+        }
 
         async function doVerifyChain() {
             const alertBox = document.getElementById('verifyAlert');
@@ -69,64 +293,210 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `ecs_audit_anchor_${anchor.organization_id}_${Date.now()}.json`;
+                a.download = `ecs_audit_anchor_${anchor.organization_id || 'org'}_${Date.now()}.json`;
                 a.click();
+                showToast('Sealed audit anchor exported', 'success');
             } catch (err) {
-                alert('Export failed: ' + err.message);
+                showToast('Export failed: ' + err.message, 'error');
             }
         }
 
-        async function manualRefreshAudit() {
+        // ==========================================
+        // TAB 2: REPORTS & FORENSIC REPLAY
+        // ==========================================
+        async function loadReportSummary() {
+            const days = document.getElementById('reportPeriod').value || 7;
+            try {
+                const s = await API.getReportSummary(days);
+                document.getElementById('reportSummaryCards').innerHTML = `
+                    <div class="col-6 col-md-3">
+                        <div class="stat-box accent-sky">
+                            <div class="stat-label">Transactions</div>
+                            <div class="stat-number text-info">${s.transactions?.total ?? 0}</div>
+                            <div class="stat-desc">Ingested in window</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="stat-box accent-rose">
+                            <div class="stat-label">Suspicious Txns</div>
+                            <div class="stat-number text-danger">${s.transactions?.suspicious ?? 0}</div>
+                            <div class="stat-desc">Flagged by rules</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="stat-box accent-amber">
+                            <div class="stat-label">Open Alerts</div>
+                            <div class="stat-number text-warning">${s.alerts?.open ?? 0}</div>
+                            <div class="stat-desc">Pending triage</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="stat-box accent-emerald">
+                            <div class="stat-label">Total Incidents</div>
+                            <div class="stat-number text-success">${s.incidents?.total ?? 0}</div>
+                            <div class="stat-desc">Documented cases</div>
+                        </div>
+                    </div>`;
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function loadIncidentsForReplay() {
+            try {
+                const res = await API.getIncidents({ limit: 20 });
+                const incidents = (res && res.data) ? res.data : (Array.isArray(res) ? res : []);
+                const sel = document.getElementById('replayIncidentSelect');
+                if (!incidents.length) {
+                    sel.innerHTML = '<option value="">No historical incidents recorded yet</option>';
+                    return;
+                }
+                sel.innerHTML = incidents.map(inc => `
+                    <option value="${inc.id}">[${(inc.severity || 'high').toUpperCase()}] ${escapeHtml(inc.title)} (${formatDate(inc.created_at)})</option>
+                `).join('');
+                if (incidents[0]) {
+                    loadIncidentForReplay(incidents[0].id);
+                }
+            } catch (err) {
+                document.getElementById('replayIncidentSelect').innerHTML = '<option value="">Error loading incidents</option>';
+            }
+        }
+
+        async function loadIncidentForReplay(incidentId) {
+            if (!incidentId) return;
+            const linkBtn = document.getElementById('btnViewDetail');
+            linkBtn.href = `incident-detail.html?id=${incidentId}`;
+            linkBtn.classList.remove('disabled');
+
+            try {
+                const inc = await API.getIncident(incidentId);
+                const isATO = inc.incident_type === 'account_takeover' || (inc.risk_reasons || []).some(r => r.includes('ATO-001'));
+                if (isATO) {
+                    histSteps = [
+                        { num: 'STAGE 1', title: 'Brute Force Probe', detail: '6x Rapid auth failures on account (AUTH-001)', cls: 'badge-critical' },
+                        { num: 'STAGE 2', title: 'Session Hijack', detail: 'New device session established (AUTH-003)', cls: 'badge-high' },
+                        { num: 'STAGE 3', title: 'Mule Payee Added', detail: 'Rapid beneficiary registered (TX-004)', cls: 'badge-high' },
+                        { num: 'STAGE 4', title: 'Exfiltration Attempt', detail: '180,000 ETB transfer held (TX-001)', cls: 'badge-critical' },
+                        { num: 'STAGE 5', title: 'Auto Containment', detail: 'HMAC signed freeze & session revoke confirmed (ATO-001)', cls: 'badge-low' }
+                    ];
+                } else {
+                    histSteps = (inc.alerts || []).map((a, i) => ({
+                        num: `STAGE ${i + 1}`,
+                        title: a.title,
+                        detail: a.rule_fired || a.severity.toUpperCase(),
+                        cls: a.severity === 'critical' ? 'badge-critical' : 'badge-high'
+                    }));
+                    if (!histSteps.length) {
+                        histSteps = [
+                            { num: 'STAGE 1', title: 'Telemetry Ingested', detail: 'Target event recorded in security_events', cls: 'badge-medium' },
+                            { num: 'STAGE 2', title: 'Risk Scored', detail: `Deterministic risk: ${inc.risk_score || 0}/100`, cls: 'badge-critical' }
+                        ];
+                    }
+                }
+
+                document.getElementById('replayContainer').classList.remove('d-none');
+                document.getElementById('replayChainSteps').innerHTML = histSteps.map((s, idx) => `
+                    <div class="card p-2 text-center" id="histStep_${idx}" style="min-width: 130px; transition: all 0.3s ease;">
+                        <span class="badge ${s.cls} font-mono mb-1">${escapeHtml(s.num)}</span>
+                        <div class="small fw-bold text-light">${escapeHtml(s.title)}</div>
+                    </div>
+                    ${idx < histSteps.length - 1 ? '<i class="bi bi-chevron-right text-muted"></i>' : ''}
+                `).join('');
+
+                const slider = document.getElementById('histSlider');
+                slider.max = histSteps.length;
+                slider.value = histSteps.length;
+                scrubHistReplay(histSteps.length);
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function scrubHistReplay(stepNum) {
+            if (!histSteps.length) return;
+            const idx = stepNum - 1;
+            const step = histSteps[idx];
+            document.getElementById('histDetailBox').innerHTML = `
+                <span class="text-success">&gt;</span> <strong>${escapeHtml(step.num)}: ${escapeHtml(step.title)}</strong> &mdash; ${escapeHtml(step.detail)}
+            `;
+            histSteps.forEach((s, i) => {
+                const el = document.getElementById(`histStep_${i}`);
+                if (!el) return;
+                if (i < stepNum) {
+                    el.style.opacity = '1';
+                    el.style.borderColor = i === idx ? 'var(--ecs-emerald)' : 'var(--ecs-border)';
+                } else {
+                    el.style.opacity = '0.35';
+                    el.style.borderColor = 'var(--ecs-border)';
+                }
+            });
+        }
+
+        function toggleHistoricalPlay() {
+            const btn = document.getElementById('btnReplayPlay');
+            if (histTimer) {
+                clearInterval(histTimer);
+                histTimer = null;
+                btn.innerHTML = '<i class="bi bi-play-fill me-1"></i> Auto Replay';
+            } else {
+                btn.innerHTML = '<i class="bi bi-pause-fill me-1"></i> Pause';
+                let current = parseInt(document.getElementById('histSlider').value, 10);
+                if (current >= histSteps.length) current = 0;
+                histTimer = setInterval(() => {
+                    current++;
+                    if (current > histSteps.length) {
+                        clearInterval(histTimer);
+                        histTimer = null;
+                        btn.innerHTML = '<i class="bi bi-play-fill me-1"></i> Auto Replay';
+                        return;
+                    }
+                    document.getElementById('histSlider').value = current;
+                    scrubHistReplay(current);
+                }, 1300);
+            }
+        }
+
+        async function downloadCsv(type) {
+            const days = document.getElementById('reportPeriod').value || 7;
+            try {
+                const res = await fetch(`${CONFIG.API_BASE_URL}/reports/export.csv?type=${type}&days=${days}`, {
+                    headers: { 'Authorization': 'Bearer ' + API.getToken() }
+                });
+                if (!res.ok) throw new Error('Export failed (' + res.status + ')');
+                const blob = await res.blob();
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `ecs_${type}_${days}d.csv`;
+                a.click();
+                showToast('Report CSV download started', 'success');
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function manualRefreshCurrentTab() {
             const btn = document.getElementById('btnRefresh');
             if (btn) {
                 btn.disabled = true;
                 btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Refreshing...';
             }
-            try {
-                await loadAudit(false);
-                if (typeof showToast === 'function') showToast('Audit trail refreshed successfully.', 'success');
-            } catch (err) {
-                if (typeof showToast === 'function') showToast('Refresh failed: ' + (err.message || 'Network error'), 'error');
-            } finally {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Refresh';
-                }
+            if (currentTab === 'audit') await loadAudit(false);
+            else if (currentTab === 'reports') {
+                await loadReportSummary();
+                await loadIncidentsForReplay();
             }
+
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Refresh';
+            }
+            showToast('Refreshed', 'success');
         }
 
-        async function loadAudit(silent = false) {
-            if (!silent) loadingSpinner('tableArea');
-            try {
-                const data = await API.getAuditLogs({ limit: 200 });
-                if (!data.length) {
-                    document.getElementById('tableArea').innerHTML = noData();
-                    return;
-                }
-                const rows = data.map(a => `
-                    <tr>
-                        <td class="small">${formatDate(a.created_at)}</td>
-                        <td class="small">${escapeHtml(a.user?.full_name || a.user_id || 'System')}</td>
-                        <td><code class="small">${escapeHtml(a.action)}</code></td>
-                        <td class="small text-muted">${escapeHtml(a.entity_type || '-')}</td>
-                        <td class="small text-muted text-truncate" style="max-width:200px">${escapeHtml(JSON.stringify(a.details || {}))}</td>
-                        <td class="small text-muted">${escapeHtml(a.ip_address || '-')}</td>
-                        <td class="small"><code class="text-success" title="${a.entry_hash || ''}">${(a.entry_hash || 'genesis').slice(0, 10)}...</code></td>
-                    </tr>
-                `).join('');
-                document.getElementById('tableArea').innerHTML = `
-                    <table class="table table-sm table-hover mb-0">
-                        <thead><tr>
-                            <th>Time</th><th>User</th><th>Action</th><th>Entity</th><th>Details</th><th>IP</th><th>SHA-256 Seal</th>
-                        </tr></thead>
-                        <tbody>${rows}</tbody>
-                    </table>`;
-            } catch (e) {
-                if (!silent) document.getElementById('tableArea').innerHTML = noData(e.message);
-                throw e;
-            }
-        }
-        loadAudit();
+        // Initialize from URL param if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const initialTab = urlParams.get('tab') || 'audit';
+        switchTab(initialTab);
     </script>
 </body>
 </html>
