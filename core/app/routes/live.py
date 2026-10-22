@@ -195,46 +195,49 @@ def recent_events():
     limit = min(int(request.args.get('limit', 30)), 100)
     minutes = min(int(request.args.get('minutes', 120)), 1440)
     since = (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
-    sb = get_service_supabase()
-
     events = []
 
-    tx_res = sb.table('transactions').select('*')\
-        .eq('is_suspicious', True)\
-        .gte('transaction_time', since)\
-        .order('transaction_time', desc=True).limit(limit).execute()
-    for t in (tx_res.data or []):
-        events.append({
-            'kind': 'transaction',
-            'id': t['id'],
-            'time': t.get('transaction_time'),
-            'title': f"Suspicious {t.get('transaction_type', 'tx')} — {float(t.get('amount') or 0):,.0f} ETB",
-            'detail': '; '.join(t.get('suspicion_reasons') or []) or 'Flagged by rules',
-            'severity': 'high',
-            'account': t.get('account_number'),
-            'device_id': t.get('device_id'),
-            'ip_address': t.get('ip_address'),
-            'status': t.get('status'),
-        })
+    try:
+        sb = get_service_supabase()
 
-    alert_res = sb.table('alerts').select('*')\
-        .gte('created_at', since)\
-        .order('created_at', desc=True).limit(limit).execute()
-    for a in (alert_res.data or []):
-        events.append({
-            'kind': 'alert',
-            'id': a['id'],
-            'time': a.get('created_at'),
-            'title': a.get('title'),
-            'detail': a.get('description') or '',
-            'severity': a.get('severity') or 'medium',
-            'status': a.get('status'),
-            'alert_type': a.get('alert_type'),
-            'related_transaction_id': a.get('related_transaction_id'),
-        })
+        tx_res = sb.table('transactions').select('*')\
+            .eq('is_suspicious', True)\
+            .gte('transaction_time', since)\
+            .order('transaction_time', desc=True).limit(limit).execute()
+        for t in (tx_res.data or []):
+            events.append({
+                'kind': 'transaction',
+                'id': t['id'],
+                'time': t.get('transaction_time'),
+                'title': f"Suspicious {t.get('transaction_type', 'tx')} — {float(t.get('amount') or 0):,.0f} ETB",
+                'detail': '; '.join(t.get('suspicion_reasons') or []) or 'Flagged by rules',
+                'severity': 'high',
+                'account': t.get('account_number'),
+                'device_id': t.get('device_id'),
+                'ip_address': t.get('ip_address'),
+                'status': t.get('status'),
+            })
 
-    events.sort(key=lambda e: e.get('time') or '', reverse=True)
-    events = events[:limit]
+        alert_res = sb.table('alerts').select('*')\
+            .gte('created_at', since)\
+            .order('created_at', desc=True).limit(limit).execute()
+        for a in (alert_res.data or []):
+            events.append({
+                'kind': 'alert',
+                'id': a['id'],
+                'time': a.get('created_at'),
+                'title': a.get('title'),
+                'detail': a.get('description') or '',
+                'severity': a.get('severity') or 'medium',
+                'status': a.get('status'),
+                'alert_type': a.get('alert_type'),
+                'related_transaction_id': a.get('related_transaction_id'),
+            })
+
+        events.sort(key=lambda e: e.get('time') or '', reverse=True)
+        events = events[:limit]
+    except Exception as e:
+        logger.warning(f"Error fetching recent live events: {e}")
 
     return jsonify({
         'events': events,

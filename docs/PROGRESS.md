@@ -341,4 +341,14 @@
   - [x] Regulator sector overview provides cross-operator threat intelligence with verified zero bank identity leakage.
   - [x] Test suite `test_part31_selective_expansion.py` 100% passing (7/7 tests) and 59/59 regression tests passing.
 
+---
+
+### Platform Hardening & Operational Polish (ADR-032)
+- [x] **Thread-isolated DB clients**: `db.py` uses `threading.local()` to prevent HTTP/2 HPACK table collisions (`deque mutated during iteration`).
+- [x] **Resilient poller**: Suppressed offline target connection refused noise; updated default target to `http://127.0.0.1:8081`; graceful in-memory health cache fallback.
+- [x] **Supervisor process protection**: Poller daemon restricted to worker process under Flask debug reloader (`WERKZEUG_RUN_MAIN`).
+- [x] **Telemetry-only UI enforcement**: Removed manual creation buttons and forms across `fraud.html`, `incidents.html`, and `indicators.html`.
+- [x] **Concurrency verification**: Verified 20/20 concurrent REST requests succeed without error under active SSE threat stream.
+
+
 

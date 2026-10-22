@@ -16,7 +16,9 @@ if __name__ == '__main__':
 
     # Optional background synchronization daemon
     if os.getenv('ENABLE_TARGET_POLLER', '1') == '1':
-        from app.services.poller_service import get_poller_daemon
-        get_poller_daemon().start()
+        # When debug/reloader is active, run exclusively in the worker process
+        if not debug or os.getenv('WERKZEUG_RUN_MAIN') == 'true':
+            from app.services.poller_service import get_poller_daemon
+            get_poller_daemon().start()
 
     app.run(host='0.0.0.0', port=port, debug=debug)

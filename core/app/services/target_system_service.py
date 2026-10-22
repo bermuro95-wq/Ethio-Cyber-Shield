@@ -17,7 +17,7 @@ from app.services.audit_service import log_action
 
 logger = logging.getLogger(__name__)
 
-TARGET_URL = os.getenv('TARGET_SYSTEM_URL', 'http://127.0.0.1:3000')
+TARGET_URL = os.getenv('TARGET_SYSTEM_URL', 'http://127.0.0.1:8081')
 TARGET_KEY_ID = os.getenv('TARGET_KEY_ID', 'ecs_live_prod_key_01')
 TARGET_SECRET = os.getenv('TARGET_SECRET', 'super-secret-key-32b')
 
@@ -183,6 +183,9 @@ def call_target(method: str, path: str, payload=None, base_url: str = None, key_
     try:
         resp = requests.request(method, base + path, data=raw, headers=headers, timeout=10)
         return resp
+    except requests.exceptions.ConnectionError as ce:
+        logger.debug(f"Target system offline or unreachable at {base}{path}: {ce}")
+        raise
     except Exception as e:
         logger.error(f"Failed to communicate with target system at {base}{path}: {e}")
         raise

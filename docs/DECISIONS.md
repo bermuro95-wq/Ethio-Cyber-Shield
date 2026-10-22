@@ -851,6 +851,33 @@
   - Completes Phase 8 (Selective Expansion), delivering end-to-end host/email/identity/exposure correlation.
   - Verified with 7/7 passing tests in `core/tests/test_part31_selective_expansion.py` and 59/59 passing regression tests with zero regressions across Phases 4–7.
 
+---
+
+## ADR-032: Thread-Isolated Database Clients, Resilient Target Polling & Telemetry-Only UI Enforcement
+
+* **Context**:
+  - Running Flask in development/threaded mode with active Server-Sent Events (SSE) streaming (`/api/live/stream`) and simultaneous REST polling (`/api/live/recent-events`, `/api/live/summary`, `/api/dashboard/stats`) triggered `RuntimeError: deque mutated during iteration` due to concurrent access across worker threads to a shared global `httpx.Client` / PostgREST HPACK compression table.
+  - Target system poller flooded stdout with full connection refused stack traces when the target system was stopped or restarting, and failed loudly when attempting to update nonexistent remote `target_systems` schema cache.
+  - Legacy manual entry forms and buttons ("Add Transaction", "New Incident", "Add Indicator") confused operators and undermined the automated telemetry-driven platform architecture.
+
+* **Decision**:
+  1. **Thread-Isolated Database Clients**:
+     - Refactor `get_service_supabase()` in `core/app/services/db.py` to use `threading.local()`, giving each Flask worker thread its own PostgREST/PostgreSQL client instance. This eliminates shared state in `httpx` HTTP/2 HPACK tables.
+  2. **Graceful Target Poller Resilience**:
+     - Update default target URL to `http://127.0.0.1:8081` (matching `targetsys` Vite default).
+     - Log target connection refused states at `logger.debug`, treating offline target as a routine transient state and triggering exponential backoff.
+     - Fall back seamlessly to in-memory `_LOCAL_TARGETS` cache when `target_systems` table is absent in remote schema cache.
+     - Start background poller daemon only in child worker process when Flask debug reloader is active (`WERKZEUG_RUN_MAIN == 'true'`).
+  3. **Telemetry-Only UI Enforcement**:
+     - Remove manual data creation buttons and modal forms (`#btnCreate`, `#createModal`, `submitCreate()`) across `ui/fraud.html`, `ui/incidents.html`, and `ui/indicators.html`.
+     - Retain full operational review, containment, and audit actions (Delete, Ack, Resolve, Add Note, Dispatch Mitigation, Dossier Export, Root Hash Verification).
+
+* **Consequences**:
+  - Stress testing confirmed 20/20 concurrent REST requests succeed with zero errors during active SSE streaming.
+  - Startup logs are clean without repetitive connection refused tracebacks.
+  - UI strictly reflects automated ingestion from live target telemetry and log streams.
+
+
 
 
 

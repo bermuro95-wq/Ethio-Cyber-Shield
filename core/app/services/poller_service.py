@@ -65,11 +65,17 @@ def poll_target_once(target_id: str) -> dict:
         # Update high-water mark sequence if advanced
         new_seq = next_seq if (next_seq is not None and next_seq > last_seq) else last_seq
         if events and new_seq > last_seq:
-            sb = get_service_supabase()
-            sb.table('target_systems').update({
-                'last_synced_seq': new_seq,
-                'updated_at': datetime.now(timezone.utc).isoformat()
-            }).eq('id', target_id).execute()
+            from app.services.target_system_service import _LOCAL_TARGETS
+            if target_id in _LOCAL_TARGETS:
+                _LOCAL_TARGETS[target_id]['last_synced_seq'] = new_seq
+            try:
+                sb = get_service_supabase()
+                sb.table('target_systems').update({
+                    'last_synced_seq': new_seq,
+                    'updated_at': datetime.now(timezone.utc).isoformat()
+                }).eq('id', target_id).execute()
+            except Exception as e:
+                logger.debug(f"Could not update target_systems sequence: {e}")
 
         return {
             'target_id': target_id,
@@ -80,7 +86,16 @@ def poll_target_once(target_id: str) -> dict:
         }
 
     except Exception as e:
-        logger.error(f"Error during polling of target {target_id}: {e}")
+        err_str = str(e)
+        if "Connection refused" in err_str or "Max retries exceeded" in err_str:
+            logger.debug(f"Target {target_id} offline or connection refused: {e}")
+            return {
+                'target_id': target_id,
+                'events_synced': 0,
+                'error': 'Target offline (connection refused)',
+                'status': 'offline'
+            }
+        logger.warning(f"Error during polling of target {target_id}: {e}")
         return {
             'target_id': target_id,
             'events_synced': 0,
@@ -116,13 +131,19 @@ def check_and_update_all_targets_health() -> list[dict]:
         is_healthy = health.get('status') == 'healthy'
         status_label = 'healthy' if is_healthy else 'down'
 
+        from app.services.target_system_service import _LOCAL_TARGETS
+        if t['id'] in _LOCAL_TARGETS:
+            _LOCAL_TARGETS[t['id']]['health_status'] = status_label
+            _LOCAL_TARGETS[t['id']]['last_health_check'] = datetime.now(timezone.utc).isoformat()
+
         try:
+            sb = get_service_supabase()
             sb.table('target_systems').update({
                 'health_status': status_label,
                 'last_health_check': datetime.now(timezone.utc).isoformat()
             }).eq('id', t['id']).execute()
         except Exception as e:
-            logger.warning(f"Could not update target health in database: {e}")
+            logger.debug(f"Could not update target health in database: {e}")
 
         results.append({
             'target_id': t['id'],
@@ -150,6 +171,7 @@ class TargetPollerDaemon:
         from app.services.connector_scheduler_service import get_connector_scheduler_manager
         mgr = get_connector_scheduler_manager()
         logger.info(f"TargetPollerDaemon started with per-connector schedulers (health_interval={self.health_interval}s)")
+        self._last_health_time = time.time()
         while not self._stop_event.is_set():
             try:
                 # 1. Synchronize active targets with per-connector schedulers
@@ -167,8 +189,8 @@ class TargetPollerDaemon:
             except Exception as e:
                 logger.error(f"Error in poller daemon loop: {e}")
 
-            # Responsive sleep interval
-            for _ in range(2):
+            # Responsive sleep interval (2 seconds per cycle)
+            for _ in range(4):
                 if self._stop_event.is_set():
                     break
                 time.sleep(0.5)

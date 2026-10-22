@@ -9,6 +9,7 @@ import os
 import time
 import json
 import logging
+import threading
 from typing import Optional, Dict, Any, List
 
 from app.config import Config
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 _supabase_client = None
 _service_supabase_client = None
+_thread_local = threading.local()
 _pg_pool = None
 
 
@@ -215,36 +217,46 @@ def get_service_supabase():
     Returns the primary service-role database client.
     Prefers Supabase client when SUPABASE_URL and key are provided;
     falls back cleanly to direct PostgreSQL when DATABASE_URL is configured.
+    Thread-local storage ensures Flask worker threads and SSE generator
+    streams each operate on an isolated client instance, preventing
+    HTTP/2 HPACK table collisions and deque mutation errors.
     """
     global _service_supabase_client
 
     if _service_supabase_client is not None:
         return _service_supabase_client
 
+    client = getattr(_thread_local, 'client', None)
+    if client is not None:
+        return client
+
     # 1. Supabase Client Mode
     if Config.SUPABASE_URL and (Config.SUPABASE_SERVICE_KEY or Config.SUPABASE_KEY):
         try:
             from supabase import create_client
             key = Config.SUPABASE_SERVICE_KEY or Config.SUPABASE_KEY
-            _service_supabase_client = create_client(Config.SUPABASE_URL, key)
-            return _service_supabase_client
+            client = create_client(Config.SUPABASE_URL, key)
+            _thread_local.client = client
+            return client
         except Exception as e:
             logger.warning(f"Failed to initialize Supabase client: {e}")
 
     # 2. Independent Plain PostgreSQL Mode
     if Config.DATABASE_URL:
         try:
-            _service_supabase_client = PostgresDatabaseAdapter(Config.DATABASE_URL)
+            client = PostgresDatabaseAdapter(Config.DATABASE_URL)
             logger.info("Database service running on independent PostgreSQL adapter.")
-            return _service_supabase_client
+            _thread_local.client = client
+            return client
         except Exception as e:
             logger.error(f"Failed to connect to independent PostgreSQL: {e}")
 
     # 3. Fallback dummy or raise
     if Config.SUPABASE_URL:
         from supabase import create_client
-        _service_supabase_client = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY or "anon")
-        return _service_supabase_client
+        client = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY or "anon")
+        _thread_local.client = client
+        return client
 
     raise ValueError("Neither SUPABASE_URL nor DATABASE_URL is configured for database connection.")
 
