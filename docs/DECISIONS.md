@@ -1013,3 +1013,27 @@
 * **Consequences**:
   - Realistic simulation of genuine mobile banking workflows (registration -> branch cash deposit -> peer-to-peer transfer).
   - All 107 tests pass with 0 regressions.
+
+---
+
+## ADR-036: Branch Teller Live Customer Search Dropdown, Instant Teller Onboarding Redirect, and First-Login Password Change Enforcement
+
+* **Context**: Branch tellers needed a frictionless mechanism to search registered customers as they type letters, with matching results presented in an interactive dropdown. Furthermore, when tellers onboard new walk-in customers at the branch with temporary passwords, the system needed to immediately switch to the deposit terminal with the new customer pre-selected for initial deposit, while strictly enforcing a mandatory password change on the customer's first login before allowing access to mobile banking services.
+* **Decision**:
+  1. **Live Customer Search Dropdown**:
+     - Integrated a real-time autocomplete search input in the Teller portal (`/employee`) that evaluates search queries against `fullName`, 10-digit `accountNumber` (starting with `1000...`), `phone`, and `email`.
+     - Displays an interactive floating dropdown displaying matching customers with their account number, current balance in ETB, and verification badge.
+     - Clicking any dropdown result immediately selects the customer, populates the deposit recipient card, and closes the dropdown.
+  2. **Branch Teller Customer Onboarding (`registerCustomerByTellerFn`)**:
+     - Built a dedicated "Register Customer at Branch" portal tab enabling tellers to create customers with Full Name, Email, Phone, and Temporary Password.
+     - Issues an active 10-digit account (`1000xxxxxx`) with 0.00 ETB initial balance, sets `must_change_password: true` in `profiles`, and emits `CUSTOMER_ONBOARDED` security telemetry.
+     - Upon registration success, the system automatically redirects/switches back to the Cash Deposit Terminal with the newly created customer pre-selected and ready for immediate cash credit.
+  3. **Mandatory First-Time Login Password Change (`forceChangePasswordFn`)**:
+     - Added `mustChangePassword` flag to `LoginResult` and `getCurrentUser`.
+     - `CustomerShell` intercepts any session where `user.mustChangePassword === true` and displays a non-bypassable password update modal.
+     - Customers are prevented from viewing balances or initiating transfers until they verify their temporary password and submit a new personal password (minimum 8 characters).
+     - Upon successful update, `must_change_password` is cleared to `false` and the mobile banking wallet is unlocked.
+* **Consequences**:
+  - Branch tellers can register customers and immediately credit cash in a unified, two-click workflow.
+  - Temporary passwords issued by tellers cannot be used to operate mobile banking indefinitely; first-login password rotation is enforced.
+  - All 109 automated tests passing across 9 test suites with zero regressions.
