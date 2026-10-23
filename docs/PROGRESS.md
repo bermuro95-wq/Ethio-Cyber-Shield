@@ -398,3 +398,12 @@
   - Implemented real-time dynamic ticking timer in `common.js` updating threat elapsed times (`Just now`, `x seconds ago`) every second.
   - Added explicit **Time Attacked** column and badge across `dashboard.html`, `alerts.html`, and Attack Investigation Dossier Modal.
   - Integrated procedural Web Audio API sound alerts (Critical siren, High double-pulse, Medium chime) with header sound toggle and "Test Audio Alert" control.
+
+- [x] **Enterprise SOC Navigation Redesign & UI De-Fancification (ADR-039)**:
+  - Solved root cause of missing navbar: fixed unexpected bracket syntax error in `ui/js/common.js` that caused browser execution to abort during page render.
+  - Replaced collapsible, mobile-collapsed Bootstrap navbar with permanent, non-collapsing enterprise SOC header (`.ecs-navbar-header`).
+  - Rendered all 6 core security operation views with 1-click persistent visibility across all viewports: **Overview** (`dashboard.html`), **Alerts** (`alerts.html`), **Incidents** (`incidents.html`), **Threat Intel** (`intelligence.html`), **Audit & Compliance** (`audit.html`), and **Settings & Rules** (`settings.html`).
+  - Purged toyish/web3 styling: removed rainbow flowing animations (`@keyframes flow`), candy gradient text fills, and blinking neon halos in `login.html` and `style.css`.
+  - Replaced flashing pulse dots with crisp, solid status dots.
+  - Standardized on an institutional, high-contrast, deep-slate SOC visual design language matching global standards (CrowdStrike Falcon, Splunk ES, Datadog SIEM).
+  - All test suites passing (targetsys 109/109 tests passing, backend unit tests passing).

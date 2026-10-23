@@ -1090,3 +1090,35 @@
   - Seamless operator authentication with zero credential confusion.
   - Live real-time visibility into exact attack timing with ticking relative counters.
   - Multi-sensory SOC awareness via instant audio tones and visual glowing pulse animations.
+
+---
+
+## ADR-039: Enterprise SOC Navigation Redesign & UI De-Fancification (Purging Toyish Aesthetics, Permanent 6-Pill Global SOC Bar)
+
+* **Context**: The user observed that only the dashboard page was accessible with no navbar links visible to navigate to other platform pages. Investigation revealed two root causes:
+  1. A syntax error (extra closing brace `}`) in `ui/js/common.js` that caused the entire script to abort execution in the browser, leaving `<div id="navbar"></div>` blank on page loads.
+  2. Bootstrap's `navbar-expand-lg` with `collapse navbar-collapse` collapsed all navigation links behind a hidden hamburger toggle icon whenever the browser viewport was under 992px wide (e.g., laptops, tablets, split screen, devtools open).
+  3. The UI contained "fancy/toyish" styling (rainbow gradient text, animated flowing rainbow borders, blinking yellow glows) that detracted from the institutional gravity required of a national cyber defense platform.
+* **Decision**:
+  1. **Fixed JavaScript Execution & Parsing**:
+     - Removed the syntax error in `ui/js/common.js`. Verified 100% clean syntax across all frontend scripts via `node --check`.
+  2. **World-Standard Enterprise SOC Command Header (`renderNavbar()`)**:
+     - Engineered a permanent, non-collapsible, flex-wrapped navigation bar (`.ecs-navbar-header` / `.ecs-nav-container`).
+     - Displayed all 6 core operational platform views with 1-click direct access across any screen size:
+       1. **Overview** (`dashboard.html`): Real-time SOC operations, live attack telemetry feed, risk posture, and telemetry stream indicators.
+       2. **Alerts** (`alerts.html`): Filterable detection alerts, risk score badges, rule match diagnostics, and deep-dive attack dossiers.
+       3. **Incidents** (`incidents.html`): Security incidents, ATO chains, case management, containment state, and timeline replay.
+       4. **Threat Intel** (`intelligence.html`): Threat IoCs (IPs, hashes, domains), payment rail transaction fraud, and dynamic watchlists.
+       5. **Audit & Compliance** (`audit.html`): Cryptographic SHA-256 sealed audit trails and statutory incident readiness reports.
+       6. **Settings & Rules** (`settings.html`): Connected target systems (banking rails), autonomous mitigation dispatchers, and RBAC user management.
+     - High-contrast, institutional typography: Slate-300 (`#cbd5e1`) inactive links, crisp white (`#ffffff`) with dark slate background (`#1e293b`) and emerald border accent (`#10b981`) on active pages.
+     - Direct access to live status, audible threat alert toggle, tenant scope indicator, operator identity, and sign out button.
+  3. **Purged Toyish / Web3-Style Aesthetics**:
+     - Removed rainbow gradient flows (`@keyframes flow`), candy text fills, and glowing drop-shadow halos across `login.html` and `style.css`.
+     - Standardized on an institutional, authoritative, deep-slate SOC theme (`#080c14` / `#0f172a` / `#1e293b`).
+     - Replaced pulsating live indicators with crisp, solid status dots.
+* **Consequences**:
+  - All 6 platform pages are always visible and 1-click accessible on all device widths and resolutions.
+  - Zero reliance on Bootstrap collapse/hamburger mechanics for desktop security analysts.
+  - Visual language conforms to world-class security operations centers (CrowdStrike Falcon, Splunk ES, Datadog SIEM).
+

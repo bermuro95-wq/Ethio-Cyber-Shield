@@ -78,7 +78,7 @@
         document.getElementById('navbar').innerHTML = renderNavbar('incidents');
         const params = new URLSearchParams(window.location.search);
         const incidentId = params.get('id');
-        if (!incidentId) { window.location.href = '/incidents.html'; }
+        if (!incidentId) { window.location.href = 'incidents.html'; }
 
         let currentIncident = null;
         let cachedTargets = [];

@@ -20,73 +20,98 @@ function requireAuth(roles = null) {
 
 function renderNavbar(activePage = '') {
     const user = API.getUser();
-    const name = user ? user.full_name : 'Admin';
-    const role = (user && user.role) ? user.role.toLowerCase() : 'viewer';
-    const orgId = user && user.organization_id ? user.organization_id.slice(0, 8) + '...' : 'Default Org';
+    const name = user ? (user.full_name || user.email || 'SOC Operator') : 'SOC Operator';
+    const role = (user && user.role) ? user.role.toLowerCase() : 'admin';
+    const orgId = user && user.organization_id ? (user.organization_id.length > 12 ? user.organization_id.slice(0, 8) + '...' : user.organization_id) : 'ShieldBank SOC';
 
-    // Role-aware navigation permissions
-    const canViewSoc = ['admin', 'analyst', 'responder', 'viewer'].includes(role);
-    const canViewIncidents = ['admin', 'analyst', 'responder', 'auditor'].includes(role);
-    const canViewAudit = ['admin', 'analyst', 'auditor'].includes(role);
-    const canViewAdmin = ['admin'].includes(role);
-
-    let linksHtml = '';
-    if (canViewSoc) {
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='dashboard' || activePage==='live' ?'active':''}" href="dashboard.html"><i class="bi bi-grid-1x2 me-1"></i>Overview</a></li>`;
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='alerts'?'active':''}" href="alerts.html"><i class="bi bi-bell me-1"></i>Alerts</a></li>`;
-    }
-    if (canViewIncidents) {
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='incidents' || activePage==='incident-detail' ?'active':''}" href="incidents.html"><i class="bi bi-shield-exclamation me-1"></i>Incidents</a></li>`;
-    }
-    if (['admin', 'analyst', 'viewer'].includes(role)) {
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='intelligence' || activePage==='indicators' || activePage==='fraud' || activePage==='watchlists' ?'active':''}" href="intelligence.html"><i class="bi bi-cpu me-1"></i>Intelligence</a></li>`;
-    }
-    if (canViewAudit) {
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='audit' || activePage==='reports' ?'active':''}" href="audit.html"><i class="bi bi-journal-check me-1"></i>Audit & Reports</a></li>`;
-    }
-    if (canViewAdmin) {
-        linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='settings' || activePage==='users' ?'active':''}" href="settings.html"><i class="bi bi-sliders me-1"></i>Settings</a></li>`;
-    }
+    const isOverview = activePage === 'dashboard' || activePage === 'live';
+    const isAlerts = activePage === 'alerts';
+    const isIncidents = activePage === 'incidents' || activePage === 'incident-detail';
+    const isIntel = activePage === 'intelligence' || activePage === 'indicators' || activePage === 'fraud' || activePage === 'watchlists';
+    const isAudit = activePage === 'audit' || activePage === 'reports';
+    const isSettings = activePage === 'settings' || activePage === 'users';
 
     const soundBtnHtml = `
-        <button class="btn btn-outline-warning btn-sm py-1 px-2 font-mono me-1" id="btnSoundToggle" onclick="toggleSound()" title="Audio threat notifications active. Click to mute.">
-            <i class="bi bi-volume-up-fill text-warning me-1"></i>Sound: ON
+        <button class="ecs-header-btn ${isSoundEnabled() ? 'ecs-header-btn-sound-on' : 'ecs-header-btn-sound-off'}" id="btnSoundToggle" onclick="toggleSound()" title="${isSoundEnabled() ? 'Audio threat notifications active. Click to mute.' : 'Audio threat notifications muted. Click to enable sound.'}">
+            <i class="bi ${isSoundEnabled() ? 'bi-volume-up-fill' : 'bi-volume-mute-fill'} me-1"></i><span>Sound: ${isSoundEnabled() ? 'ON' : 'OFF'}</span>
         </button>
     `;
 
     return `
-    <nav class="navbar navbar-expand-lg ecs-navbar sticky-top">
-        <div class="container-fluid px-3">
-            <a class="navbar-brand d-flex align-items-center gap-2" href="dashboard.html">
-                <img src="assets/logo-shield.jpg" alt="ECS" class="navbar-logo" width="30" height="30">
-                <span class="brand-text">Ethio-Cyber Shield</span>
-            </a>
-            <div class="d-flex align-items-center me-3 d-none d-md-flex">
-                <span class="live-pill"><span class="live-pulse"></span>LIVE</span>
+    <header class="ecs-navbar-header sticky-top">
+        <div class="ecs-nav-container">
+            <!-- Left: Institutional Branding -->
+            <div class="ecs-brand-wrapper">
+                <a class="ecs-brand-link" href="dashboard.html" title="Ethio-Cyber Shield SOC Command">
+                    <img src="assets/logo-shield.jpg" alt="ECS Shield" class="ecs-brand-icon" width="28" height="28">
+                    <div class="ecs-brand-titles">
+                        <span class="ecs-brand-main">ETHIO-CYBER SHIELD</span>
+                        <span class="ecs-brand-sub">NATIONAL SOC PLATFORM</span>
+                    </div>
+                </a>
+                <span class="ecs-platform-version">v3.0</span>
             </div>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navMain">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    ${linksHtml}
-                </ul>
-                <div class="d-flex align-items-center gap-2">
-                    ${soundBtnHtml}
-                    <span class="badge bg-dark border border-secondary text-secondary d-none d-lg-inline-flex align-items-center gap-1 font-mono">
-                        <i class="bi bi-building"></i> ${escapeHtml(orgId)}
-                    </span>
-                    <span class="small text-muted d-flex align-items-center gap-1 me-2">
-                        <i class="bi bi-person-circle"></i> <strong class="text-light">${escapeHtml(name)}</strong>
-                        <span class="badge bg-secondary ms-1">${escapeHtml(role.toUpperCase())}</span>
-                    </span>
-                    <button class="btn btn-outline-danger btn-sm py-1 px-2" onclick="doLogout()" title="Sign out current device">
-                        <i class="bi bi-box-arrow-right me-1"></i>Sign Out
-                    </button>
+
+            <!-- Center: Core SOC Navigation Links (Always Visible, 1-Click Direct Access) -->
+            <nav class="ecs-nav-links" aria-label="Main Security Operations Navigation">
+                <a class="ecs-nav-link ${isOverview ? 'active' : ''}" href="dashboard.html">
+                    <i class="bi bi-grid-1x2"></i>
+                    <span>Overview</span>
+                </a>
+                <a class="ecs-nav-link ${isAlerts ? 'active' : ''}" href="alerts.html">
+                    <i class="bi bi-bell"></i>
+                    <span>Alerts</span>
+                </a>
+                <a class="ecs-nav-link ${isIncidents ? 'active' : ''}" href="incidents.html">
+                    <i class="bi bi-shield-exclamation"></i>
+                    <span>Incidents</span>
+                </a>
+                <a class="ecs-nav-link ${isIntel ? 'active' : ''}" href="intelligence.html">
+                    <i class="bi bi-cpu"></i>
+                    <span>Threat Intel</span>
+                </a>
+                <a class="ecs-nav-link ${isAudit ? 'active' : ''}" href="audit.html">
+                    <i class="bi bi-journal-check"></i>
+                    <span>Audit & Compliance</span>
+                </a>
+                <a class="ecs-nav-link ${isSettings ? 'active' : ''}" href="settings.html">
+                    <i class="bi bi-sliders"></i>
+                    <span>Settings & Rules</span>
+                </a>
+            </nav>
+
+            <!-- Right: Operational Controls & Session Metadata -->
+            <div class="ecs-nav-controls">
+                <!-- Real-Time Stream Status -->
+                <div class="ecs-stream-pill" title="Deterministic Telemetry Stream Connected">
+                    <span class="ecs-stream-dot"></span>
+                    <span class="ecs-stream-label">STREAM LIVE</span>
                 </div>
+
+                <!-- Audible Alarm Toggle -->
+                ${soundBtnHtml}
+
+                <!-- Tenant / Sector Indicator -->
+                <div class="ecs-org-tag" title="Authenticated Tenant Scope">
+                    <i class="bi bi-building"></i>
+                    <span class="font-mono">${escapeHtml(orgId)}</span>
+                </div>
+
+                <!-- Operator Identity Badge -->
+                <div class="ecs-user-badge" title="Active Security Operator">
+                    <i class="bi bi-person-circle"></i>
+                    <span class="ecs-user-name">${escapeHtml(name)}</span>
+                    <span class="ecs-role-pill">${escapeHtml(role.toUpperCase())}</span>
+                </div>
+
+                <!-- Sign Out -->
+                <button class="ecs-logout-btn" onclick="doLogout()" title="Sign out session">
+                    <i class="bi bi-box-arrow-right"></i>
+                    <span>Sign Out</span>
+                </button>
             </div>
         </div>
-    </nav>`;
+    </header>`;
 }
 
 async function doLogout() {
@@ -215,12 +240,12 @@ function updateSoundToggleButton() {
     const btn = document.getElementById('btnSoundToggle');
     if (!btn) return;
     if (_ecsSoundEnabled) {
-        btn.innerHTML = '<i class="bi bi-volume-up-fill text-warning me-1"></i>Sound: ON';
-        btn.className = 'btn btn-outline-warning btn-sm py-1 px-2 font-mono me-1';
+        btn.innerHTML = '<i class="bi bi-volume-up-fill me-1"></i><span>Sound: ON</span>';
+        btn.className = 'ecs-header-btn ecs-header-btn-sound-on';
         btn.title = 'Audio threat notifications active. Click to mute.';
     } else {
-        btn.innerHTML = '<i class="bi bi-volume-mute-fill text-muted me-1"></i>Sound: OFF';
-        btn.className = 'btn btn-outline-secondary btn-sm py-1 px-2 font-mono me-1';
+        btn.innerHTML = '<i class="bi bi-volume-mute-fill me-1"></i><span>Sound: OFF</span>';
+        btn.className = 'ecs-header-btn ecs-header-btn-sound-off';
         btn.title = 'Audio threat notifications muted. Click to enable sound.';
     }
 }
@@ -407,7 +432,6 @@ function showInstantAlertNotification(alertData) {
     }
 
     playAlertTone(sev);
-}
 }
 
 function initRealTimeStream() {

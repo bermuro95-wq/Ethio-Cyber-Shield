@@ -54,111 +54,100 @@
         }
         .login-card {
             width: 100%;
-            max-width: 420px;
-            background: rgba(8, 12, 18, 0.92);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(7, 137, 48, 0.45);
-            border-radius: 20px;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.75), 0 0 80px rgba(7,137,48,0.15);
+            max-width: 440px;
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            box-shadow: 0 20px 45px rgba(0,0,0,0.7);
             overflow: hidden;
         }
         .card-accent {
-            height: 6px;
-            background: linear-gradient(90deg, #078930, #FCDD09, #DA121A, #0F47AF);
-            background-size: 200% 100%;
-            animation: flow 4s linear infinite;
+            height: 3px;
+            background: #10b981;
         }
-        @keyframes flow {
-            0% { background-position: 0% 50%; }
-            100% { background-position: 200% 50%; }
-        }
-        .card-inner { padding: 1.6rem 1.75rem 1.4rem; }
+        .card-inner { padding: 2rem 2.25rem 1.75rem; }
         .logo-wrap {
             text-align: center;
-            margin-bottom: 0.75rem;
+            margin-bottom: 0.85rem;
         }
         .logo-shield {
-            width: 90px;
-            height: 90px;
+            width: 72px;
+            height: 72px;
             object-fit: contain;
-            border-radius: 10px;
-            filter: drop-shadow(0 0 16px rgba(252,221,9,0.5));
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
             display: inline-block;
         }
         .status-pill {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            background: rgba(7,137,48,0.2);
-            border: 1px solid rgba(7,137,48,0.45);
-            color: #3dd68c;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #34d399;
             font-size: 0.7rem;
             font-weight: 700;
-            padding: 0.25rem 0.75rem;
-            border-radius: 999px;
-            letter-spacing: 0.06em;
-            margin-bottom: 0.6rem;
+            padding: 0.2rem 0.65rem;
+            border-radius: 4px;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         }
         .status-pill .dot {
-            width: 7px; height: 7px;
-            background: #3dd68c;
+            width: 6px; height: 6px;
+            background: #10b981;
             border-radius: 50%;
-            box-shadow: 0 0 6px #3dd68c;
-            animation: blink 1.4s ease-in-out infinite;
-        }
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.35; }
         }
         .brand-title {
-            font-size: 1.5rem;
+            font-size: 1.35rem;
             font-weight: 800;
             text-align: center;
-            margin: 0 0 0.2rem;
-            background: linear-gradient(135deg, #fff, #FCDD09 50%, #078930);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            margin: 0 0 0.25rem;
+            color: #ffffff;
+            letter-spacing: 0.03em;
         }
         .brand-sub {
             text-align: center;
-            color: #8b949e;
-            font-size: 0.82rem;
-            margin-bottom: 1.15rem;
+            color: #94a3b8;
+            font-size: 0.78rem;
+            margin-bottom: 1.35rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 600;
         }
-        .brand-sub span { color: #078930; font-weight: 600; }
+        .brand-sub span { color: #10b981; font-weight: 700; }
 
         .field {
             position: relative;
-            margin-bottom: 0.85rem;
+            margin-bottom: 0.95rem;
         }
         .field input {
             width: 100%;
-            background: rgba(16,22,30,0.95);
-            border: 1px solid #30363d;
-            border-radius: 12px;
+            background: #0b1120;
+            border: 1px solid #334155;
+            border-radius: 6px;
             color: #e6edf3;
-            padding: 0.78rem 2.7rem 0.78rem 2.7rem;
-            font-size: 0.95rem;
+            padding: 0.75rem 2.6rem;
+            font-size: 0.9rem;
             outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            transition: border-color 0.15s, box-shadow 0.15s;
         }
         .field input:focus {
-            border-color: #078930;
-            box-shadow: 0 0 0 3px rgba(7,137,48,0.28);
+            border-color: #10b981;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+            background: #0b1120;
         }
-        .field input::placeholder { color: #6e7681; }
+        .field input::placeholder { color: #64748b; }
         .field .icon-left {
             position: absolute;
             left: 0.95rem;
             top: 50%;
             transform: translateY(-50%);
-            color: #6e7681;
-            font-size: 1.1rem;
+            color: #64748b;
+            font-size: 1rem;
             pointer-events: none;
         }
-        .field input:focus ~ .icon-left { color: #078930; }
+        .field input:focus ~ .icon-left { color: #10b981; }
         .btn-eye {
             position: absolute;
             right: 0.7rem;
@@ -166,41 +155,41 @@
             transform: translateY(-50%);
             background: transparent;
             border: none;
-            color: #8b949e;
+            color: #64748b;
             cursor: pointer;
             padding: 0.35rem;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             line-height: 1;
             z-index: 5;
         }
-        .btn-eye:hover { color: #FCDD09; }
+        .btn-eye:hover { color: #cbd5e1; }
 
         .forgot-row {
             text-align: right;
             margin: -0.25rem 0 0.9rem;
         }
         .forgot-row a {
-            color: #8b949e;
-            font-size: 0.84rem;
+            color: #94a3b8;
+            font-size: 0.82rem;
             text-decoration: none;
         }
-        .forgot-row a:hover { color: #FCDD09; }
+        .forgot-row a:hover { color: #10b981; }
 
         .btn-primary-login {
             width: 100%;
-            padding: 0.85rem;
+            padding: 0.8rem;
             border: none;
-            border-radius: 12px;
+            border-radius: 6px;
             font-weight: 700;
-            font-size: 0.95rem;
-            letter-spacing: 0.04em;
+            font-size: 0.88rem;
+            letter-spacing: 0.05em;
             color: #000;
-            background: linear-gradient(135deg, #078930, #00a84f 45%, #FCDD09);
+            background: #10b981;
             cursor: pointer;
-            box-shadow: 0 4px 20px rgba(7,137,48,0.45);
+            transition: background 0.15s ease;
         }
         .btn-primary-login:hover:not(:disabled) {
-            filter: brightness(1.08);
+            background: #059669;
         }
         .btn-primary-login:disabled {
             opacity: 0.7;
