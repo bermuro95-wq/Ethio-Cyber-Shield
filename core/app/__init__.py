@@ -115,6 +115,7 @@ def create_app():
 
 
 
+    @app.route('/health')
     @app.route('/api/health')
     def health():
         from app.services.db import check_db_health
