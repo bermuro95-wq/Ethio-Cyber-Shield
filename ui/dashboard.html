@@ -28,6 +28,9 @@
                 <span class="badge bg-dark border border-secondary text-muted d-none d-sm-inline-flex align-items-center gap-1 font-mono small" id="targetSyncBadge">
                     <i class="bi bi-broadcast text-success"></i> Pipeline: Connected
                 </span>
+                <button class="btn btn-outline-warning btn-sm" id="btnTestSound" onclick="playAlertTone('critical', true)" title="Test audible siren & alert chime">
+                    <i class="bi bi-bell-fill me-1"></i> Test Audio Alert
+                </button>
                 <button class="btn btn-outline-info btn-sm" id="btnSync" onclick="pollTargetNow()">
                     <i class="bi bi-cloud-arrow-down me-1"></i> Poll Target
                 </button>
@@ -89,7 +92,7 @@
                             <table class="table table-hover align-middle mb-0" id="attacksTable">
                                 <thead>
                                     <tr>
-                                        <th style="width: 95px;">Time (EAT)</th>
+                                        <th style="width: 145px;"><i class="bi bi-clock-history text-warning me-1"></i>Time Attacked</th>
                                         <th style="width: 85px;">Severity</th>
                                         <th>Attack & Rule Fired</th>
                                         <th>Origin & Location</th>
@@ -196,7 +199,7 @@
 
                 <div class="modal-body p-3">
                     <!-- Top Risk & Status Banner -->
-                    <div class="d-flex flex-wrap justify-content-between align-items-center p-2 mb-3 rounded bg-dark border border-secondary gap-2">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center p-2 mb-2 rounded bg-dark border border-secondary gap-2">
                         <div class="d-flex align-items-center gap-2">
                             <span class="small text-muted">Deterministic Risk Score:</span>
                             <span class="fs-5 fw-bold font-mono" id="mDossierRiskScore">75/100</span>
@@ -205,6 +208,20 @@
                         <div class="d-flex align-items-center gap-1 font-mono small text-muted">
                             <i class="bi bi-lock-fill text-success"></i> SHA-256 Seal:
                             <code class="text-success small" id="mDossierSeal">0000000000000000</code>
+                        </div>
+                    </div>
+
+                    <!-- Explicit Time Attacked Banner -->
+                    <div class="d-flex flex-wrap justify-content-between align-items-center px-3 py-2 mb-3 rounded border border-warning-subtle gap-2" style="background: rgba(245, 158, 11, 0.08);">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-clock-history fs-5 text-warning"></i>
+                            <div>
+                                <div class="small text-muted" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px;">Attack Event Timestamp</div>
+                                <div class="fw-bold text-light font-mono" id="mDossierTimeAttacked">-</div>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-warning text-dark font-mono px-2 py-1" id="mDossierTimeRelative" style="font-size:0.8rem;">Just now</span>
                         </div>
                     </div>
 
@@ -489,11 +506,14 @@
                 const sevClass = a.severity === 'critical' ? 'badge-critical' :
                                  a.severity === 'high' ? 'badge-high' :
                                  a.severity === 'medium' ? 'badge-medium' : 'badge-low';
-                const time = formatLocalTime(a.created_at);
+                const tInfo = formatThreatTime(a.created_at || a.occurred_at);
 
                 return `
                 <tr id="alertRow_${escapeHtml(a.id)}">
-                    <td class="font-mono small text-muted">${time}</td>
+                    <td class="font-mono small" data-threat-time="${escapeHtml(a.created_at || a.occurred_at || '')}">
+                        <div class="fw-bold text-light">${escapeHtml(tInfo.timeOnly)} <span class="badge bg-dark border border-secondary text-warning font-mono time-relative" style="font-size:0.68rem;">${escapeHtml(tInfo.relative)}</span></div>
+                        <div class="text-muted" style="font-size:0.68rem;" title="${escapeHtml(tInfo.full)}">${escapeHtml(tInfo.dateOnly)} EAT</div>
+                    </td>
                     <td><span class="badge ${sevClass} text-uppercase">${escapeHtml(a.severity)}</span></td>
                     <td>
                         <div class="fw-semibold text-light">${escapeHtml(d.attack.rule_name || a.title)}</div>
@@ -634,6 +654,13 @@
             document.getElementById('mDossierTitle').textContent = d.attack?.rule_name || d.title || 'Attack Dossier';
             document.getElementById('mDossierRiskScore').textContent = `${d.risk_score || 75}/100`;
             document.getElementById('mDossierSeal').textContent = (d.evidence_hash || '').slice(0, 16) + '...';
+
+            // Time Attacked
+            const tInfo = formatThreatTime(d.occurred_at || alertObj?.created_at || d.created_at || new Date().toISOString());
+            const timeAttackedEl = document.getElementById('mDossierTimeAttacked');
+            const timeRelEl = document.getElementById('mDossierTimeRelative');
+            if (timeAttackedEl) timeAttackedEl.textContent = tInfo.full;
+            if (timeRelEl) timeRelEl.textContent = tInfo.relative;
 
             const statusBadge = document.getElementById('mDossierStatusBadge');
             statusBadge.textContent = d.containment?.status || 'CONTAINED';
@@ -832,6 +859,9 @@
             if (!alertData) return;
             const d = alertData.dossier || synthesizeClientDossier(alertData);
             alertData.dossier = d;
+
+            // Trigger audible alarm / chime immediately
+            playAlertTone(alertData.severity || 'high');
 
             // Check if already in list
             const existingIdx = _cachedAlerts.findIndex(a => a.id === alertData.id);

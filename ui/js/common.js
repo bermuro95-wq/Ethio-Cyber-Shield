@@ -48,6 +48,12 @@ function renderNavbar(activePage = '') {
         linksHtml += `<li class="nav-item"><a class="nav-link ${activePage==='settings' || activePage==='users' ?'active':''}" href="settings.html"><i class="bi bi-sliders me-1"></i>Settings</a></li>`;
     }
 
+    const soundBtnHtml = `
+        <button class="btn btn-outline-warning btn-sm py-1 px-2 font-mono me-1" id="btnSoundToggle" onclick="toggleSound()" title="Audio threat notifications active. Click to mute.">
+            <i class="bi bi-volume-up-fill text-warning me-1"></i>Sound: ON
+        </button>
+    `;
+
     return `
     <nav class="navbar navbar-expand-lg ecs-navbar sticky-top">
         <div class="container-fluid px-3">
@@ -66,6 +72,7 @@ function renderNavbar(activePage = '') {
                     ${linksHtml}
                 </ul>
                 <div class="d-flex align-items-center gap-2">
+                    ${soundBtnHtml}
                     <span class="badge bg-dark border border-secondary text-secondary d-none d-lg-inline-flex align-items-center gap-1 font-mono">
                         <i class="bi bi-building"></i> ${escapeHtml(orgId)}
                     </span>
@@ -153,7 +160,7 @@ function noData(msg = 'No data available.') {
 }
 
 // -----------------------------------------------------------------------------
-// Real-Time Notification & SSE Engine
+// Real-Time Notification & Dynamic Sound Engine
 // -----------------------------------------------------------------------------
 
 let _ecsEventSource = null;
@@ -161,30 +168,180 @@ let _ecsReconnectTimer = null;
 let _ecsLastSeenAlert = null;
 const _seenAlertIds = new Set();
 
-function playAlertTone(severity) {
-    try {
+let _ecsSoundEnabled = localStorage.getItem('ecs_sound_enabled') !== 'false';
+let _audioCtx = null;
+
+function getAudioContext() {
+    if (!_audioCtx) {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtx) return;
-        const ctx = new AudioCtx();
-        if (ctx.state === 'suspended') {
-            ctx.resume();
+        if (AudioCtx) {
+            _audioCtx = new AudioCtx();
         }
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        const isHigh = severity === 'critical' || severity === 'high';
-        osc.type = isHigh ? 'sawtooth' : 'sine';
-        osc.frequency.setValueAtTime(isHigh ? 880 : 587, ctx.currentTime);
-        gain.gain.setValueAtTime(0.12, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (isHigh ? 0.35 : 0.2));
-
-        osc.start();
-        osc.stop(ctx.currentTime + (isHigh ? 0.4 : 0.25));
-    } catch (e) {
-        // AudioContext blocked by browser autoplay policy
     }
+    if (_audioCtx && _audioCtx.state === 'suspended') {
+        _audioCtx.resume().catch(() => {});
+    }
+    return _audioCtx;
+}
+
+// User-gesture audio unlock so browser autoplay policy never blocks alerts
+if (typeof document !== 'undefined') {
+    document.addEventListener('click', () => {
+        getAudioContext();
+    }, { once: true });
+}
+
+function isSoundEnabled() {
+    return _ecsSoundEnabled;
+}
+
+function setSoundEnabled(enabled) {
+    _ecsSoundEnabled = !!enabled;
+    localStorage.setItem('ecs_sound_enabled', _ecsSoundEnabled ? 'true' : 'false');
+    updateSoundToggleButton();
+}
+
+function toggleSound() {
+    setSoundEnabled(!_ecsSoundEnabled);
+    if (_ecsSoundEnabled) {
+        playAlertTone('medium', true);
+        showToast('Threat Audio Alert: ENABLED', 'success');
+    } else {
+        showToast('Threat Audio Alert: MUTED', 'warning');
+    }
+}
+
+function updateSoundToggleButton() {
+    const btn = document.getElementById('btnSoundToggle');
+    if (!btn) return;
+    if (_ecsSoundEnabled) {
+        btn.innerHTML = '<i class="bi bi-volume-up-fill text-warning me-1"></i>Sound: ON';
+        btn.className = 'btn btn-outline-warning btn-sm py-1 px-2 font-mono me-1';
+        btn.title = 'Audio threat notifications active. Click to mute.';
+    } else {
+        btn.innerHTML = '<i class="bi bi-volume-mute-fill text-muted me-1"></i>Sound: OFF';
+        btn.className = 'btn btn-outline-secondary btn-sm py-1 px-2 font-mono me-1';
+        btn.title = 'Audio threat notifications muted. Click to enable sound.';
+    }
+}
+
+function playAlertTone(severity = 'medium', force = false) {
+    if (!_ecsSoundEnabled && !force) return;
+    try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const sev = (severity || 'medium').toLowerCase();
+
+        if (sev === 'critical') {
+            // High-urgency warble siren (880Hz -> 1046Hz -> 880Hz -> 1174Hz)
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(880, now);
+            osc.frequency.linearRampToValueAtTime(1046, now + 0.12);
+            osc.frequency.linearRampToValueAtTime(880, now + 0.24);
+            osc.frequency.linearRampToValueAtTime(1174, now + 0.36);
+            gain.gain.setValueAtTime(0.24, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+            osc.start(now);
+            osc.stop(now + 0.58);
+        } else if (sev === 'high') {
+            // Rapid double alert beep (740Hz)
+            [0, 0.16].forEach(offset => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(740, now + offset);
+                gain.gain.setValueAtTime(0.18, now + offset);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.12);
+                osc.start(now + offset);
+                osc.stop(now + offset + 0.13);
+            });
+        } else if (sev === 'medium') {
+            // Melodic notification chime (587Hz -> 784Hz)
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587, now);
+            osc.frequency.exponentialRampToValueAtTime(784, now + 0.18);
+            gain.gain.setValueAtTime(0.18, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+            osc.start(now);
+            osc.stop(now + 0.35);
+        } else {
+            // Subtle ping (440Hz)
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, now);
+            gain.gain.setValueAtTime(0.12, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+            osc.start(now);
+            osc.stop(now + 0.20);
+        }
+    } catch (e) {
+        // Audio blocked
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Real-Time Time Formatting & Dynamic Elapsed Ticker
+// -----------------------------------------------------------------------------
+
+function getRelativeTime(dateOrIso) {
+    if (!dateOrIso) return '-';
+    try {
+        const d = dateOrIso instanceof Date ? dateOrIso : new Date(dateOrIso);
+        const diffMs = Date.now() - d.getTime();
+        const diffSec = Math.max(0, Math.floor(diffMs / 1000));
+        if (diffSec < 5) return 'Just now';
+        if (diffSec < 60) return `${diffSec}s ago`;
+        const diffMin = Math.floor(diffSec / 60);
+        if (diffMin < 60) return `${diffMin}m ago`;
+        const diffHours = Math.floor(diffMin / 60);
+        if (diffHours < 24) return `${diffHours}h ago`;
+        const diffDays = Math.floor(diffHours / 24);
+        return `${diffDays}d ago`;
+    } catch {
+        return '-';
+    }
+}
+
+function formatThreatTime(isoStr) {
+    if (!isoStr) return { relative: '-', full: '-', timeOnly: '-', dateOnly: '-', raw: '' };
+    try {
+        const d = new Date(isoStr);
+        const timeOnly = d.toLocaleTimeString('en-ET', { timeZone: 'Africa/Addis_Ababa', hour12: false });
+        const dateOnly = d.toLocaleDateString('en-ET', { timeZone: 'Africa/Addis_Ababa', year: 'numeric', month: 'short', day: 'numeric' });
+        const full = `${dateOnly} ${timeOnly} EAT`;
+        const relative = getRelativeTime(d);
+        return { relative, full, timeOnly, dateOnly, raw: isoStr };
+    } catch {
+        return { relative: '-', full: String(isoStr), timeOnly: String(isoStr).slice(11, 19), dateOnly: '-', raw: isoStr };
+    }
+}
+
+// Dynamic interval updating all threat timers on the page in real-time
+if (typeof setInterval !== 'undefined') {
+    setInterval(() => {
+        document.querySelectorAll('[data-threat-time]').forEach(el => {
+            const iso = el.getAttribute('data-threat-time');
+            if (iso) {
+                const rel = getRelativeTime(iso);
+                const relSpan = el.querySelector('.time-relative');
+                if (relSpan) relSpan.textContent = rel;
+            }
+        });
+    }, 1000);
 }
 
 function showInstantAlertNotification(alertData) {
@@ -192,7 +349,6 @@ function showInstantAlertNotification(alertData) {
     if (_seenAlertIds.has(alertData.id)) return;
     _seenAlertIds.add(alertData.id);
 
-    // Keep set bounded
     if (_seenAlertIds.size > 200) {
         const first = _seenAlertIds.values().next().value;
         _seenAlertIds.delete(first);
@@ -213,6 +369,7 @@ function showInstantAlertNotification(alertData) {
     const borderClass = borderMap[sev] || 'info';
     const badgeClass = badgeMap[sev] || 'info';
 
+    const tInfo = formatThreatTime(alertData.created_at || alertData.occurred_at || new Date().toISOString());
     const toastId = 'alert-toast-' + alertData.id.replace(/[^a-zA-Z0-9_-]/g, '');
     const html = `
     <div id="${toastId}" class="toast border border-${borderClass} shadow-lg mb-2 text-light" role="alert" aria-live="assertive" aria-atomic="true" style="background: rgba(18, 22, 28, 0.96); backdrop-filter: blur(8px); min-width: 320px; max-width: 420px;">
@@ -226,6 +383,10 @@ function showInstantAlertNotification(alertData) {
             <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
         <div class="toast-body py-2">
+            <div class="d-flex justify-content-between align-items-center mb-1 text-muted small" style="font-size:0.75rem;">
+                <span><i class="bi bi-clock-history me-1 text-warning"></i>Time Attacked:</span>
+                <span class="font-mono text-warning">${escapeHtml(tInfo.timeOnly)} EAT (${escapeHtml(tInfo.relative)})</span>
+            </div>
             <div class="small text-light mb-2">${escapeHtml(alertData.description || 'Deterministic rule matched suspicious event telemetry.')}</div>
             <div class="d-flex justify-content-between align-items-center pt-2 border-top border-secondary small">
                 <div>
@@ -246,6 +407,7 @@ function showInstantAlertNotification(alertData) {
     }
 
     playAlertTone(sev);
+}
 }
 
 function initRealTimeStream() {
@@ -327,14 +489,16 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
-// Auto-initialize real-time stream across all pages
+// Auto-initialize real-time stream and sound button across all pages
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
+        updateSoundToggleButton();
         if (typeof API !== 'undefined' && API.isAuthenticated()) {
             initRealTimeStream();
         }
     });
 } else {
+    updateSoundToggleButton();
     if (typeof API !== 'undefined' && API.isAuthenticated()) {
         initRealTimeStream();
     }

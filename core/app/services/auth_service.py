@@ -361,8 +361,11 @@ def role_required(*roles):
 def authenticate_user(email: str, password: str) -> dict | None:
     """Authenticate user against database with organization context"""
     try:
+        norm_email = email.lower().strip()
+        if norm_email == 'admin':
+            norm_email = 'admin@ethiocybershield.et'
         sb = get_service_supabase()
-        result = sb.table('users').select('*').eq('email', email.lower().strip()).eq('is_active', True).execute()
+        result = sb.table('users').select('*').eq('email', norm_email).eq('is_active', True).execute()
         if not result.data or len(result.data) == 0:
             return None
         user = result.data[0]

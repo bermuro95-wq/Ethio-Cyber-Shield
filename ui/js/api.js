@@ -63,11 +63,15 @@ const API = {
         const res = await fetch(`${CONFIG.API_BASE_URL}${path}`, opts);
         
         if (res.status === 401) {
+            const data = await res.json().catch(() => ({}));
+            if (path === '/auth/login' || path.startsWith('/auth/login')) {
+                throw new Error(data.error || 'Invalid email or password.');
+            }
             this.clearAuth();
             if (!window.location.pathname.includes('login')) {
                 window.location.href = 'login.html?session_expired=concurrent';
             }
-            throw new Error('Unauthorized');
+            throw new Error(data.error || 'Session expired or unauthorized');
         }
 
         const data = await res.json().catch(() => ({}));

@@ -1062,3 +1062,31 @@
   - Full end-to-end detection and alert creation verified across all attack categories.
   - Zero hardcoding of rule definitions (all rules defined declaratively as data).
   - Target system test suite remains 100% passing (109/109 tests).
+
+
+---
+
+## ADR-038: Real-Time Dynamic Threat Time Ticker, Multi-Alias Admin Authentication & Browser-Resilient Audible Threat Alerts
+
+* **Context**: Security analysts reported receiving "Unauthorized" errors during ECS console login, while threat attack timestamps remained static on the dashboard without live elapsed counter updates or audible siren alerts for incoming critical/high threats.
+* **Decision**:
+  1. **Multi-Alias Administrator Authentication**:
+     - Configured credential support across all administrative usernames (`admin@ethiocybershield.et`, `admin@shieldbank.test`, `admin@honorpay.et`, and shorthand `admin`) mapped to active administrator role.
+     - Patched `api.js` to preserve descriptive server error responses (e.g. `Invalid credentials`) rather than throwing generic `Unauthorized` exceptions.
+     - Added a 1-click **Autofill Demo Admin Credentials** helper card in `login.html`.
+  2. **Real-Time Dynamic Threat Time Ticker**:
+     - Engineered `formatThreatTime()` and `getRelativeTime()` in `common.js` rendering both exact localized timestamp (`23:19:47 EAT · 2026-10-23`) and live dynamic relative counter badges (`Just now`, `12s ago`, `2m ago`).
+     - Established a lightweight 1-second global DOM ticker updating all `[data-threat-time]` elements in real-time without requiring page reload.
+     - Added explicit, dedicated **Time Attacked** banners and badges across the Live Attack Stream, Alerts table, and the Attack Investigation Dossier Modal.
+  3. **Procedural Multi-Tone Audible Alert Notification Engine**:
+     - Built a Web Audio API procedural synthesizer playing distinctive threat alerts based on incident severity:
+       - **Critical**: Emergency dual-tone warble siren (880Hz &rarr; 1046Hz &rarr; 1174Hz).
+       - **High**: Urgent double alert pulse (740Hz square wave).
+       - **Medium**: Melodic advisory warning chime (587Hz &rarr; 784Hz sine wave).
+       - **Low**: Subtle acknowledgment blip (440Hz).
+     - Added persistent Sound ON/OFF toggle in the sticky navigation header and an interactive **Test Audio Alert** button on the dashboard.
+     - Attached user-gesture event listeners to ensure browser autoplay policies never silence real-time security alerts.
+* **Consequences**:
+  - Seamless operator authentication with zero credential confusion.
+  - Live real-time visibility into exact attack timing with ticking relative counters.
+  - Multi-sensory SOC awareness via instant audio tones and visual glowing pulse animations.

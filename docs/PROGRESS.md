@@ -391,3 +391,10 @@
   - Normalized event contract results in `event_contract.py` (`BLOCKED` -> `DENIED`, `PENDING` -> `HELD`).
   - Authored comprehensive `ATTACK_TESTING_GUIDE.md` covering 28+ step-by-step attack scenarios for Burp Suite, cURL, and browser.
   - Verified live alert generation, attack dossier enrichment, and containment triggers end-to-end.
+
+- [x] **Audible Threat Notifications, Real-Time Time Attacked Ticker & Multi-Alias Login (ADR-038)**:
+  - Added multi-alias login support for `admin@ethiocybershield.et`, `admin@shieldbank.test`, `admin@honorpay.et`, and `admin` with `Testbed#2026`.
+  - Added 1-click credential autofill to `login.html` and patched `api.js` to eliminate false "Unauthorized" error masking.
+  - Implemented real-time dynamic ticking timer in `common.js` updating threat elapsed times (`Just now`, `x seconds ago`) every second.
+  - Added explicit **Time Attacked** column and badge across `dashboard.html`, `alerts.html`, and Attack Investigation Dossier Modal.
+  - Integrated procedural Web Audio API sound alerts (Critical siren, High double-pulse, Medium chime) with header sound toggle and "Test Audio Alert" control.
