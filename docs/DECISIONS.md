@@ -987,3 +987,29 @@
 
 
 
+
+---
+
+## ADR-031: HonorPay Mobile Banking Rebranding, Employee Teller Portal, and Registered-Only Transfer Architecture
+
+* **Context**: The target financial application needed to accurately model an authentic Ethiopian mobile banking system (HonorPay). Users required a realistic branch teller operations portal to credit deposits into customer accounts, while enforcing strict deposit balance and registered-user constraints for all peer-to-peer mobile transfers.
+* **Decision**:
+  1. **Rebranding to HonorPay**:
+     - System renamed from "ShieldBank" to "HonorPay" across customer mobile portal, administrative ops shell, landing page, and authentication surfaces.
+     - Formatted currency to ETB santim minor units and normalized timezone to Addis Ababa (`Africa/Addis_Ababa`, UTC+3).
+  2. **Dedicated Employee & Branch Teller Portal (`/employee`)**:
+     - Built a branch teller dashboard for cash-in and customer account credit operations.
+     - Enables tellers to search registered customers by account number, phone, email, or name.
+     - Tellers process cash deposits with instant double-entry ledger settlement (`CREDIT` to customer account, `DEBIT` to central settlement/vault).
+     - Emits structured `DEPOSIT_PROCESSED` security events with SHA-256 seal to ECS for SOC fraud and anomaly monitoring.
+     - Seeded teller staff credentials (`teller@honorpay.et` / `Testbed#2026`).
+  3. **Strict Transfer Invariants & Registered-Only Routing**:
+     - Customers can strictly transfer funds **only** to registered HonorPay customer accounts.
+     - Direct live recipient identity lookup resolves phone and account numbers to verified recipient names before transfer execution.
+     - Transfers can only be funded from the customer's available deposit balance (`balance_minor >= amount_minor`). Overdraft and zero-deposit transfers are blocked at both client and server validation layers.
+  4. **Mobile Banking UX Overhaul**:
+     - Modern mobile-first digital card design with hide/show balance toggle, quick account copy, and transaction status pills.
+     - Real-time distinction between teller cash deposits (`+ETB`) and outbound transfers (`-ETB`) in the live activity feed.
+* **Consequences**:
+  - Realistic simulation of genuine mobile banking workflows (registration -> branch cash deposit -> peer-to-peer transfer).
+  - All 107 tests pass with 0 regressions.

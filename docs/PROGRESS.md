@@ -373,3 +373,11 @@
 
 
 
+- [x] **HonorPay Mobile Banking & Branch Teller Portal (ADR-031)**:
+  - Rebranded target application from "ShieldBank" to "HonorPay" with digital mobile banking aesthetics, ETB santim minor units, and Addis Ababa (UTC+3) formatting.
+  - Built dedicated Employee / Branch Teller Portal (`/employee`) enabling bank staff to look up registered customers and credit cash deposits via double-entry ledger settlement (`CREDIT` customer account, `DEBIT` vault/settlement).
+  - Enforced registered-only recipient restriction: customers can only transfer to registered HonorPay customer accounts with verified recipient lookup.
+  - Enforced deposit-only balance rule: customers start with 0.00 ETB deposit balance upon registration and can only transfer funds up to their deposited balance. Zero-deposit and overdraft transfers are blocked.
+  - Emits structured `DEPOSIT_PROCESSED` security events to ECS for real-time fraud monitoring.
+  - Built mobile-first digital card with balance hide/show, quick copy account number, and instant deposit credit indicators.
+  - Added test suite `honorpay-banking.test.ts` (6/6 passing); all 9 test files (107/107 tests) passing with 0 regressions.
