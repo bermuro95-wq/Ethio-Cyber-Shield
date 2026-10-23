@@ -1,0 +1,26 @@
+id: API-007
+name: Web Application Parameter Injection (SQLi / XSS / Command Injection)
+description: >
+  Detects offensive parameter tampering patterns including SQL injection, cross-site scripting (XSS),
+  path traversal, shell command injection, or template injection in HTTP query/body payloads.
+layer: L1
+pack: api
+severity: high
+weight: 50
+lifecycle_state: live
+version: "1.0.0"
+tags:
+  - sqli
+  - xss
+  - command_injection
+  - path_traversal
+  - owasp_top10
+  - mitre:T1190
+remediation_hints: >
+  Review parameter payloads in the security event log. Ensure all database queries use parameterized
+  statements. Enforce strict input validation and HTML encoding. Verify IP blocklist containment.
+detection:
+  trigger_event_types:
+    - SUSPICIOUS_PARAMETER_PATTERN
+  thresholds:
+    count: 1

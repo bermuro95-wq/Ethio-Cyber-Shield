@@ -1,0 +1,28 @@
+id: API-006
+name: Concurrent Session / Session Hijack Anomaly
+description: >
+  Detects when an authenticated session is revoked (forced logout) and a new session
+  is immediately created from a different IP address or device, indicating potential
+  session token theft or cookie hijacking by a threat actor.
+layer: L2
+pack: api
+severity: high
+weight: 45
+lifecycle_state: live
+version: "1.0.0"
+tags:
+  - session_hijack
+  - cookie_theft
+  - concurrent_session
+  - mitre:T1539
+  - mitre:T1563
+remediation_hints: >
+  Force logout all active sessions for the affected account. Require re-authentication
+  with MFA. Investigate network path between old and new session IPs. Check for
+  XSS or MITM indicators. Notify the account holder immediately.
+detection:
+  trigger_event_types:
+    - SESSION_REVOKED
+    - SESSION_CREATED
+  thresholds:
+    window_seconds: 300

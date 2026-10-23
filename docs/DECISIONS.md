@@ -1037,3 +1037,28 @@
   - Branch tellers can register customers and immediately credit cash in a unified, two-click workflow.
   - Temporary passwords issued by tellers cannot be used to operate mobile banking indefinitely; first-login password rotation is enforced.
   - All 109 automated tests passing across 9 test suites with zero regressions.
+
+
+---
+
+## ADR-037: Comprehensive Attack Surface Detection Expansion & Multi-Vector Red-Team Testing Guide (32 Detection Rules)
+
+* **Context**: ECS needed to reliably identify, evaluate, and alert on at least 20 distinct cyberattack and financial threat types targeting critical digital banking infrastructure (HonorPay). While 27 detection rules previously existed, coverage gaps existed for critical banking attack vectors: OTP brute-forcing, account lockout storms, session hijacking / concurrent session token abuse, web application parameter injection (SQLi/XSS/Command Injection), and teller/agent deposit structuring. In addition, security engineers and penetration testers needed a comprehensive, step-by-step attack execution guide with exact Burp Suite and curl parameters for every threat.
+* **Decision**:
+  1. **Expanded Rule Pack to 32 Declarative Detection Rules**:
+     - Defined declarative Sigma-inspired YAML specifications in `backend/app/rules/definitions/`:
+       - `AUTH-005` (`auth_005_otp_brute_force.yaml`): Detects rapid successive OTP/2FA verification failures on an account/challenge.
+       - `AUTH-006` (`auth_006_account_lockout_storm.yaml`): Detects automated denial-of-service / lockout storms triggered by brute force.
+       - `API-006` (`api_006_concurrent_session_anomaly.yaml`): Detects concurrent session anomalies, session token theft, and cookie hijacking across distinct IPs.
+       - `API-007` (`api_007_suspicious_parameter_injection.yaml`): Detects web application parameter tampering, SQL injection, XSS, command injection, and path traversal from HonorPay input scanning.
+       - `FRAUD-008` (`fraud_008_deposit_structuring.yaml`): Detects cash-in / deposit structuring near the NBE 50,000 ETB anti-money laundering threshold.
+     - Implemented explainable deterministic evaluation logic in `RuleEngine.evaluate_event()`.
+  2. **Interoperable Event Contract Normalization**:
+     - Updated `event_contract.py` to seamlessly normalize target system status results: mapping `BLOCKED` to canonical `DENIED` and `PENDING` to canonical `HELD`, preventing schema validation rejections during attack telemetry ingest.
+  3. **Comprehensive Attack Testing Guide (`ATTACK_TESTING_GUIDE.md`)**:
+     - Authored an exhaustive testing handbook covering 28+ distinct attack scenarios across 7 functional threat categories (Web Application Injection, Authentication/Brute Force, API/Session Tampering, Financial Fraud & AML, Account Takeover, Insider Threat, Threat Intelligence).
+     - Provided exact Burp Suite Repeater/Intruder settings, cURL scripts, telemetry payloads, expected ECS rule IDs, severity ratings, and SOC console verification steps for every scenario.
+* **Consequences**:
+  - Full end-to-end detection and alert creation verified across all attack categories.
+  - Zero hardcoding of rule definitions (all rules defined declaratively as data).
+  - Target system test suite remains 100% passing (109/109 tests).

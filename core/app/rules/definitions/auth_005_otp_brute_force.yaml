@@ -1,0 +1,28 @@
+id: AUTH-005
+name: OTP / 2FA Brute Force Attack
+description: >
+  Detects rapid successive OTP failures on a single account or challenge, indicating an adversary
+  attempting to brute-force one-time passcodes or step-up authentication codes.
+  Commonly observed during account takeover campaigns where credentials are already compromised.
+layer: L2
+pack: auth
+severity: high
+weight: 40
+lifecycle_state: live
+version: "1.0.0"
+tags:
+  - otp
+  - 2fa
+  - brute_force
+  - account_takeover
+  - mitre:T1110
+remediation_hints: >
+  Lock OTP for the affected account immediately. Invalidate all active sessions.
+  Notify account holder via registered email/phone. Escalate if combined with prior
+  password failure events (potential ATO chain). Review OTP delivery logs for interception signs.
+detection:
+  trigger_event_types:
+    - OTP_FAILED
+  thresholds:
+    burst_count: 3
+    window_seconds: 120

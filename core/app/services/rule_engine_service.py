@@ -533,7 +533,9 @@ class RuleEngine:
             # --- Rule 14: FRAUD-003 (SIM-Swap Prior to Transfer) ---
             elif rule_id == 'FRAUD-003' and event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED'):
                 min_amount = float(thresholds.get('min_amount_etb', 25000.0))
-                is_sim_swap = bool(attributes.get('sim_swap_recent') or attributes.get('sim_swap_detected') or (attributes.get('sim_swap_hours_ago', 99) <= 24) or lab_scenario == 'sim_swap')
+                recent_pw_events = get_window(86400, match_acc=account)
+                has_recent_pw_change = any(e.get('event_type') in ('PASSWORD_CHANGED', 'auth.password.changed') for e in recent_pw_events)
+                is_sim_swap = bool(attributes.get('sim_swap_recent') or attributes.get('sim_swap_detected') or has_recent_pw_change or (attributes.get('sim_swap_hours_ago', 99) <= 24) or lab_scenario == 'sim_swap')
                 if is_sim_swap and amount_etb >= min_amount:
                     matched = True
                     evidence = {'sim_swap_detected': True, 'account': account, 'amount_etb': amount_etb}
@@ -556,19 +558,21 @@ class RuleEngine:
             # --- Rule 16: FRAUD-005 (USSD / Agent Abuse Burst) ---
             elif rule_id == 'FRAUD-005':
                 burst_thresh = int(thresholds.get('burst_count', 5))
-                is_ussd_agent = channel in ('ussd', 'agent') or (event_type in ('WITHDRAWAL_CREATED', 'TRANSFER_CREATED') and channel in ('ussd', 'agent'))
-                recent_channel_events = get_window(120, match_acc=account)
-                channel_count = sum(1 for e in recent_channel_events if str(e.get('channel') or '').lower() in ('ussd', 'agent'))
-                if (is_ussd_agent and channel_count >= burst_thresh) or attributes.get('ussd_abuse_burst') or lab_scenario == 'ussd_abuse':
-                    matched = True
-                    count = max(channel_count, burst_thresh)
-                    evidence = {'burst_count': count, 'channel': channel, 'account': account}
-                    summary = f"High-velocity {channel.upper()} channel burst: {count} operations within 120s on {account}"
+                is_ussd_agent = channel in ('ussd', 'agent', 'agent_cashin') or (event_type in ('WITHDRAWAL_CREATED', 'TRANSFER_CREATED', 'DEPOSIT_PROCESSED') and channel in ('ussd', 'agent', 'agent_cashin'))
+                if is_ussd_agent or attributes.get('ussd_abuse_burst') or lab_scenario == 'ussd_abuse':
+                    recent_channel_events = get_window(120, match_acc=account)
+                    channel_count = sum(1 for e in recent_channel_events if str(e.get('channel') or '').lower() in ('ussd', 'agent', 'agent_cashin'))
+                    if (is_ussd_agent and channel_count >= burst_thresh) or attributes.get('ussd_abuse_burst') or lab_scenario == 'ussd_abuse':
+                        matched = True
+                        count = max(channel_count, burst_thresh)
+                        evidence = {'burst_count': count, 'channel': channel, 'account': account}
+                        summary = f"High-velocity {channel.upper()} channel burst: {count} operations within 120s on {account}"
 
             # --- Rule 17: FRAUD-006 (APP Coached Transfer) ---
             elif rule_id == 'FRAUD-006' and event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED'):
                 min_amount = float(thresholds.get('min_amount_etb', 50000.0))
-                is_coached = bool(attributes.get('app_scam') or attributes.get('coached_session') or (attributes.get('telephony_call_active') and attributes.get('is_first_transfer_to_payee')) or lab_scenario == 'app_fraud')
+                is_first_payee = bool(attributes.get('is_first_transfer_to_payee') or attributes.get('is_first_transfer_to_beneficiary'))
+                is_coached = bool(attributes.get('app_scam') or attributes.get('coached_session') or (attributes.get('telephony_call_active') and is_first_payee) or lab_scenario == 'app_fraud')
                 if is_coached and amount_etb >= min_amount:
                     matched = True
                     evidence = {'coached_session': True, 'amount_etb': amount_etb, 'account': account}
@@ -658,6 +662,64 @@ class RuleEngine:
                     matched = True
                     evidence = {'query_snippet': query_str or 'direct SQL tamper on audit_logs', 'source_ip': source_ip}
                     summary = f"CRITICAL: Cryptographic audit trail tampering attempt detected on security audit logs"
+
+            # --- Rule 28: AUTH-005 (OTP / 2FA Brute Force) ---
+            elif rule_id == 'AUTH-005' and event_type in ('OTP_FAILED', 'AUTH_CHALLENGE_FAILED'):
+                burst_thresh = int(thresholds.get('burst_count', 3))
+                attempts = int(attributes.get('attempts') or attributes.get('consecutive_otp_failures') or 0)
+                acc_ident = account or attributes.get('identifier') or event.get('user_id')
+                recent_fails = get_window(120, match_acc=acc_ident)
+                failed_count = sum(1 for e in recent_fails if e.get('event_type') in ('OTP_FAILED', 'AUTH_CHALLENGE_FAILED'))
+                max_fails = max(attempts, failed_count)
+                if max_fails >= burst_thresh or attributes.get('otp_brute_force') or lab_scenario == 'otp_brute_force':
+                    matched = True
+                    evidence = {'attempts': max(max_fails, burst_thresh), 'account': acc_ident, 'challenge_id': attributes.get('challenge_id')}
+                    summary = f"OTP/2FA brute force attempt detected ({max(max_fails, burst_thresh)} failures) on {acc_ident or 'account'}"
+
+            # --- Rule 29: AUTH-006 (Account Lockout Storm) ---
+            elif rule_id == 'AUTH-006' and event_type in ('ACCOUNT_LOCKED', 'USER_LOCKED'):
+                burst_thresh = int(thresholds.get('burst_count', 1))
+                reason = attributes.get('reason') or attributes.get('lock_reason') or 'LOCKOUT_THRESHOLD'
+                acc_ident = account or attributes.get('identifier') or event.get('user_id')
+                recent_locks = get_window(60, match_ip=source_ip)
+                lock_count = sum(1 for e in recent_locks if e.get('event_type') in ('ACCOUNT_LOCKED', 'USER_LOCKED'))
+                if max(lock_count, 1) >= burst_thresh or attributes.get('account_locked') or lab_scenario == 'account_lockout':
+                    matched = True
+                    evidence = {'account': acc_ident, 'source_ip': source_ip, 'reason': reason, 'lockout_count': max(lock_count, 1)}
+                    summary = f"Security account lockout triggered on {acc_ident or 'account'} ({reason}) from IP {source_ip}"
+
+            # --- Rule 30: API-006 (Concurrent Session / Session Hijack Anomaly) ---
+            elif rule_id == 'API-006':
+                is_hijack = bool(attributes.get('session_hijack') or attributes.get('concurrent_session_anomaly') or lab_scenario == 'session_hijack')
+                ip_changed = bool(attributes.get('ip_changed_from_last_session') or attributes.get('ip_mismatch'))
+                untrusted = (attributes.get('device_known') is False or attributes.get('new_device') is True)
+                if event_type in ('SESSION_REVOKED', 'SESSION_CREATED') and (is_hijack or (ip_changed and untrusted)):
+                    matched = True
+                    evidence = {'source_ip': source_ip, 'ip_changed': ip_changed, 'account': account or event.get('user_id')}
+                    summary = f"Suspicious session activity / possible token hijacking from IP {source_ip} for {account or 'user'}"
+
+            # --- Rule 31: API-007 (Web Application Parameter Injection) ---
+            elif rule_id == 'API-007' and (event_type == 'SUSPICIOUS_PARAMETER_PATTERN' or attributes.get('pattern_class') or attributes.get('injection_detected') or lab_scenario == 'input_injection'):
+                pattern_class = attributes.get('pattern_class') or 'INJECTION'
+                field_name = attributes.get('field_name') or 'parameter'
+                sample = attributes.get('sample') or 'malicious_input'
+                matched = True
+                evidence = {'pattern_class': pattern_class, 'field': field_name, 'sample': sample, 'source_ip': source_ip}
+                summary = f"Offensive web application {pattern_class} injection attempt in parameter '{field_name}' from IP {source_ip}"
+
+            # --- Rule 32: FRAUD-008 (Deposit Structuring / Smurfing) ---
+            elif rule_id == 'FRAUD-008' and event_type in ('DEPOSIT_PROCESSED', 'CASH_IN', 'DEPOSIT_CREATED'):
+                lower_b = float(thresholds.get('lower_bound_etb', 30000.0))
+                upper_b = float(thresholds.get('upper_bound_etb', 50000.0))
+                burst_thresh = int(thresholds.get('burst_count', 3))
+                is_in_band = (lower_b <= amount_etb <= upper_b)
+                recent_deposits = get_window(3600, match_acc=account)
+                dep_count = sum(1 for e in recent_deposits if e.get('event_type') in ('DEPOSIT_PROCESSED', 'CASH_IN') and lower_b <= float(e.get('amount') or (e.get('amount_minor', 0) / 100.0) or 0) <= upper_b)
+                if (is_in_band and dep_count >= burst_thresh) or attributes.get('deposit_structuring') or lab_scenario == 'deposit_structuring':
+                    matched = True
+                    count = max(dep_count, burst_thresh)
+                    evidence = {'consecutive_deposits': count, 'amount_etb': amount_etb, 'lower_bound': lower_b, 'upper_bound': upper_b, 'account': account}
+                    summary = f"Deposit structuring detected: {count} cash deposits near NBE reporting threshold ({lower_b:,.0f}-{upper_b:,.0f} ETB) on {account}"
 
             # If matched, append to fired rules
             if matched:

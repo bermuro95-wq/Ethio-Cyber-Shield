@@ -383,3 +383,11 @@
   - Enforced deposit-only balance rule: customers start with 0.00 ETB deposit balance upon registration and can only transfer funds up to their deposited balance. Zero-deposit and overdraft transfers are blocked.
   - Emits structured `DEPOSIT_PROCESSED` and `CUSTOMER_ONBOARDED` security events to ECS for real-time fraud monitoring.
   - Added test suite `honorpay-banking.test.ts` (8/8 passing); all 9 test files (109/109 tests) passing with 0 regressions.
+
+- [x] **20+ Distinct Attack Surface Detection & Attack Testing Handbook (ADR-037)**:
+  - Audited all existing 27 detection rules and target system telemetry emitters.
+  - Implemented 5 new declarative detection rules expanding coverage to 32 detection rules: `AUTH-005` (OTP Brute Force), `AUTH-006` (Account Lockout Storm), `API-006` (Session Hijack Anomaly), `API-007` (SQLi/XSS/Command Injection), and `FRAUD-008` (Branch/Agent Deposit Structuring).
+  - Enhanced rule evaluation in `rule_engine_service.py` with sliding window inspection and deterministic explainable evidence synthesis.
+  - Normalized event contract results in `event_contract.py` (`BLOCKED` -> `DENIED`, `PENDING` -> `HELD`).
+  - Authored comprehensive `ATTACK_TESTING_GUIDE.md` covering 28+ step-by-step attack scenarios for Burp Suite, cURL, and browser.
+  - Verified live alert generation, attack dossier enrichment, and containment triggers end-to-end.

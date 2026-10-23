@@ -1,0 +1,32 @@
+id: FRAUD-008
+name: Deposit Structuring / Smurfing (Cash-In)
+description: >
+  Detects multiple deposit operations just below the NBE regulatory reporting threshold
+  (50,000 ETB), indicating deliberate structuring to avoid anti-money laundering monitoring.
+  Common in money laundering syndicates utilizing branch tellers or mobile money agents.
+layer: L2
+pack: fraud
+severity: high
+weight: 50
+lifecycle_state: live
+version: "1.0.0"
+tags:
+  - money_laundering
+  - structuring
+  - smurfing
+  - nbe_compliance
+  - ethiopia_finance
+  - mitre:T1565
+remediation_hints: >
+  Flag account for AML review under National Bank of Ethiopia Directive SBB/84/2022.
+  Place temporary credit hold on account pending customer source of funds verification.
+  File Suspicious Transaction Report (STR) if pattern cannot be justified.
+detection:
+  trigger_event_types:
+    - DEPOSIT_PROCESSED
+    - CASH_IN
+  thresholds:
+    lower_bound_etb: 30000.0
+    upper_bound_etb: 50000.0
+    burst_count: 3
+    window_seconds: 3600

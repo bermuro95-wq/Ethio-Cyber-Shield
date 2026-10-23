@@ -1,0 +1,28 @@
+id: AUTH-006
+name: Account Lockout Storm
+description: >
+  Fires when account lockout events occur, indicating an adversary
+  triggering repeated credential failures to deny access or following a brute force campaign
+  causing widespread lockouts across the customer base.
+layer: L2
+pack: auth
+severity: medium
+weight: 30
+lifecycle_state: live
+version: "1.0.0"
+tags:
+  - lockout
+  - brute_force
+  - credential_stuffing
+  - denial_of_service
+  - mitre:T1110.001
+remediation_hints: >
+  Block the originating IP range immediately. Alert operations center about potential
+  mass credential attack. Review AUTH-001 and AUTH-002 alerts correlating this event.
+  Consider CAPTCHA enforcement. Notify affected account holders.
+detection:
+  trigger_event_types:
+    - ACCOUNT_LOCKED
+  thresholds:
+    burst_count: 1
+    window_seconds: 60
