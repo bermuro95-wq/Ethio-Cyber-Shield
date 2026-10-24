@@ -1163,6 +1163,29 @@
 
 ---
 
+## ADR-043: Full Cloud Production Deployment of ECS on Render via Render CLI
+
+* **Context**: Following the configuration of unified static serving and Render Blueprint files, the user authenticated the Render CLI and requested automated cloud deployment and infrastructure provisioning for the ECS platform.
+* **Decision**:
+  1. **Render Infrastructure Provisioning via Render CLI**:
+     - **Database**: Created Render PostgreSQL instance `ecs-postgres` (ID: `dpg-dbefthom7kps73dp2bn0-a`, version 18, region: `oregon`, status: `available`).
+     - **Cache & Streams**: Created Render Key-Value Redis instance `ecs-redis` (ID: `red-dbeftkjncjis73e4gsb0`, version 8.1.10, region: `oregon`, status: `available`).
+     - **Web Service**: Created web service `ethio-cyber-shield` (ID: `srv-dbefu6ss728c73c47d3g`, runtime: `python`, region: `oregon`, plan: `free`, branch: `v3-independent`).
+  2. **Automated Schema Initialization**:
+     - Configured IP allowlist and executed `deploy/postgres/init.sql` against `ecs-postgres` provisioning all core tables (organizations, users, target_systems, security_events, alerts, incidents, declarative rules, hash-sealed audit trail).
+     - Seeded administrative credentials (`admin@ethiocybershield.et`, `admin@shieldbank.test`, `admin@honorpay.et`) with bcrypt hashed password `Testbed#2026`.
+  3. **Live Connected Banking Target Linkage**:
+     - Configured `target_systems` on Render to route directly to the live HonorPay banking cloud deployment (`https://honorpay-banking.vercel.app`), creating a completely cloud-hosted detection and banking pipeline.
+  4. **Verification**:
+     - Deployed commit `f68722d` via Render CLI. Deploy `dep-dbefu74s728c73c47ed0` transitioned to `live`.
+     - Confirmed `/api/health` returns `status: "ok"` with `database: "healthy"` (1ms latency) and `stream_engine: "redis"`.
+     - Confirmed all web console views (`/`, `/login.html`, `/dashboard.html`) and authenticated APIs (`/api/auth/login`, `/api/dashboard/stats`, `/api/targets`) return HTTP/2 200 OK.
+* **Consequences**:
+  - The independent Ethio-Cyber-Shield platform is fully live in cloud production at: **`https://ethio-cyber-shield.onrender.com`**.
+  - Connected to cloud digital banking target: **`https://honorpay-banking.vercel.app`**.
+
+---
+
 ## ADR-042: Minimalist Institutional SOC UI/UX & High-Contrast Typography System
 
 * **Context**: The user identified that the ECS dashboard contained unnecessary distracting coloring (rainbow borders on stat boxes, multi-colored neon outline buttons, and saturated badge fills) and low-contrast/invisible text elements (`text-muted`, `text-dim` rendering dark-gray-on-dark-background with contrast ratios < 3:1). The user requested a very professional, highly minimalized, modern design standard (inspired by CrowdStrike Falcon, Datadog SIEM, Linear, and Vercel) with 100% visible, legible text.

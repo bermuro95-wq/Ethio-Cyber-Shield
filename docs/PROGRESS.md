@@ -430,3 +430,15 @@
   - Refactored sub-tabs from radioactive neon green blocks to sleek dark slate active pills (`#1e293b`, border `#334155`, text `#ffffff`).
   - Standardized severity and status badges on modern, translucent, high-contrast pill badges (`badge-critical`, `badge-high`, `badge-medium`, `badge-soc-neutral`).
   - Upgraded `alerts.html`, `incidents.html`, `intelligence.html`, `audit.html`, `settings.html`, and `login.html` to the unified minimalist SOC standard.
+
+- [x] **Full Cloud Production Deployment of ECS on Render via Render CLI (ADR-043)**:
+  - Authenticated Render CLI with team workspace `My Workspace` (`musab` / `mushas1248@gmail.com`).
+  - Provisioned Render PostgreSQL managed database `ecs-postgres` (ID: `dpg-dbefthom7kps73dp2bn0-a`, v18, Oregon).
+  - Provisioned Render Redis managed Key-Value instance `ecs-redis` (ID: `red-dbeftkjncjis73e4gsb0`, v8.1.10, Oregon).
+  - Executed `deploy/postgres/init.sql` schema and seeded core tables (`organizations`, `users`, `target_systems`, `security_events`, `alerts`, `incidents`, `declarative_rules`, `audit_log`).
+  - Configured bcrypt hashed password `Testbed#2026` for administrative accounts (`admin@ethiocybershield.et`, `admin@shieldbank.test`, `admin@honorpay.et`).
+  - Created Render Python Web Service `ethio-cyber-shield` (ID: `srv-dbefu6ss728c73c47d3g`, branch: `v3-independent`, Oregon) with automated health check `/api/health`.
+  - Configured cloud production environment variables (`DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `ECS_MASTER_ENCRYPTION_KEY`, `TARGET_SYSTEM_URL=https://honorpay-banking.vercel.app`, etc.).
+  - Successfully deployed to live URL: **`https://ethio-cyber-shield.onrender.com`**.
+  - Verified live endpoint responses over HTTPS: `/api/health` (HTTP 200 OK, database healthy 1ms latency, Redis stream engine active), UI console (`/`, `/login.html`, `/dashboard.html`), and authenticated JWT session authentication (`/api/auth/login`).
+
