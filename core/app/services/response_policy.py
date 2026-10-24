@@ -178,11 +178,100 @@ def evaluate_and_execute_containment(event: dict, alert: dict = None, incident: 
     # Execute planned mitigations
     executed_results = []
     any_success = False
+    org_id = event.get('organization_id') or (incident.get('organization_id') if incident else None) or (alert.get('organization_id') if alert else None)
 
     for act in planned_actions:
         act_type = act['action_type']
         entity_id = act['entity_id']
         reason = act['reason']
+
+        # Determine entity type
+        if act_type == 'block_ip':
+            entity_type = 'ip'
+        elif act_type == 'freeze_transaction':
+            entity_type = 'transaction'
+        elif act_type == 'revoke_session':
+            entity_type = 'session'
+        elif act_type == 'require_step_up':
+            entity_type = 'user'
+        elif act_type == 'disable_beneficiary':
+            entity_type = 'beneficiary'
+        elif act_type == 'lock_account':
+            entity_type = 'account'
+        else:
+            entity_type = 'target'
+
+        if org_id:
+            from app.services.guardrails_service import GuardrailsService
+            from app.services.response_modes_service import ResponseModesService
+
+            # 1. Guardrail evaluation
+            gr_eval = GuardrailsService.evaluate_guardrails(
+                org_id=org_id,
+                action_type=act_type,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                confidence=detection_result.get('confidence', 'high')
+            )
+            if not gr_eval.get('passed'):
+                executed_results.append({
+                    'action_type': act_type,
+                    'target_entity': entity_id,
+                    'status': 'blocked_by_guardrail',
+                    'blocked_by': gr_eval.get('blocked_by'),
+                    'reason': gr_eval.get('reason'),
+                })
+                continue
+
+            # 2. Response Mode evaluation
+            eff_mode = ResponseModesService.get_effective_mode(org_id, act_type)
+            if eff_mode == 'observe':
+                sim = ResponseModesService.process_action_request(org_id, {
+                    'action_type': act_type,
+                    'entity_type': entity_type,
+                    'entity_id': entity_id,
+                    'reason': reason,
+                    'confidence': detection_result.get('confidence', 'high'),
+                    'alert_id': alert_id,
+                    'incident_id': incident_id
+                })
+                executed_results.append({
+                    'action_type': act_type,
+                    'target_entity': entity_id,
+                    'status': 'simulated',
+                    'mode': 'observe',
+                    'simulated_action_id': sim.get('simulated_action_id'),
+                    'would_have_executed': True
+                })
+                continue
+            elif eff_mode == 'recommend':
+                executed_results.append({
+                    'action_type': act_type,
+                    'target_entity': entity_id,
+                    'status': 'recommended',
+                    'mode': 'recommend',
+                    'reason': reason
+                })
+                continue
+            elif eff_mode == 'approve':
+                cfg = ResponseModesService.get_mode_config(org_id, act_type)
+                from app.services.playbook_service import PlaybookService
+                appr = PlaybookService.create_approval_request(
+                    org_id=org_id,
+                    action_type=act_type,
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                    reason=reason,
+                    requires_two_person=cfg.get('requires_two_person_approval', False)
+                )
+                executed_results.append({
+                    'action_type': act_type,
+                    'target_entity': entity_id,
+                    'status': 'pending_approval',
+                    'mode': 'approve',
+                    'approval_request_id': appr.get('id')
+                })
+                continue
 
         res = None
         if act_type == 'freeze_transaction':
@@ -202,6 +291,9 @@ def evaluate_and_execute_containment(event: dict, alert: dict = None, incident: 
             is_confirmed = res.get('status') == 'confirmed'
             if is_confirmed:
                 any_success = True
+                if org_id:
+                    from app.services.guardrails_service import GuardrailsService
+                    GuardrailsService.record_action_execution(org_id, act_type, entity_type, entity_id)
             executed_results.append({
                 'action_type': act_type,
                 'target_entity': entity_id,

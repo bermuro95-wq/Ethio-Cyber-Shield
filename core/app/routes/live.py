@@ -195,46 +195,49 @@ def recent_events():
     limit = min(int(request.args.get('limit', 30)), 100)
     minutes = min(int(request.args.get('minutes', 120)), 1440)
     since = (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
-    sb = get_service_supabase()
-
     events = []
 
-    tx_res = sb.table('transactions').select('*')\
-        .eq('is_suspicious', True)\
-        .gte('transaction_time', since)\
-        .order('transaction_time', desc=True).limit(limit).execute()
-    for t in (tx_res.data or []):
-        events.append({
-            'kind': 'transaction',
-            'id': t['id'],
-            'time': t.get('transaction_time'),
-            'title': f"Suspicious {t.get('transaction_type', 'tx')} — {float(t.get('amount') or 0):,.0f} ETB",
-            'detail': '; '.join(t.get('suspicion_reasons') or []) or 'Flagged by rules',
-            'severity': 'high',
-            'account': t.get('account_number'),
-            'device_id': t.get('device_id'),
-            'ip_address': t.get('ip_address'),
-            'status': t.get('status'),
-        })
+    try:
+        sb = get_service_supabase()
 
-    alert_res = sb.table('alerts').select('*')\
-        .gte('created_at', since)\
-        .order('created_at', desc=True).limit(limit).execute()
-    for a in (alert_res.data or []):
-        events.append({
-            'kind': 'alert',
-            'id': a['id'],
-            'time': a.get('created_at'),
-            'title': a.get('title'),
-            'detail': a.get('description') or '',
-            'severity': a.get('severity') or 'medium',
-            'status': a.get('status'),
-            'alert_type': a.get('alert_type'),
-            'related_transaction_id': a.get('related_transaction_id'),
-        })
+        tx_res = sb.table('transactions').select('*')\
+            .eq('is_suspicious', True)\
+            .gte('transaction_time', since)\
+            .order('transaction_time', desc=True).limit(limit).execute()
+        for t in (tx_res.data or []):
+            events.append({
+                'kind': 'transaction',
+                'id': t['id'],
+                'time': t.get('transaction_time'),
+                'title': f"Suspicious {t.get('transaction_type', 'tx')} — {float(t.get('amount') or 0):,.0f} ETB",
+                'detail': '; '.join(t.get('suspicion_reasons') or []) or 'Flagged by rules',
+                'severity': 'high',
+                'account': t.get('account_number'),
+                'device_id': t.get('device_id'),
+                'ip_address': t.get('ip_address'),
+                'status': t.get('status'),
+            })
 
-    events.sort(key=lambda e: e.get('time') or '', reverse=True)
-    events = events[:limit]
+        alert_res = sb.table('alerts').select('*')\
+            .gte('created_at', since)\
+            .order('created_at', desc=True).limit(limit).execute()
+        for a in (alert_res.data or []):
+            events.append({
+                'kind': 'alert',
+                'id': a['id'],
+                'time': a.get('created_at'),
+                'title': a.get('title'),
+                'detail': a.get('description') or '',
+                'severity': a.get('severity') or 'medium',
+                'status': a.get('status'),
+                'alert_type': a.get('alert_type'),
+                'related_transaction_id': a.get('related_transaction_id'),
+            })
+
+        events.sort(key=lambda e: e.get('time') or '', reverse=True)
+        events = events[:limit]
+    except Exception as e:
+        logger.warning(f"Error fetching recent live events: {e}")
 
     return jsonify({
         'events': events,
@@ -265,17 +268,18 @@ def live_stream():
 
     last_seen = request.args.get('since')  # ISO timestamp
     if not last_seen:
-        last_seen = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        # Default to now - 15 seconds to catch immediately preceding alert
+        last_seen = (datetime.now(timezone.utc) - timedelta(seconds=15)).isoformat()
 
     def generate():
         nonlocal last_seen
         # Heartbeat + poll loop (client reconnects if needed)
-        for _ in range(120):  # ~4 minutes of connection then client reconnects
+        for _ in range(180):  # ~3 minutes of connection then client reconnects
             try:
                 sb = get_service_supabase()
                 res = sb.table('alerts').select(
                     'id, title, description, severity, status, alert_type, created_at, related_transaction_id'
-                ).gt('created_at', last_seen).order('created_at', asc=True).limit(20).execute()
+                ).gt('created_at', last_seen).order('created_at', desc=False).limit(20).execute()
                 rows = res.data or []
                 for row in rows:
                     last_seen = row['created_at']
@@ -285,7 +289,7 @@ def live_stream():
                 yield f"event: ping\ndata: {json.dumps({'ts': datetime.now(timezone.utc).isoformat()})}\n\n"
             except Exception as e:
                 yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
-            time.sleep(2)
+            time.sleep(1)
 
     return Response(
         stream_with_context(generate()),

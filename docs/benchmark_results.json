@@ -1,0 +1,758 @@
+{
+  "benchmark_id": "448fa2f3-dbaa-4a5a-a4f4-0c373adcbd53",
+  "organization_id": "00000000-0000-0000-0000-000000000001",
+  "timestamp": "2026-10-21T12:08:59.967314+00:00",
+  "gate_3_passed": true,
+  "gate_criteria": {
+    "min_detection_rate": 0.9,
+    "max_false_positive_rate": 0.1
+  },
+  "metrics": {
+    "scenario_detection_rate": 1.0,
+    "false_positive_rate": 0.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "true_positives": 13,
+    "false_positives": 0,
+    "false_negatives": 0,
+    "true_negatives": 3,
+    "total_attack_scenarios": 13,
+    "total_benign_scenarios": 3,
+    "total_scenarios_evaluated": 16
+  },
+  "pack_metrics": {
+    "fraud_payments": {
+      "total_scenarios": 6,
+      "detected_scenarios": 6,
+      "detection_rate": 1.0
+    },
+    "web_api": {
+      "total_scenarios": 4,
+      "detected_scenarios": 4,
+      "detection_rate": 1.0
+    },
+    "insider_admin": {
+      "total_scenarios": 3,
+      "detected_scenarios": 3,
+      "detection_rate": 1.0
+    }
+  },
+  "rule_metrics": {
+    "FRAUD-001": {
+      "expected": 1,
+      "fired": 1
+    },
+    "ATO-001": {
+      "expected": 1,
+      "fired": 1
+    },
+    "AUTH-001": {
+      "expected": 1,
+      "fired": 1
+    },
+    "AUTH-003": {
+      "expected": 1,
+      "fired": 1
+    },
+    "TX-001": {
+      "expected": 4,
+      "fired": 3
+    },
+    "FRAUD-002": {
+      "expected": 1,
+      "fired": 1
+    },
+    "FRAUD-003": {
+      "expected": 1,
+      "fired": 1
+    },
+    "FRAUD-004": {
+      "expected": 1,
+      "fired": 1
+    },
+    "FRAUD-005": {
+      "expected": 1,
+      "fired": 1
+    },
+    "FRAUD-006": {
+      "expected": 1,
+      "fired": 1
+    },
+    "AUTH-002": {
+      "expected": 1,
+      "fired": 1
+    },
+    "API-001": {
+      "expected": 1,
+      "fired": 0
+    },
+    "API-002": {
+      "expected": 1,
+      "fired": 1
+    },
+    "API-004": {
+      "expected": 1,
+      "fired": 1
+    },
+    "API-003": {
+      "expected": 1,
+      "fired": 1
+    },
+    "ADMIN-001": {
+      "expected": 1,
+      "fired": 1
+    },
+    "PRIV-001": {
+      "expected": 1,
+      "fired": 0
+    },
+    "ADMIN-005": {
+      "expected": 1,
+      "fired": 1
+    },
+    "ADMIN-004": {
+      "expected": 1,
+      "fired": 0
+    },
+    "ADMIN-002": {
+      "expected": 1,
+      "fired": 1
+    },
+    "ADMIN-003": {
+      "expected": 1,
+      "fired": 1
+    }
+  },
+  "scenario_results": [
+    {
+      "scenario_id": "SCEN-01-ATO-CHAIN",
+      "name": "Account Takeover Multi-Stage Chain",
+      "category": "fraud_payments",
+      "is_attack": true,
+      "is_detected": true,
+      "events_evaluated": 9,
+      "target_rules": [
+        "FRAUD-001",
+        "ATO-001",
+        "AUTH-001",
+        "AUTH-003",
+        "TX-001"
+      ],
+      "fired_rules": [
+        "FRAUD-001",
+        "AUTH-001",
+        "ATO-001",
+        "AUTH-003",
+        "TX-004",
+        "TX-001"
+      ],
+      "target_hits": [
+        "FRAUD-001",
+        "ATO-001",
+        "AUTH-001",
+        "AUTH-003",
+        "TX-001"
+      ],
+      "peak_risk_score": 100,
+      "peak_severity": "critical",
+      "detections": [
+        {
+          "rule_id": "AUTH-001",
+          "name": "Login Failure Burst",
+          "severity": "medium",
+          "weight": 25,
+          "summary": "Rapid login failures (5 attempts) on account ACC_VICTIM_caccfc within 60s",
+          "event_id": "c719365f-5b02-44ea-8432-850a3ea228c4"
+        },
+        {
+          "rule_id": "AUTH-003",
+          "name": "New Device After Suspicious Failures",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Login from unrecognized hardware (DEV_ROGUE_df6fb2) following 6 failed attempts",
+          "event_id": "c4fc7ab8-6a76-4619-9748-3ee6a202386a"
+        },
+        {
+          "rule_id": "TX-001",
+          "name": "High-Value Transfer Anomaly",
+          "severity": "medium",
+          "weight": 20,
+          "summary": "Transfer of 150,000 ETB exceeds the high-value risk threshold (100,000 ETB)",
+          "event_id": "d34bb48c-3272-465a-ab66-ff9f4f0272cd"
+        },
+        {
+          "rule_id": "FRAUD-001",
+          "name": "Rapid Beneficiary Add and Transfer",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Rapid transfer of 150,000 ETB to newly registered beneficiary within 15m",
+          "event_id": "d34bb48c-3272-465a-ab66-ff9f4f0272cd"
+        },
+        {
+          "rule_id": "TX-004",
+          "name": "Untrusted Device Transfer",
+          "severity": "high",
+          "weight": 25,
+          "summary": "Transfer initiated from unverified hardware device (DEV_ROGUE_df6fb2)",
+          "event_id": "d34bb48c-3272-465a-ab66-ff9f4f0272cd"
+        },
+        {
+          "rule_id": "ATO-001",
+          "name": "Account Takeover Chain (ATO)",
+          "severity": "critical",
+          "weight": 80,
+          "summary": "CRITICAL: Full Account Takeover attack chain detected on ACC_VICTIM_caccfc",
+          "event_id": "d34bb48c-3272-465a-ab66-ff9f4f0272cd"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-02-MULE-TRANSFER",
+      "name": "Mule Pass-Through Account Funnel",
+      "category": "fraud_payments",
+      "is_attack": true,
+      "is_detected": true,
+      "events_evaluated": 1,
+      "target_rules": [
+        "FRAUD-002",
+        "TX-001"
+      ],
+      "fired_rules": [
+        "FRAUD-002",
+        "TX-001"
+      ],
+      "target_hits": [
+        "FRAUD-002",
+        "TX-001"
+      ],
+      "peak_risk_score": 55,
+      "peak_severity": "high",
+      "detections": [
+        {
+          "rule_id": "TX-001",
+          "name": "High-Value Transfer Anomaly",
+          "severity": "medium",
+          "weight": 20,
+          "summary": "Transfer of 180,000 ETB exceeds the high-value risk threshold (100,000 ETB)",
+          "event_id": "53f883f0-b66a-4175-a76b-3bdbd32f5244"
+        },
+        {
+          "rule_id": "FRAUD-002",
+          "name": "Mule Pass-Through Account Pattern",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Mule syndicate pass-through: rapid inbound funds immediately dissipated (85%+) on ACC_MULE_533ba6",
+          "event_id": "53f883f0-b66a-4175-a76b-3bdbd32f5244"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-03-SIM-SWAP",
+      "name": "SIM-Swap Credential Reset with Transfer",
+      "category": "fraud_payments",
+      "is_attack": true,
+      "is_detected": true,
+      "events_evaluated": 1,
+      "target_rules": [
+        "TX-001",
+        "FRAUD-003"
+      ],
+      "fired_rules": [
+        "FRAUD-003",
+        "TX-001"
+      ],
+      "target_hits": [
+        "FRAUD-003",
+        "TX-001"
+      ],
+      "peak_risk_score": 60,
+      "peak_severity": "high",
+      "detections": [
+        {
+          "rule_id": "TX-001",
+          "name": "High-Value Transfer Anomaly",
+          "severity": "medium",
+          "weight": 20,
+          "summary": "Transfer of 120,000 ETB exceeds the high-value risk threshold (100,000 ETB)",
+          "event_id": "d6c9fec2-e52f-4129-8263-82b4440cc0ed"
+        },
+        {
+          "rule_id": "FRAUD-003",
+          "name": "SIM-Swap or Credential Reset Prior to Transfer",
+          "severity": "critical",
+          "weight": 40,
+          "summary": "Transfer of 120,000 ETB following recent SIM swap / credential reset on ACC_SIMSWAP_23c80f",
+          "event_id": "d6c9fec2-e52f-4129-8263-82b4440cc0ed"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-04-STRUCTURING",
+      "name": "Transaction Structuring Under Limits",
+      "category": "fraud_payments",
+      "is_attack": true,
+      "is_detected": true,
+      "events_evaluated": 4,
+      "target_rules": [
+        "FRAUD-004"
+      ],
+      "fired_rules": [
+        "FRAUD-004"
+      ],
+      "target_hits": [
+        "FRAUD-004"
+      ],
+      "peak_risk_score": 30,
+      "peak_severity": "medium",
+      "detections": [
+        {
+          "rule_id": "FRAUD-004",
+          "name": "Transaction Structuring Under Reporting Threshold",
+          "severity": "high",
+          "weight": 30,
+          "summary": "Transaction structuring detected: 3 transfers near regulatory threshold (40,000-50,000 ETB)",
+          "event_id": "ab358b81-f852-4d44-800e-753b31c5225a"
+        },
+        {
+          "rule_id": "FRAUD-004",
+          "name": "Transaction Structuring Under Reporting Threshold",
+          "severity": "high",
+          "weight": 30,
+          "summary": "Transaction structuring detected: 3 transfers near regulatory threshold (40,000-50,000 ETB)",
+          "event_id": "fe5dae7c-2754-4324-aa01-f0ecd70a5c16"
+        },
+        {
+          "rule_id": "FRAUD-004",
+          "name": "Transaction Structuring Under Reporting Threshold",
+          "severity": "high",
+          "weight": 30,
+          "summary": "Transaction structuring detected: 3 transfers near regulatory threshold (40,000-50,000 ETB)",
+          "event_id": "96b94b81-f628-47fb-b8c8-db20076c965e"
+        },
+        {
+          "rule_id": "FRAUD-004",
+          "name": "Transaction Structuring Under Reporting Threshold",
+          "severity": "high",
+          "weight": 30,
+          "summary": "Transaction structuring detected: 3 transfers near regulatory threshold (40,000-50,000 ETB)",
+          "event_id": "25e4a45a-b554-4dd9-8901-8c6c8aeb7f09"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-05-USSD-CASH-OUT",
+      "name": "USSD Session Burst & Agent Abuse",
+      "category": "fraud_payments",
+      "is_attack": true,
+      "is_detected": true,
+      "events_evaluated": 6,
+      "target_rules": [
+        "FRAUD-005"
+      ],
+      "fired_rules": [
+        "FRAUD-005"
+      ],
+      "target_hits": [
+        "FRAUD-005"
+      ],
+      "peak_risk_score": 30,
+      "peak_severity": "medium",
+      "detections": [
+        {
+          "rule_id": "FRAUD-005",
+          "name": "USSD and Agent Cash-Out Burst",
+          "severity": "high",
+          "weight": 30,
+          "summary": "High-velocity USSD channel burst: 5 operations within 120s on ACC_USSD_e41115",
+          "event_id": "6da6207b-1a77-4edd-aa26-4b9e9d6ee419"
+        },
+        {
+          "rule_id": "FRAUD-005",
+          "name": "USSD and Agent Cash-Out Burst",
+          "severity": "high",
+          "weight": 30,
+          "summary": "High-velocity USSD channel burst: 5 operations within 120s on ACC_USSD_e41115",
+          "event_id": "6fc6af56-8dcc-4f24-9dbe-9808d6c5bf0e"
+        },
+        {
+          "rule_id": "FRAUD-005",
+          "name": "USSD and Agent Cash-Out Burst",
+          "severity": "high",
+          "weight": 30,
+          "summary": "High-velocity USSD channel burst: 5 operations within 120s on ACC_USSD_e41115",
+          "event_id": "d2a6e546-9b6d-4706-8bb0-f3592b211be7"
+        },
+        {
+          "rule_id": "FRAUD-005",
+          "name": "USSD and Agent Cash-Out Burst",
+          "severity": "high",
+          "weight": 30,
+          "summary": "High-velocity USSD channel burst: 5 operations within 120s on ACC_USSD_e41115",
+          "event_id": "b4a9a853-d249-4b40-bbdc-7d0b47ac3ede"
+        },
+        {
+          "rule_id": "FRAUD-005",
+          "name": "USSD and Agent Cash-Out Burst",
+          "severity": "high",
+          "weight": 30,
+          "summary": "High-velocity USSD channel burst: 5 operations within 120s on ACC_USSD_e41115",
+          "event_id": "3bef61e4-d9f9-426d-9dd5-ebad4d72f09e"
+        },
+        {
+          "rule_id": "FRAUD-005",
+          "name": "USSD and Agent Cash-Out Burst",
+          "severity": "high",
+          "weight": 30,
+          "summary": "High-velocity USSD channel burst: 5 operations within 120s on ACC_USSD_e41115",
+          "event_id": "1e32e4b4-2043-4261-8121-b156964b7071"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-06-APP-COACHED",
+      "name": "Authorized Push Payment Coached Transfer",
+      "category": "fraud_payments",
+      "is_attack": true,
+      "is_detected": true,
+      "events_evaluated": 1,
+      "target_rules": [
+        "FRAUD-006",
+        "TX-001"
+      ],
+      "fired_rules": [
+        "FRAUD-006"
+      ],
+      "target_hits": [
+        "FRAUD-006"
+      ],
+      "peak_risk_score": 45,
+      "peak_severity": "medium",
+      "detections": [
+        {
+          "rule_id": "FRAUD-006",
+          "name": "Authorized Push Payment (APP) Coached Transfer",
+          "severity": "critical",
+          "weight": 45,
+          "summary": "Authorized Push Payment (APP) scam: Coached transfer of 75,000 ETB on ACC_COACHED_f222e9",
+          "event_id": "053b6053-287f-4e53-bfc6-8510d5273fa0"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-07-CRED-STUFFING",
+      "name": "Credential Stuffing Bot Attack",
+      "category": "web_api",
+      "is_attack": true,
+      "is_detected": true,
+      "events_evaluated": 8,
+      "target_rules": [
+        "AUTH-002",
+        "API-001"
+      ],
+      "fired_rules": [
+        "AUTH-002"
+      ],
+      "target_hits": [
+        "AUTH-002"
+      ],
+      "peak_risk_score": 35,
+      "peak_severity": "medium",
+      "detections": [
+        {
+          "rule_id": "AUTH-002",
+          "name": "Multi-Account Source Burst (Credential Stuffing)",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Single IP 185.220.101.55 targeting 8 distinct accounts within 60s (credential stuffing)",
+          "event_id": "2fe01cfc-da6a-44b6-97f1-861606281252"
+        },
+        {
+          "rule_id": "AUTH-002",
+          "name": "Multi-Account Source Burst (Credential Stuffing)",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Single IP 185.220.101.55 targeting 8 distinct accounts within 60s (credential stuffing)",
+          "event_id": "c9f958e1-b033-4197-82ed-62bb2faeee9c"
+        },
+        {
+          "rule_id": "AUTH-002",
+          "name": "Multi-Account Source Burst (Credential Stuffing)",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Single IP 185.220.101.55 targeting 8 distinct accounts within 60s (credential stuffing)",
+          "event_id": "465b7e18-690c-44fd-a61f-e67c187631ad"
+        },
+        {
+          "rule_id": "AUTH-002",
+          "name": "Multi-Account Source Burst (Credential Stuffing)",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Single IP 185.220.101.55 targeting 8 distinct accounts within 60s (credential stuffing)",
+          "event_id": "084dd60d-2481-42c8-ab47-ed42c8592c24"
+        },
+        {
+          "rule_id": "AUTH-002",
+          "name": "Multi-Account Source Burst (Credential Stuffing)",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Single IP 185.220.101.55 targeting 8 distinct accounts within 60s (credential stuffing)",
+          "event_id": "f777724c-5cfa-4ece-aacc-f3cb91c83a77"
+        },
+        {
+          "rule_id": "AUTH-002",
+          "name": "Multi-Account Source Burst (Credential Stuffing)",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Single IP 185.220.101.55 targeting 8 distinct accounts within 60s (credential stuffing)",
+          "event_id": "f92ff7a4-1511-406b-ba17-28a5b6ee2528"
+        },
+        {
+          "rule_id": "AUTH-002",
+          "name": "Multi-Account Source Burst (Credential Stuffing)",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Single IP 185.220.101.55 targeting 8 distinct accounts within 60s (credential stuffing)",
+          "event_id": "7e7e3473-29bc-4415-a109-c19b55eb1e30"
+        },
+        {
+          "rule_id": "AUTH-002",
+          "name": "Multi-Account Source Burst (Credential Stuffing)",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Single IP 185.220.101.55 targeting 8 distinct accounts within 60s (credential stuffing)",
+          "event_id": "45294dc2-fcb1-4a9d-9e89-b0a951a30759"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-08-IDOR-PROBE",
+      "name": "IDOR Sequential Resource Enumeration",
+      "category": "web_api",
+      "is_attack": true,
+      "is_detected": true,
+      "events_evaluated": 1,
+      "target_rules": [
+        "API-002"
+      ],
+      "fired_rules": [
+        "API-002"
+      ],
+      "target_hits": [
+        "API-002"
+      ],
+      "peak_risk_score": 35,
+      "peak_severity": "medium",
+      "detections": [
+        {
+          "rule_id": "API-002",
+          "name": "Sequential Resource Enumeration Probing",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Sequential resource identifier enumeration probing detected from IP 196.188.200.12",
+          "event_id": "7df6ece2-705a-4edf-a511-1737d9eff727"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-09-BOT-SCANNER",
+      "name": "Automated Security Scanner Reconnaissance",
+      "category": "web_api",
+      "is_attack": true,
+      "is_detected": true,
+      "events_evaluated": 1,
+      "target_rules": [
+        "API-004"
+      ],
+      "fired_rules": [
+        "API-004"
+      ],
+      "target_hits": [
+        "API-004"
+      ],
+      "peak_risk_score": 30,
+      "peak_severity": "medium",
+      "detections": [
+        {
+          "rule_id": "API-004",
+          "name": "Automated Bot and Security Tool Scanning",
+          "severity": "high",
+          "weight": 30,
+          "summary": "Automated offensive scanner activity detected (sqlmap) from IP 45.154.255.88",
+          "event_id": "d8dae6b6-1983-440c-94c1-e53d73cd435f"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-10-TOKEN-REPLAY",
+      "name": "Bearer Token Replay and Session Hijack",
+      "category": "web_api",
+      "is_attack": true,
+      "is_detected": true,
+      "events_evaluated": 1,
+      "target_rules": [
+        "API-003"
+      ],
+      "fired_rules": [
+        "API-003"
+      ],
+      "target_hits": [
+        "API-003"
+      ],
+      "peak_risk_score": 35,
+      "peak_severity": "medium",
+      "detections": [
+        {
+          "rule_id": "API-003",
+          "name": "Bearer Token Misuse and Replay",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Bearer token reuse or replay from multiple IPs detected from 197.156.12.99",
+          "event_id": "0f20c497-4f12-42f3-a1b3-8fb11609daba"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-11-MASS-EXFIL",
+      "name": "Mass Customer Data Export Exfiltration",
+      "category": "insider_admin",
+      "is_attack": true,
+      "is_detected": true,
+      "events_evaluated": 1,
+      "target_rules": [
+        "ADMIN-001",
+        "PRIV-001"
+      ],
+      "fired_rules": [
+        "ADMIN-001"
+      ],
+      "target_hits": [
+        "ADMIN-001"
+      ],
+      "peak_risk_score": 45,
+      "peak_severity": "medium",
+      "detections": [
+        {
+          "rule_id": "ADMIN-001",
+          "name": "Mass Customer Data Export Anomaly",
+          "severity": "critical",
+          "weight": 45,
+          "summary": "Mass customer record export anomaly (5000 records) initiated by admin",
+          "event_id": "2579f02b-342b-4079-b82f-f04a117c3490"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-12-AUDIT-TAMPER",
+      "name": "Security Audit Trail Tampering Attempt",
+      "category": "insider_admin",
+      "is_attack": true,
+      "is_detected": true,
+      "events_evaluated": 1,
+      "target_rules": [
+        "ADMIN-005",
+        "ADMIN-004"
+      ],
+      "fired_rules": [
+        "ADMIN-005"
+      ],
+      "target_hits": [
+        "ADMIN-005"
+      ],
+      "peak_risk_score": 50,
+      "peak_severity": "high",
+      "detections": [
+        {
+          "rule_id": "ADMIN-005",
+          "name": "Audit Trail Tampering Attempt",
+          "severity": "critical",
+          "weight": 50,
+          "summary": "CRITICAL: Cryptographic audit trail tampering attempt detected on security audit logs",
+          "event_id": "033bfac3-8a07-46cc-a318-b30bb215eba2"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-16-DORMANT-ADMIN",
+      "name": "Dormant Admin Account Activation",
+      "category": "insider_admin",
+      "is_attack": true,
+      "is_detected": true,
+      "events_evaluated": 1,
+      "target_rules": [
+        "ADMIN-002",
+        "ADMIN-003"
+      ],
+      "fired_rules": [
+        "ADMIN-003",
+        "ADMIN-002"
+      ],
+      "target_hits": [
+        "ADMIN-002",
+        "ADMIN-003"
+      ],
+      "peak_risk_score": 70,
+      "peak_severity": "high",
+      "detections": [
+        {
+          "rule_id": "ADMIN-003",
+          "name": "Off-Hours Privileged Configuration Action",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Off-hours privileged configuration action executed at 23:xx Addis time",
+          "event_id": "cf8739c1-3cb3-4002-b43d-95cc09b8aa85"
+        },
+        {
+          "rule_id": "ADMIN-002",
+          "name": "Dormant Admin Account Activation",
+          "severity": "high",
+          "weight": 35,
+          "summary": "Dormant administrative account activated after 45 days of inactivity",
+          "event_id": "cf8739c1-3cb3-4002-b43d-95cc09b8aa85"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-13-BENIGN-RETAIL",
+      "name": "Routine Peer-to-Peer Retail Transfer",
+      "category": "benign",
+      "is_attack": false,
+      "is_detected": false,
+      "events_evaluated": 2,
+      "target_rules": [],
+      "fired_rules": [],
+      "target_hits": [],
+      "peak_risk_score": 0,
+      "peak_severity": "low",
+      "detections": []
+    },
+    {
+      "scenario_id": "SCEN-14-BENIGN-MERCHANT",
+      "name": "Routine In-Store Merchant QR Payment",
+      "category": "benign",
+      "is_attack": false,
+      "is_detected": false,
+      "events_evaluated": 2,
+      "target_rules": [],
+      "fired_rules": [],
+      "target_hits": [],
+      "peak_risk_score": 0,
+      "peak_severity": "low",
+      "detections": []
+    },
+    {
+      "scenario_id": "SCEN-15-BENIGN-SALARY",
+      "name": "Corporate Monthly Payroll Credit",
+      "category": "benign",
+      "is_attack": false,
+      "is_detected": false,
+      "events_evaluated": 2,
+      "target_rules": [],
+      "fired_rules": [],
+      "target_hits": [],
+      "peak_risk_score": 0,
+      "peak_severity": "low",
+      "detections": []
+    }
+  ]
+}

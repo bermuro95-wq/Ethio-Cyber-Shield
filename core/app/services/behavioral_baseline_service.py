@@ -22,6 +22,7 @@ EAT_TZ = timezone(timedelta(hours=3))
 # In-memory stores for ultra-low latency lookups and test suite isolation
 _LOCAL_BASELINES: Dict[str, Dict[str, Any]] = {}
 _LOCAL_EVENTS: Dict[str, List[Dict[str, Any]]] = {}
+_BASELINES_TABLE_EXISTS = True
 
 
 def clear_baseline_caches():
@@ -106,11 +107,14 @@ class BehavioralBaselineService:
         }
         _LOCAL_BASELINES[key] = record
 
-        if save_db:
+        global _BASELINES_TABLE_EXISTS
+        if save_db and _BASELINES_TABLE_EXISTS:
             try:
                 sb = get_service_supabase()
                 sb.table('entity_behavioral_baselines').upsert(record, on_conflict='organization_id,entity_type,entity_id').execute()
             except Exception as e:
+                if 'PGRST205' in str(e) or 'does not exist' in str(e):
+                    _BASELINES_TABLE_EXISTS = False
                 logger.debug(f"Failed to persist seeded baseline to DB: {e}")
 
         return record
@@ -287,11 +291,14 @@ class BehavioralBaselineService:
         _LOCAL_BASELINES[key] = baseline_record
 
         # Persist to PostgreSQL if requested
-        if save:
+        global _BASELINES_TABLE_EXISTS
+        if save and _BASELINES_TABLE_EXISTS:
             try:
                 sb = get_service_supabase()
                 sb.table('entity_behavioral_baselines').upsert(baseline_record, on_conflict='organization_id,entity_type,entity_id').execute()
             except Exception as e:
+                if 'PGRST205' in str(e) or 'does not exist' in str(e):
+                    _BASELINES_TABLE_EXISTS = False
                 logger.debug(f"Failed to persist baseline to DB: {e}")
 
         return baseline_record
@@ -317,19 +324,23 @@ class BehavioralBaselineService:
             return _LOCAL_BASELINES[key]
 
         # 2. Database Lookup
-        try:
-            sb = get_service_supabase()
-            res = sb.table('entity_behavioral_baselines').select('*')\
-                .eq('organization_id', org_id)\
-                .eq('entity_type', etype)\
-                .eq('entity_id', eid)\
-                .execute()
-            if res and res.data and len(res.data) > 0:
-                rec = res.data[0]
-                _LOCAL_BASELINES[key] = rec
-                return rec
-        except Exception as e:
-            logger.debug(f"DB baseline fetch error: {e}")
+        global _BASELINES_TABLE_EXISTS
+        if _BASELINES_TABLE_EXISTS:
+            try:
+                sb = get_service_supabase()
+                res = sb.table('entity_behavioral_baselines').select('*')\
+                    .eq('organization_id', org_id)\
+                    .eq('entity_type', etype)\
+                    .eq('entity_id', eid)\
+                    .execute()
+                if res and res.data and len(res.data) > 0:
+                    rec = res.data[0]
+                    _LOCAL_BASELINES[key] = rec
+                    return rec
+            except Exception as e:
+                if 'PGRST205' in str(e) or 'does not exist' in str(e):
+                    _BASELINES_TABLE_EXISTS = False
+                logger.debug(f"DB baseline fetch error: {e}")
 
         # 3. Auto-compute if requested
         if auto_compute:

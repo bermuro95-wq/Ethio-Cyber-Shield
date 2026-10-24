@@ -157,6 +157,12 @@ CREATE TABLE IF NOT EXISTS incidents (
     status VARCHAR(50) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'investigating', 'contained', 'resolved', 'closed')),
     incident_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     detection_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    acknowledged_at TIMESTAMPTZ,
+    contained_at TIMESTAMPTZ,
+    resolved_at TIMESTAMPTZ,
+    sla_target_response_mins INTEGER DEFAULT 30,
+    sla_target_containment_mins INTEGER DEFAULT 240,
+    sla_target_resolution_mins INTEGER DEFAULT 720,
     assigned_to UUID REFERENCES users(id),
     risk_score INTEGER DEFAULT 0,
     risk_level VARCHAR(50) DEFAULT 'low' CHECK (risk_level IN ('low', 'medium', 'high', 'critical')),
@@ -337,11 +343,43 @@ CREATE TABLE IF NOT EXISTS alerts (
     acknowledged_at TIMESTAMPTZ,
     resolved_by UUID REFERENCES users(id),
     resolved_at TIMESTAMPTZ,
+    fingerprint VARCHAR(64),
+    duplicate_count INT DEFAULT 1,
+    last_seen_at TIMESTAMPTZ DEFAULT NOW(),
+    group_id UUID,
+    entity_type VARCHAR(50),
+    entity_id VARCHAR(255),
+    is_suppressed BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_alerts_org_status ON alerts(organization_id, status);
+CREATE INDEX IF NOT EXISTS idx_alerts_org_fingerprint_status ON alerts(organization_id, fingerprint, status);
+CREATE INDEX IF NOT EXISTS idx_alerts_org_group ON alerts(organization_id, group_id);
+
+-- =========================================================================
+-- 8b. ALERT SUPPRESSION RULES (Phase 3.7 Alert Quality)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS alert_suppression_rules (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    rule_id VARCHAR(100) NOT NULL DEFAULT '*',
+    fingerprint VARCHAR(64),
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id VARCHAR(255) NOT NULL,
+    alert_type VARCHAR(100),
+    reason TEXT NOT NULL,
+    duration_minutes INT DEFAULT 60,
+    suppressed_by UUID REFERENCES users(id),
+    created_by VARCHAR(100) DEFAULT 'system',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_suppression_lookup 
+    ON alert_suppression_rules(organization_id, entity_type, entity_id, is_active, expires_at);
 
 -- =========================================================================
 -- 9. DETECTION RULES & FINDINGS
@@ -408,7 +446,9 @@ CREATE TABLE IF NOT EXISTS rule_feedback (
     rule_id VARCHAR(50) NOT NULL,
     detection_id UUID REFERENCES detections(id) ON DELETE SET NULL,
     alert_id UUID REFERENCES alerts(id) ON DELETE SET NULL,
-    verdict VARCHAR(50) NOT NULL CHECK (verdict IN ('true_positive', 'false_positive', 'suspicious_unconfirmed', 'benign_test')),
+    incident_id UUID REFERENCES incidents(id) ON DELETE SET NULL,
+    verdict VARCHAR(50) NOT NULL CHECK (verdict IN ('true_positive', 'false_positive', 'suspicious_unconfirmed', 'benign_test', 'benign_positive', 'test')),
+    reason_category VARCHAR(100),
     analyst_notes TEXT,
     suggested_suppression JSONB DEFAULT '{}',
     created_by UUID REFERENCES users(id),
@@ -457,6 +497,26 @@ CREATE TABLE IF NOT EXISTS entity_behavioral_baselines (
 CREATE INDEX IF NOT EXISTS idx_entity_baselines_lookup ON entity_behavioral_baselines(organization_id, entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_entity_baselines_status ON entity_behavioral_baselines(organization_id, status);
 
+-- =========================================================================
+-- 9d. ENTITY CRITICALITY (Phase 3.5 — Risk Model v2)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS entity_criticality (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id VARCHAR(100) NOT NULL,
+    criticality_tier VARCHAR(20) NOT NULL DEFAULT 'medium' CHECK (criticality_tier IN ('critical', 'high', 'medium', 'low')),
+    criticality_score_boost INTEGER DEFAULT 0,
+    owner_unit VARCHAR(100),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id, entity_type, entity_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_entity_criticality_lookup ON entity_criticality(organization_id, entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_entity_criticality_tier ON entity_criticality(organization_id, criticality_tier);
+
 
 CREATE TABLE IF NOT EXISTS detections (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -485,7 +545,7 @@ CREATE TABLE IF NOT EXISTS response_actions (
     action_type VARCHAR(100) NOT NULL CHECK (action_type IN ('freeze_transaction', 'revoke_session', 'block_ip', 'require_step_up', 'disable_beneficiary', 'lock_account', 'revert')),
     target_entity_type VARCHAR(50),
     target_entity_id VARCHAR(100),
-    status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'failed', 'reverted')),
+    status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'failed', 'reverted', 'simulated', 'recommended', 'pending_approval', 'blocked_by_guardrail')),
     is_reverted BOOLEAN DEFAULT FALSE,
     reverted_at TIMESTAMPTZ,
     alert_id UUID REFERENCES alerts(id),
@@ -499,6 +559,341 @@ CREATE TABLE IF NOT EXISTS response_actions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_response_actions_org_status ON response_actions(organization_id, status);
+
+-- =========================================================================
+-- 10b. TENANT RESPONSE MODES (Phase 4.1 Safe Response)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS tenant_response_modes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    action_type VARCHAR(100) NOT NULL,
+    mode VARCHAR(20) NOT NULL DEFAULT 'observe' CHECK (mode IN ('observe', 'recommend', 'approve', 'auto')),
+    requires_two_person_approval BOOLEAN DEFAULT FALSE,
+    updated_by UUID REFERENCES users(id),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (organization_id, action_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_response_modes_lookup ON tenant_response_modes(organization_id, action_type);
+
+-- =========================================================================
+-- 10c. GUARDRAILS & ALLOWLISTS (Phase 4.2 Guardrails)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS tenant_guardrails (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE UNIQUE,
+    emergency_kill_switch BOOLEAN DEFAULT FALSE,
+    max_actions_per_hour INT DEFAULT 20,
+    max_actions_per_day INT DEFAULT 100,
+    cooldown_seconds INT DEFAULT 900,
+    min_confidence VARCHAR(20) DEFAULT 'high' CHECK (min_confidence IN ('low', 'medium', 'high')),
+    default_ttl_minutes INT DEFAULT 60,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tenant_allowlists (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id VARCHAR(255) NOT NULL,
+    reason TEXT NOT NULL,
+    created_by VARCHAR(100) DEFAULT 'system',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (organization_id, entity_type, entity_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_allowlists_lookup ON tenant_allowlists(organization_id, entity_type, entity_id);
+
+CREATE TABLE IF NOT EXISTS guardrail_audit_log (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    action_type VARCHAR(100) NOT NULL,
+    target_entity_type VARCHAR(50) NOT NULL,
+    target_entity_id VARCHAR(255) NOT NULL,
+    guardrail_type VARCHAR(50) NOT NULL,
+    decision VARCHAR(20) NOT NULL CHECK (decision IN ('passed', 'blocked', 'modified')),
+    reason TEXT NOT NULL,
+    confidence VARCHAR(20),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_guardrail_audit_log_org ON guardrail_audit_log(organization_id, created_at DESC);
+
+-- =========================================================================
+-- 10d. DECLARATIVE PLAYBOOKS & APPROVALS (Phase 4.3 Playbooks)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS playbooks (
+    id VARCHAR(100) NOT NULL,
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    version VARCHAR(20) DEFAULT '1.0.0',
+    category VARCHAR(50) DEFAULT 'general',
+    trigger JSONB NOT NULL DEFAULT '{}',
+    actions JSONB NOT NULL DEFAULT '[]',
+    notifications JSONB DEFAULT '[]',
+    is_enabled BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (organization_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS action_approvals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    action_type VARCHAR(100) NOT NULL,
+    target_entity_type VARCHAR(50) NOT NULL,
+    target_entity_id VARCHAR(255) NOT NULL,
+    reason TEXT,
+    requires_two_person BOOLEAN DEFAULT FALSE,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'expired')),
+    requested_by VARCHAR(100) DEFAULT 'system',
+    approvers JSONB DEFAULT '[]',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_action_approvals_org_status ON action_approvals(organization_id, status);
+
+-- =========================================================================
+-- 10. CASE MANAGEMENT, NOTIFICATIONS & POST-INCIDENT REVIEWS (Phases 4.4 - 4.7)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS case_notes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    incident_id UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+    author_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    author_name VARCHAR(100) DEFAULT 'SOC Analyst',
+    note TEXT NOT NULL,
+    is_internal BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_case_notes_org_incident ON case_notes(organization_id, incident_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS case_attachments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    incident_id UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+    filename VARCHAR(255) NOT NULL,
+    file_size INTEGER NOT NULL,
+    content_type VARCHAR(100) NOT NULL,
+    sha256 VARCHAR(64) NOT NULL,
+    storage_path TEXT,
+    uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_case_attachments_org_incident ON case_attachments(organization_id, incident_id);
+
+CREATE TABLE IF NOT EXISTS saved_searches (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    query_params JSONB NOT NULL DEFAULT '{}',
+    is_shared BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_saved_searches_org_user ON saved_searches(organization_id, user_id);
+
+CREATE TABLE IF NOT EXISTS tenant_notification_configs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    channel VARCHAR(50) NOT NULL CHECK (channel IN ('telegram', 'email', 'sms', 'webhook')),
+    is_enabled BOOLEAN DEFAULT TRUE,
+    config_data JSONB NOT NULL DEFAULT '{}',
+    min_severity VARCHAR(20) DEFAULT 'medium' CHECK (min_severity IN ('low', 'medium', 'high', 'critical')),
+    quiet_hours_enabled BOOLEAN DEFAULT FALSE,
+    quiet_hours_start VARCHAR(5) DEFAULT '22:00',
+    quiet_hours_end VARCHAR(5) DEFAULT '06:00',
+    quiet_hours_override_severity VARCHAR(20) DEFAULT 'critical',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id, channel)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_notification_configs_org ON tenant_notification_configs(organization_id);
+
+CREATE TABLE IF NOT EXISTS notification_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    channel VARCHAR(50) NOT NULL,
+    recipient VARCHAR(255) NOT NULL,
+    incident_id UUID REFERENCES incidents(id) ON DELETE SET NULL,
+    alert_id UUID REFERENCES alerts(id) ON DELETE SET NULL,
+    severity VARCHAR(20) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'sent' CHECK (status IN ('sent', 'queued', 'failed', 'suppressed_quiet_hours')),
+    payload_preview JSONB DEFAULT '{}',
+    error_message TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notification_logs_org_time ON notification_logs(organization_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS post_incident_reviews (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    incident_id UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'approved', 'sealed')),
+    summary_en TEXT NOT NULL,
+    summary_am TEXT,
+    timeline JSONB NOT NULL DEFAULT '[]',
+    metrics JSONB NOT NULL DEFAULT '{}',
+    root_cause JSONB NOT NULL DEFAULT '{}',
+    financial_impact JSONB NOT NULL DEFAULT '{}',
+    lessons_learned JSONB NOT NULL DEFAULT '[]',
+    action_items JSONB NOT NULL DEFAULT '[]',
+    sha256_seal VARCHAR(64),
+    sealed_at TIMESTAMPTZ,
+    sealed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id, incident_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_post_incident_reviews_org ON post_incident_reviews(organization_id, incident_id);
+
+-- =========================================================================
+-- 10B. INCIDENT READINESS ENGINE (48-HOUR CLOCK & EVIDENCE VAULT - Phase 5)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS tenant_readiness_policies (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    reportable_criteria JSONB NOT NULL DEFAULT '{}',
+    ciso_contact_name VARCHAR(100),
+    ciso_contact_phone VARCHAR(20),
+    ciso_contact_email VARCHAR(100),
+    regulatory_license_ref VARCHAR(100),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_readiness_policies_org ON tenant_readiness_policies(organization_id);
+
+CREATE TABLE IF NOT EXISTS evidence_vaults (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    incident_id UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+    report_ref VARCHAR(100) NOT NULL UNIQUE,
+    status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'submitted', 'archived', 'sealed')),
+    snapshot_data JSONB NOT NULL DEFAULT '{}',
+    telemetry_sha256_digest VARCHAR(64) NOT NULL,
+    audit_trail_sha256_digest VARCHAR(64) NOT NULL,
+    manifest_sha256 VARCHAR(64) NOT NULL,
+    retention_days INTEGER DEFAULT 3650,
+    sealed_at TIMESTAMPTZ DEFAULT NOW(),
+    sealed_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_evidence_vaults_org_incident ON evidence_vaults(organization_id, incident_id);
+
+CREATE TABLE IF NOT EXISTS evidence_chain_of_custody (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    vault_id UUID NOT NULL REFERENCES evidence_vaults(id) ON DELETE CASCADE,
+    action VARCHAR(50) NOT NULL,
+    actor_id UUID REFERENCES users(id),
+    actor_name VARCHAR(100),
+    actor_role VARCHAR(50),
+    ip_address VARCHAR(45),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_evidence_chain_of_custody_vault ON evidence_chain_of_custody(vault_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS regulatory_obligations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    framework VARCHAR(100) NOT NULL,
+    clause_id VARCHAR(50) NOT NULL,
+    clause_title VARCHAR(255) NOT NULL,
+    description TEXT,
+    ecs_support_status VARCHAR(50) NOT NULL CHECK (ecs_support_status IN ('supports_evidence_for', 'partially_supported', 'not_covered')),
+    evidence_source VARCHAR(255),
+    verification_method TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(framework, clause_id)
+);
+
+-- =========================================================================
+-- 10C. COMMUNITY DEFENSE: PRIVACY-PRESERVING SIGNAL EXCHANGE (Phase 6)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS tenant_sharing_preferences (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    opt_in_sharing BOOLEAN DEFAULT FALSE,
+    allowed_tlp_levels JSONB DEFAULT '["GREEN", "AMBER"]',
+    allowed_indicator_types JSONB DEFAULT '["ip", "domain", "device_fingerprint", "phone_hash", "beneficiary_account_hash", "mule_account_hash"]',
+    auto_share_confirmed_threats BOOLEAN DEFAULT FALSE,
+    anonymize_reporter BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_sharing_preferences_org ON tenant_sharing_preferences(organization_id);
+
+CREATE TABLE IF NOT EXISTS community_signals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    signal_hash VARCHAR(64) NOT NULL UNIQUE,
+    indicator_type VARCHAR(50) NOT NULL CHECK (indicator_type IN ('ip', 'domain', 'device_fingerprint', 'phone_hash', 'beneficiary_account_hash', 'mule_account_hash')),
+    indicator_value TEXT NOT NULL,
+    tlp VARCHAR(20) NOT NULL DEFAULT 'GREEN' CHECK (tlp IN ('CLEAR', 'WHITE', 'GREEN', 'AMBER', 'RED')),
+    threat_category VARCHAR(100) NOT NULL,
+    severity VARCHAR(20) NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+    confidence FLOAT NOT NULL DEFAULT 0.70,
+    corroboration_count INTEGER DEFAULT 1,
+    corroborating_orgs JSONB DEFAULT '[]',
+    is_corroborated BOOLEAN DEFAULT FALSE,
+    status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'retracted', 'expired', 'under_review')),
+    retraction_reason TEXT,
+    ttl_hours INTEGER DEFAULT 168,
+    expires_at TIMESTAMPTZ NOT NULL,
+    stix_bundle JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_community_signals_type_val ON community_signals(indicator_type, indicator_value);
+CREATE INDEX IF NOT EXISTS idx_community_signals_status_exp ON community_signals(status, expires_at);
+CREATE INDEX IF NOT EXISTS idx_community_signals_tlp ON community_signals(tlp);
+
+CREATE TABLE IF NOT EXISTS reporter_reputations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    reputation_score FLOAT DEFAULT 0.50,
+    signals_contributed INTEGER DEFAULT 0,
+    signals_corroborated INTEGER DEFAULT 0,
+    signals_retracted INTEGER DEFAULT 0,
+    last_active_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reporter_reputations_org ON reporter_reputations(organization_id);
+
+CREATE TABLE IF NOT EXISTS signal_exchange_audit (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    action VARCHAR(50) NOT NULL,
+    signal_id UUID REFERENCES community_signals(id) ON DELETE SET NULL,
+    signal_hash VARCHAR(64),
+    details JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_signal_exchange_audit_org ON signal_exchange_audit(organization_id, created_at DESC);
 
 -- =========================================================================
 -- 11. AUDIT LOGS (Hash-Chained Audit Trail)

@@ -224,6 +224,29 @@
             }
         }
 
+        async function manualRefreshDetail() {
+            const btn = document.getElementById('btnRefresh');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Refreshing...';
+            }
+            try {
+                await loadDetail();
+                if (typeof showToast === 'function') showToast('Incident details updated.', 'success');
+            } catch (err) {
+                if (typeof showToast === 'function') showToast('Refresh failed: ' + (err.message || 'Network error'), 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Refresh';
+                }
+            }
+        }
+
+        window._onRealtimeAlert = function() {
+            loadDetail();
+        };
+
         async function loadDetail() {
             try {
                 const [incident, attackGraph, actions, targets] = await Promise.all([
@@ -285,12 +308,15 @@
                                 <span class="badge bg-dark border">${(i.incident_type||'').replace(/_/g,' ')}</span>
                             </div>
                         </div>
-                        ${canEdit ? `
-                        <div class="btn-group">
-                            <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#dispatchControlModal" onclick="prepDispatchModal()"><i class="bi bi-shield-slash me-1"></i> Dispatch Control</button>
-                            <button class="btn btn-outline-success btn-sm" onclick="runAnalysis()"><i class="bi bi-cpu me-1"></i> Run Analysis</button>
-                            <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#linkModal" onclick="prepLink()"><i class="bi bi-link-45deg me-1"></i> Link IOC</button>
-                        </div>` : ''}
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshDetail()"><i class="bi bi-arrow-repeat me-1"></i> Refresh</button>
+                            ${canEdit ? `
+                            <div class="btn-group">
+                                <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#dispatchControlModal" onclick="prepDispatchModal()"><i class="bi bi-shield-slash me-1"></i> Dispatch Control</button>
+                                <button class="btn btn-outline-success btn-sm" onclick="runAnalysis()"><i class="bi bi-cpu me-1"></i> Run Analysis</button>
+                                <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#linkModal" onclick="prepLink()"><i class="bi bi-link-45deg me-1"></i> Link IOC</button>
+                            </div>` : ''}
+                        </div>
                     </div>
 
                     <!-- Kill Chain Visualizer -->

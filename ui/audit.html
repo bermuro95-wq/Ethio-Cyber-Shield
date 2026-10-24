@@ -18,6 +18,7 @@
                 <p class="text-muted small mb-0">Cryptographically hash-chained (SHA-256) audit trail for statutory compliance and regulatory review.</p>
             </div>
             <div class="d-flex gap-2">
+                <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshAudit()"><i class="bi bi-arrow-repeat me-1"></i> Refresh</button>
                 <button class="btn btn-outline-success btn-sm" onclick="doVerifyChain()"><i class="bi bi-shield-check me-1"></i> Verify Chain Integrity</button>
                 <button class="btn btn-outline-primary btn-sm" onclick="doExportAnchor()"><i class="bi bi-box-arrow-up-right me-1"></i> Export Sealed Anchor</button>
             </div>
@@ -75,8 +76,27 @@
             }
         }
 
-        async function loadAudit() {
-            loadingSpinner('tableArea');
+        async function manualRefreshAudit() {
+            const btn = document.getElementById('btnRefresh');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Refreshing...';
+            }
+            try {
+                await loadAudit(false);
+                if (typeof showToast === 'function') showToast('Audit trail refreshed successfully.', 'success');
+            } catch (err) {
+                if (typeof showToast === 'function') showToast('Refresh failed: ' + (err.message || 'Network error'), 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Refresh';
+                }
+            }
+        }
+
+        async function loadAudit(silent = false) {
+            if (!silent) loadingSpinner('tableArea');
             try {
                 const data = await API.getAuditLogs({ limit: 200 });
                 if (!data.length) {
@@ -102,7 +122,8 @@
                         <tbody>${rows}</tbody>
                     </table>`;
             } catch (e) {
-                document.getElementById('tableArea').innerHTML = noData(e.message);
+                if (!silent) document.getElementById('tableArea').innerHTML = noData(e.message);
+                throw e;
             }
         }
         loadAudit();

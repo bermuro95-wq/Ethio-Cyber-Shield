@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # In-memory sliding stores for high-throughput zero-latency caching & self-contained tests
 # Keys scoped strictly by organization_id: (org_id, source_id) -> source_dict
 _LOCAL_DQ_SOURCES: Dict[Tuple[str, str], Dict[str, Any]] = {}
+_DQ_SOURCES_TABLE_EXISTS = True
 # (org_id) -> list of violation dicts (bounded to last 500)
 _LOCAL_SCHEMA_VIOLATIONS: Dict[str, List[Dict[str, Any]]] = {}
 # (org_id) -> list of (timestamp_epoch_float, event_id, attributes)
@@ -163,15 +164,19 @@ def touch_source_activity(
         _LOCAL_EVENT_TIMESTAMPS[org_key] = _LOCAL_EVENT_TIMESTAMPS[org_key][-MAX_EVENT_TIMESTAMPS_PER_ORG:]
 
     # Attempt asynchronous / background DB update
-    try:
-        sb = get_service_supabase()
-        sb.table('data_quality_sources').update({
-            'last_event_at': now_iso,
-            'total_events': record['total_events'],
-            'updated_at': now_iso
-        }).eq('organization_id', org_key).eq('source_id', str(source_id)).execute()
-    except Exception as e:
-        logger.debug(f"Data quality source touch DB update fallback: {e}")
+    global _DQ_SOURCES_TABLE_EXISTS
+    if _DQ_SOURCES_TABLE_EXISTS:
+        try:
+            sb = get_service_supabase()
+            sb.table('data_quality_sources').update({
+                'last_event_at': now_iso,
+                'total_events': record['total_events'],
+                'updated_at': now_iso
+            }).eq('organization_id', org_key).eq('source_id', str(source_id)).execute()
+        except Exception as e:
+            if 'PGRST205' in str(e) or 'does not exist' in str(e):
+                _DQ_SOURCES_TABLE_EXISTS = False
+            logger.debug(f"Data quality source touch DB update fallback: {e}")
 
     return dict(record)
 

@@ -12,7 +12,15 @@
 <body>
     <div id="navbar"></div>
     <div class="container-fluid py-4 px-4">
-        <h3 class="page-title mb-4"><i class="bi bi-bell me-2 text-success"></i>Alerts</h3>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="page-title mb-0"><i class="bi bi-bell me-2 text-success"></i>Alerts</h3>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-dark border border-secondary text-muted"><i class="bi bi-broadcast text-danger me-1"></i>Real-Time Stream Active</span>
+                <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshAlerts()">
+                    <i class="bi bi-arrow-repeat me-1"></i> Refresh
+                </button>
+            </div>
+        </div>
 
         <div class="card mb-3">
             <div class="card-body py-2">
@@ -56,10 +64,12 @@
     <script>
         if (!requireAuth()) { /* redirect */ }
         document.getElementById('navbar').innerHTML = renderNavbar('alerts');
-        const canAct = API.getUser().role !== 'viewer';
+        const user = API.getUser() || {};
+        const role = (user.role || 'viewer').toLowerCase();
+        const canAct = role !== 'viewer';
 
-        async function loadAlerts() {
-            loadingSpinner('tableArea');
+        async function loadAlerts(silent = false) {
+            if (!silent) loadingSpinner('tableArea');
             try {
                 const params = {};
                 const st = document.getElementById('filterStatus').value;
@@ -67,8 +77,8 @@
                 if (st) params.status = st;
                 if (sev) params.severity = sev;
                 const data = await API.getAlerts(params);
-                if (!data.length) {
-                    document.getElementById('tableArea').innerHTML = noData();
+                if (!data || !data.length) {
+                    document.getElementById('tableArea').innerHTML = noData('No alerts matching filter criteria.');
                     return;
                 }
                 const rows = data.map(a => `
@@ -99,33 +109,29 @@
                         <tbody>${rows}</tbody>
                     </table>`;
             } catch (e) {
-                document.getElementById('tableArea').innerHTML = noData(e.message);
+                if (!silent) document.getElementById('tableArea').innerHTML = noData(e.message);
             }
+        }
+
+        async function manualRefreshAlerts() {
+            const btn = document.getElementById('btnRefresh');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Refreshing...';
+            }
+            await loadAlerts(false);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Refresh';
+            }
+            showToast('Alerts refreshed', 'success');
         }
 
         async function ack(id) {
             try {
                 await API.acknowledgeAlert(id);
                 showToast('Alert acknowledged');
-        
-        async function addNote(id) {
-            const note = prompt('Investigation note:');
-            if (!note) return;
-            try {
-                await API.addAlertNote(id, note);
-                showToast('Note added');
-            } catch (e) { showToast(e.message, 'error'); }
-        }
-        async function delAlert(id) {
-            if (!confirm('Delete this alert?')) return;
-            try {
-                await API.deleteAlert(id);
-                showToast('Deleted');
-                loadAlerts();
-            } catch (e) { showToast(e.message, 'error'); }
-        }
-
-        loadAlerts();
+                loadAlerts(true);
             } catch (e) { showToast(e.message, 'error'); }
         }
 
@@ -133,28 +139,9 @@
             try {
                 await API.resolveAlert(id);
                 showToast('Alert resolved');
-        
-        async function addNote(id) {
-            const note = prompt('Investigation note:');
-            if (!note) return;
-            try {
-                await API.addAlertNote(id, note);
-                showToast('Note added');
+                loadAlerts(true);
             } catch (e) { showToast(e.message, 'error'); }
         }
-        async function delAlert(id) {
-            if (!confirm('Delete this alert?')) return;
-            try {
-                await API.deleteAlert(id);
-                showToast('Deleted');
-                loadAlerts();
-            } catch (e) { showToast(e.message, 'error'); }
-        }
-
-        loadAlerts();
-            } catch (e) { showToast(e.message, 'error'); }
-        }
-
 
         async function addNote(id) {
             const note = prompt('Investigation note:');
@@ -162,17 +149,22 @@
             try {
                 await API.addAlertNote(id, note);
                 showToast('Note added');
+                loadAlerts(true);
             } catch (e) { showToast(e.message, 'error'); }
         }
+
         async function delAlert(id) {
             if (!confirm('Delete this alert?')) return;
             try {
                 await API.deleteAlert(id);
                 showToast('Deleted');
-                loadAlerts();
+                loadAlerts(true);
             } catch (e) { showToast(e.message, 'error'); }
         }
 
+        // Real-time hooks: instantaneous update on SSE event + 4-second poll fallback
+        window._onRealtimeAlert = function() { loadAlerts(true); };
+        setInterval(() => loadAlerts(true), 4000);
         loadAlerts();
     </script>
 </body>

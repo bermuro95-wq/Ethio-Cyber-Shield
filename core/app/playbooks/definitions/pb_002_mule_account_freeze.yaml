@@ -1,0 +1,44 @@
+id: PB-002-MULE-FREEZE
+name: "Mule Account & Rapid Beneficiary Mitigation"
+description: "Mitigation for mule cashouts, passthroughs, and rapid beneficiary transfer bursts"
+version: "1.0.0"
+category: "fraud_payments"
+is_enabled: true
+
+trigger:
+  severity_in:
+    - high
+    - critical
+  min_risk_score: 50
+  rules_any:
+    - FRAUD-001
+    - FRAUD-002
+    - TX-001
+
+actions:
+  - name: "Freeze Outbound Transfer"
+    connector: freeze_transaction
+    target_entity: transaction_id
+    is_reversible: true
+    rollback_connector: revert
+    reason: "Mule Mitigation: Hold rapid outbound wire"
+
+  - name: "Disable Unverified Beneficiary"
+    connector: disable_beneficiary
+    target_entity: beneficiary_account
+    is_reversible: true
+    rollback_connector: revert
+    reason: "Mule Mitigation: Deactivate unverified beneficiary"
+
+  - name: "Hold Mule Account"
+    connector: lock_account
+    target_entity: account_id
+    is_reversible: true
+    rollback_connector: revert
+    requires_approval_if_irreversible: true
+    reason: "Mule Mitigation: Account hold pending AML investigation"
+
+notifications:
+  - channel: audit_log
+  - channel: aml_compliance
+    severity: high

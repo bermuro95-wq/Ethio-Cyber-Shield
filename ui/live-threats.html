@@ -91,32 +91,19 @@
             </div></div></div>
         </div>
 
-        <!-- Lab Scenario Orchestration Controller (Part 6) -->
+        <!-- Target Telemetry Ingestion Status -->
         <div class="card mb-4 border-success">
             <div class="card-header bg-dark d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-radioactive text-warning me-2"></i><strong>Target Lab Simulator & Attack Scenario Demonstrator</strong></span>
-                <span class="badge bg-secondary border">SRS §22 Demo Orchestrator</span>
+                <span><i class="bi bi-shield-check text-success me-2"></i><strong>Autonomous Target Telemetry Ingestion</strong></span>
+                <span class="badge bg-success border"><i class="bi bi-broadcast me-1"></i>Live Pipeline Connected</span>
             </div>
-            <div class="card-body">
-                <div class="row g-2 align-items-end">
-                    <div class="col-md-5">
-                        <label class="form-label small text-muted">Select Target Scenario</label>
-                        <select id="simScenario" class="form-select form-select-sm">
-                            <option value="account_takeover" selected>ATO-001: Full Account Takeover (6x Fails -> New Device -> Mule Beneficiary -> 180k Hold -> Auto Containment)</option>
-                            <option value="credential_stuffing">AUTH-002: Multi-Account Credential Stuffing (6 accounts, 60s)</option>
-                            <option value="rapid_transfers">TX-001 & TX-003: Off-Hours High-Value Fraud (Addis Night 02:00, 250k ETB)</option>
-                            <option value="admin_probe">PRIV-001: Unauthorized Administrative Privilege Abuse</option>
-                            <option value="normal_traffic">Normal Traffic Baseline (0 Risk Score, Clean Baseline)</option>
-                        </select>
+            <div class="card-body py-2">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div class="small text-muted">
+                        <i class="bi bi-cpu me-1 text-success"></i>
+                        Decoupled streaming pipeline automatically ingests push webhooks and durable poll telemetry from connected target systems.
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label small text-muted">Target Account (Optional)</label>
-                        <input type="text" id="simAccount" class="form-control form-control-sm" placeholder="Default victim account">
-                    </div>
-                    <div class="col-md-4 d-flex gap-2">
-                        <button class="btn btn-danger btn-sm flex-grow-1" id="btnLaunchSim" onclick="launchSimulation()">
-                            <i class="bi bi-play-circle-fill me-1"></i> Launch Attack Demo
-                        </button>
+                    <div class="d-flex gap-2">
                         <button class="btn btn-outline-info btn-sm" onclick="syncTargetNow()">
                             <i class="bi bi-arrow-repeat me-1"></i> Poll Now
                         </button>
@@ -533,40 +520,16 @@
             }
         }
 
-        function startSSE() {
-            if (sse) { try { sse.close(); } catch(e) {} }
-            const token = API.getToken();
-            if (!token) return;
-            const url = `${CONFIG.API_BASE_URL}/live/stream?token=${encodeURIComponent(token)}`;
-            try {
-                sse = new EventSource(url);
-                sse.addEventListener('alert', (ev) => {
-                    try {
-                        const a = JSON.parse(ev.data);
-                        if (typeof showToast === 'function') {
-                            showToast(`New alert: ${a.title || 'Threat detected'}`, a.severity === 'critical' ? 'error' : 'warning');
-                        }
-                        refreshAll();
-                    } catch (e) {}
-                });
-                sse.onerror = () => {
-                    // EventSource will auto-reconnect; mark dot dim briefly
-                    document.getElementById('liveDot').classList.add('off');
-                    setTimeout(() => document.getElementById('liveDot').classList.remove('off'), 3000);
-                };
-            } catch (e) {
-                console.warn('SSE not available', e);
-            }
-        }
+        window._onRealtimeAlert = function(alertData) {
+            refreshAll();
+        };
 
         document.getElementById('windowSelect').addEventListener('change', refreshAll);
 
         refreshAll();
-        startSSE();
-        refreshTimer = setInterval(refreshAll, 15000);
+        refreshTimer = setInterval(refreshAll, 10000);
 
         window.addEventListener('beforeunload', () => {
-            if (sse) sse.close();
             if (refreshTimer) clearInterval(refreshTimer);
         });
     </script>

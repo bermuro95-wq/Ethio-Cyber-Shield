@@ -50,7 +50,7 @@ jobs:
       run: |
         bandit -r core/app -ll -ii --exclude core/venv || true
 
-    - name: Run Test Suite (Parts 1-12 & Isolation)
+    - name: Run Test Suite (Parts 1-24 & Isolation)
       env:
         REDIS_URL: redis://localhost:6379/0
         JWT_SECRET: ci-test-secret-key-32-chars-long-2026
@@ -59,4 +59,10 @@ jobs:
       run: |
         cd core
         python -m unittest discover tests
+
+    - name: Run Attack Lab Benchmark Corpus (Phase 3.6 Gate 3 Verification)
+      env:
+        PYTHONPATH: core
+      run: |
+        python labs/run_benchmark.py --min-recall 0.90 --max-fpr 0.10
 

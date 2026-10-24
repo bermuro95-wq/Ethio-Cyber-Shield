@@ -1,0 +1,43 @@
+id: PB-001-ATO-CONTAINMENT
+name: "Account Takeover Autonomous Containment"
+description: "Progressive multi-step containment for confirmed Account Takeover (ATO) attack chains"
+version: "1.0.0"
+category: "fraud_payments"
+is_enabled: true
+
+trigger:
+  severity_in:
+    - high
+    - critical
+  min_risk_score: 50
+  rules_any:
+    - ATO-001
+    - AUTH-001
+    - AUTH-003
+
+actions:
+  - name: "Freeze Pending Settlement"
+    connector: freeze_transaction
+    target_entity: transaction_id
+    is_reversible: true
+    rollback_connector: revert
+    reason: "ATO Chain: Halt fraudulent settlement"
+
+  - name: "Revoke Compromised Session"
+    connector: revoke_session
+    target_entity: session_id
+    is_reversible: false
+    reason: "ATO Chain: Terminate rogue attacker session"
+
+  - name: "Block Attacker IP"
+    connector: block_ip
+    target_entity: source_ip
+    is_reversible: true
+    rollback_connector: revert
+    ttl_minutes: 60
+    reason: "ATO Chain: Block attacking IP address"
+
+notifications:
+  - channel: audit_log
+  - channel: soc_alert
+    severity: critical

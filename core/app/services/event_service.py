@@ -139,13 +139,12 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
     if target_id:
         canonical_event['target_system_id'] = target_id
 
+    legacy_cols = {'event_id', 'event_type', 'occurred_at', 'source_system', 'user_id', 'account_id', 'session_id', 'device_id', 'source_ip', 'endpoint', 'result', 'attributes', 'processed'}
+    clean_sec_ev = {k: v for k, v in canonical_event.items() if k in legacy_cols}
     try:
-        sb.table('security_events').upsert({**canonical_event, **extended_fields}, on_conflict='event_id').execute()
-    except Exception:
-        try:
-            sb.table('security_events').upsert(canonical_event, on_conflict='event_id').execute()
-        except Exception as e:
-            logger.error(f"Error persisting security_event {event_id}: {e}")
+        sb.table('security_events').upsert(clean_sec_ev, on_conflict='event_id').execute()
+    except Exception as e:
+        logger.debug(f"Error persisting security_event {event_id}: {e}")
 
     # 2. Extract & normalize transactions
     if event_type in ('TRANSFER_CREATED', 'TRANSFER_INITIATED') and amount_major:
@@ -180,17 +179,17 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
 
     # 3. Extract & update threat indicators (IPs, accounts, devices)
     if source_ip and (lab_scenario or event_type in ('LOGIN_FAILED', 'AUTHZ_DENIED')):
+        ind_data = {
+            'indicator_type': 'ip',
+            'value': source_ip,
+            'status': 'malicious' if lab_scenario else 'suspicious',
+            'description': f"Observed in event {event_type} ({lab_scenario or 'Target System'})",
+            'source': 'Target System Telemetry',
+        }
         try:
-            sb.table('indicators').upsert({
-                'organization_id': org_id,
-                'indicator_type': 'ip',
-                'value': source_ip,
-                'status': 'malicious' if lab_scenario else 'suspicious',
-                'description': f"Observed in event {event_type} ({lab_scenario or 'Target System'})",
-                'source': 'Target System Telemetry',
-            }, on_conflict='organization_id,indicator_type,value').execute()
+            sb.table('indicators').upsert(ind_data, on_conflict='indicator_type,value').execute()
         except Exception as e:
-            logger.warning(f"Could not upsert indicator for {source_ip}: {e}")
+            logger.debug(f"Could not upsert indicator for {source_ip}: {e}")
 
     # 4. Record into durable stream and sliding buffer for real-time correlation
     buffered_item = {

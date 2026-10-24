@@ -14,9 +14,12 @@
     <div class="container-fluid py-4 px-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h3 class="page-title mb-0"><i class="bi bi-crosshair me-2 text-success"></i>Threat Indicators</h3>
-            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createModal" id="btnCreate">
-                <i class="bi bi-plus-lg me-1"></i> Add Indicator
-            </button>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-dark border border-secondary text-muted"><i class="bi bi-shield-check me-1 text-success"></i>Automated IOC Extraction</span>
+                <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshIndicators()">
+                    <i class="bi bi-arrow-repeat me-1"></i> Refresh
+                </button>
+            </div>
         </div>
 
         <div class="card mb-3">
@@ -58,54 +61,6 @@
         </div>
     </div>
 
-    <div class="modal fade" id="createModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Add Threat Indicator</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Type *</label>
-                        <select class="form-select" id="cType">
-                            <option value="ip">IP Address</option>
-                            <option value="domain">Domain</option>
-                            <option value="url">URL</option>
-                            <option value="email">Email</option>
-                            <option value="file_hash">File Hash</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Value *</label>
-                        <input type="text" class="form-control" id="cValue" required placeholder="e.g. 192.168.1.100">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Status</label>
-                        <select class="form-select" id="cStatus">
-                            <option value="unknown">Unknown</option>
-                            <option value="suspicious">Suspicious</option>
-                            <option value="malicious">Malicious</option>
-                            <option value="benign">Benign</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control" id="cDesc" rows="2"></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Source</label>
-                        <input type="text" class="form-control" id="cSource" placeholder="e.g. Manual, Threat Intel">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button class="btn btn-success" onclick="submitCreate()">Add</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/config.js"></script>
     <script src="js/api.js"></script>
@@ -113,10 +68,9 @@
     <script>
         if (!requireAuth()) { /* redirect */ }
         document.getElementById('navbar').innerHTML = renderNavbar('indicators');
-        if (API.getUser().role === 'viewer') document.getElementById('btnCreate').style.display = 'none';
 
-        async function loadIndicators() {
-            loadingSpinner('tableArea');
+        async function loadIndicators(silent = false) {
+            if (!silent) loadingSpinner('tableArea');
             try {
                 const params = {};
                 const s = document.getElementById('searchInput').value.trim();
@@ -126,8 +80,8 @@
                 if (t) params.type = t;
                 if (st) params.status = st;
                 const data = await API.getIndicators(params);
-                if (!data.length) {
-                    document.getElementById('tableArea').innerHTML = noData();
+                if (!data || !data.length) {
+                    document.getElementById('tableArea').innerHTML = noData('No threat indicators recorded yet.');
                     return;
                 }
                 const rows = data.map(i => `
@@ -145,28 +99,27 @@
                         <tbody>${rows}</tbody>
                     </table>`;
             } catch (e) {
-                document.getElementById('tableArea').innerHTML = noData(e.message);
+                if (!silent) document.getElementById('tableArea').innerHTML = noData(e.message);
             }
         }
 
-        async function submitCreate() {
-            const payload = {
-                indicator_type: document.getElementById('cType').value,
-                value: document.getElementById('cValue').value.trim(),
-                status: document.getElementById('cStatus').value,
-                description: document.getElementById('cDesc').value.trim(),
-                source: document.getElementById('cSource').value.trim()
-            };
-            if (!payload.value) { showToast('Value required', 'error'); return; }
-            try {
-                await API.createIndicator(payload);
-                showToast('Indicator added');
-                bootstrap.Modal.getInstance(document.getElementById('createModal')).hide();
-                loadIndicators();
-            } catch (e) {
-                showToast(e.message, 'error');
+        async function manualRefreshIndicators() {
+            const btn = document.getElementById('btnRefresh');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Refreshing...';
             }
+            await loadIndicators(false);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Refresh';
+            }
+            showToast('Threat indicators refreshed', 'success');
         }
+
+        // Real-time hooks: instantaneous update on SSE event + 6-second poll fallback
+        window._onRealtimeAlert = function() { loadIndicators(true); };
+        setInterval(() => loadIndicators(true), 6000);
         loadIndicators();
     </script>
 </body>

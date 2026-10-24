@@ -25,6 +25,16 @@ class TestPart5ControlledResponse(unittest.TestCase):
         self.client = self.app.test_client()
         self.app_ctx = self.app.app_context()
         self.app_ctx.push()
+        try:
+            from app.services.response_modes_service import clear_response_modes_caches
+            clear_response_modes_caches()
+        except Exception:
+            pass
+        try:
+            from app.services.guardrails_service import clear_guardrails_caches
+            clear_guardrails_caches()
+        except Exception:
+            pass
 
     def tearDown(self):
         self.app_ctx.pop()
@@ -187,6 +197,7 @@ class TestPart5ControlledResponse(unittest.TestCase):
     # 4. End-to-End Autonomous Closed-Loop Verification
     # =========================================================================
 
+    @patch("app.services.response_policy.is_auto_containment_enabled", return_value=True)
     @patch("app.services.response_policy.freeze_target_transaction")
     @patch("app.services.response_policy.revoke_target_session")
     @patch("app.services.response_policy.block_target_ip")
@@ -196,7 +207,7 @@ class TestPart5ControlledResponse(unittest.TestCase):
     @patch("app.services.event_service.analyze_transaction")
     def test_end_to_end_closed_loop_detection_to_containment(
         self, mock_analyze, mock_ev_sb, mock_det_sb, mock_inc_sb,
-        mock_block, mock_revoke, mock_freeze
+        mock_block, mock_revoke, mock_freeze, mock_auto
     ):
         """Telemetry ingestion of ATO triggers L3 detection, incident creation, and automated fund freeze."""
         mock_freeze.return_value = {"status": "confirmed", "action_id": "act-freeze-1"}

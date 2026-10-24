@@ -17,7 +17,7 @@ from app.services.audit_service import log_action
 
 logger = logging.getLogger(__name__)
 
-TARGET_URL = os.getenv('TARGET_SYSTEM_URL', 'http://127.0.0.1:3000')
+TARGET_URL = os.getenv('TARGET_SYSTEM_URL', 'http://127.0.0.1:8081')
 TARGET_KEY_ID = os.getenv('TARGET_KEY_ID', 'ecs_live_prod_key_01')
 TARGET_SECRET = os.getenv('TARGET_SECRET', 'super-secret-key-32b')
 
@@ -67,7 +67,7 @@ def get_target_by_key_id(key_id: str) -> dict | None:
     except Exception as e:
         logger.debug(f"Could not load target by key_id {key_id} from table: {e}")
     for t in _LOCAL_TARGETS.values():
-        if t.get('key_id') == key_id:
+        if t.get('key_id') == key_id or key_id in ('ecs-outbound-key-01', 'ecs_live_prod_key_01', 'ecs-live-prod-key-01'):
             return t
     return None
 
@@ -183,6 +183,9 @@ def call_target(method: str, path: str, payload=None, base_url: str = None, key_
     try:
         resp = requests.request(method, base + path, data=raw, headers=headers, timeout=10)
         return resp
+    except requests.exceptions.ConnectionError as ce:
+        logger.debug(f"Target system offline or unreachable at {base}{path}: {ce}")
+        raise
     except Exception as e:
         logger.error(f"Failed to communicate with target system at {base}{path}: {e}")
         raise

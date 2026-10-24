@@ -497,6 +497,391 @@
     - `GET /api/baselines/summary`: Organization-wide baseline statistics and coverage.
   - Verified with Part 22 test suite (`core/tests/test_part22_behavioral_baselines.py`) with 8/8 tests passing.
 
+---
+
+## ADR-029: Explainable Risk Model v2 (Additive 0–100 with Rule Confidence, Entity Criticality, and Recency Decay)
+
+* **Context**:
+  - Legacy risk scoring in ECS relied on a crude sum of rule weights clamped at 100. This lacked essential security nuance:
+    1. Equal weighting regardless of rule confidence (heuristics vs. deterministic attack chains).
+    2. Inability to account for entity criticality (a probe against an unauthenticated marketing page had the same mathematical weight as a probe against EthSwitch settlement rails or Core Banking hosts).
+    3. Absence of temporal recency decay, causing past resolved alerts to either permanently inflate entity risk or fail to compound acute ongoing multi-stage attacks.
+  - Under Ethiopian legal regulations (Proclamation No. 1426/2026 and PDPP 1321/2024), cybersecurity risk scores must be explainable by default and **must never be presented as statistical probabilities of guilt or fraud**.
+* **Decision**:
+  - Implement `RiskModelV2Service` (`core/app/services/risk_model_service.py`) providing an additive, explainable 0–100 operational risk scoring engine.
+  - Multi-factor mathematical formula:
+    1. **Rule Confidence Weighting**: Evaluated rules contribute $\text{round}(r.\text{weight} \times C_r)$ with confidence factors $C_r \in \{1.00\text{ (high)}, 0.85\text{ (medium)}, 0.70\text{ (low)}\}$. Unspecified confidence defaults to 1.00 preserving calibrated declarative weights.
+    2. **Pre-Criticality Synthesis**: Additive sum of confidence-adjusted rules and behavioral baseline anomaly scores: $\text{pre\_score} = \text{rules\_contrib} + \text{baseline\_score}$.
+    3. **Entity Criticality Tiers**:
+       - `critical`: $1.40\times$ multiplier, $+15$ pts boost (National switch rails, EthSwitch gateway, Core Banking hosts, RTGS/ACH nodes, Treasury reserve accounts).
+       - `high`: $1.20\times$ multiplier, $+8$ pts boost (Corporate accounts, branch managers, cashier terminals, privileged IT admins).
+       - `medium`: $1.00\times$ multiplier, $+0$ pts boost (Standard retail accounts, regular authenticated users).
+       - `low`: $0.90\times$ multiplier, $+0$ pts boost (Sandbox environments, low-risk public endpoints).
+    4. **Zero-Baseline Protection**: If $\text{pre\_score} == 0$, criticality boost is strictly suppressed, preventing false alarms on routine/benign events on critical infrastructure.
+    5. **Recency Decay**: Step-wise temporal decay for historical alerts: $0-15\text{m}$ ($1.00$), $15-60\text{m}$ ($0.85$), $1-6\text{h}$ ($0.65$), $6-24\text{h}$ ($0.40$), $>24\text{h}$ ($0.20$).
+    6. **Deterministic Severity & Rationale**: Mapping to Low ($0-24$), Medium ($25-49$), High ($50-74$), and Critical ($75-100$) with operational response rationales.
+    7. **Non-Probability Mandate**: Mandatory legal notice across all evaluation outputs: `"Deterministic operational risk priority index (0–100); NOT a statistical probability of guilt or fraud."`
+  - Store entity criticality configurations in PostgreSQL table `entity_criticality` strictly partitioned by `organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE`.
+  - Wire into `detection_engine.py` (`evaluate_event_stream`), synthesizing declarative rules, behavioral baselines, and Risk Model v2 into every alert and incident.
+  - Expose REST API routes under `/api/risk`:
+    - `GET /api/risk/model/spec`: Returns declarative specifications, formulas, and parameters.
+    - `POST /api/risk/evaluate`: Dry-run and live evaluation of risk for events or candidate detections.
+    - `GET /api/risk/criticality`: List entity criticality definitions for tenant.
+    - `POST /api/risk/criticality`: Set or update entity criticality (Admin/Responder only).
+    - `DELETE /api/risk/criticality/<id>`: Delete entity criticality override (Admin only).
+    - `GET /api/risk/entities/<entity_type>/<entity_id>`: Retrieve composite decayed risk profile and entity history.
+  - Verified with Part 23 test suite (`core/tests/test_part23_risk_model_v2.py`) with 11/11 tests passing and no regressions across Part 3, Part 19, Part 20, Part 21, and Part 22.
+
+---
+
+## ADR-030: Benchmark Corpus, Attack Lab Scenario Library, and CI Detection Verification (Phase 3.6)
+
+* **Context**:
+  - Deploying and maintaining 27+ detection rules across Fraud & Payments, Web/API, and Insider/Admin packs requires continuous quantitative assurance that rules actually catch target threats without inducing false alarms on legitimate banking operations.
+  - Gate 3 requires:
+    1. A reproducible labeled benchmark corpus and scenario library containing $\ge 12$ distinct attack scenarios.
+    2. Published precision/recall per pack on the corpus.
+    3. $\ge 90\%$ of attack scenarios detected with a false positive rate $\le 10\%$.
+    4. Automated verification integrated directly into CI to prevent detection regressions on code changes or threshold adjustments.
+* **Decision**:
+  - Implement the Attack Lab Scenario Library (`core/app/benchmark/scenarios.py`) providing 16 distinct scenarios:
+    - **Fraud & Payments (6 scenarios)**: `SCEN-01-ATO-CHAIN` (Multi-stage ATO), `SCEN-02-MULE-TRANSFER` (Mule Syndicate), `SCEN-03-SIM-SWAP` (SIM-swap cashout), `SCEN-04-STRUCTURING` (Smurfing under 50k ETB), `SCEN-05-USSD-CASH-OUT` (USSD session bursts), `SCEN-06-APP-COACHED` (Coached push payment).
+    - **Web & API Abuse (4 scenarios)**: `SCEN-07-CRED-STUFFING` (Distributed login spray), `SCEN-08-IDOR-PROBE` (Sequential account traversal), `SCEN-09-BOT-SCANNER` (sqlmap/nikto scanner recon), `SCEN-10-TOKEN-REPLAY` (Bearer token reuse across distinct IPs/devices).
+    - **Insider & Admin (3 scenarios)**: `SCEN-11-MASS-EXFIL` (5,000 PII/balance records export), `SCEN-12-AUDIT-TAMPER` (TRUNCATE audit_logs attack), `SCEN-16-DORMANT-ADMIN` (Off-hours dormant admin activation).
+    - **Benign Baseline (3 scenarios)**: `SCEN-13-BENIGN-RETAIL` (Daytime P2P retail transfers), `SCEN-14-BENIGN-MERCHANT` (In-store QR payments), `SCEN-15-BENIGN-SALARY` (Corporate batch payroll credits).
+  - Implement `BenchmarkCorpus` (`core/app/benchmark/corpus.py`) generating standardized labeled datasets with ground truth assertions (`is_attack`, `category`, `expected_rule_ids`).
+  - Implement `BenchmarkService` (`core/app/services/benchmark_service.py`):
+    - Computes scenario detection rate, false positive rate, precision, recall, and F1 score per pack and per rule.
+    - Evaluates Gate 3 criteria ($\ge 90\%$ detection rate, $\le 10\%$ FPR).
+    - Results: **100.00% Scenario Detection Rate**, **0.00% False Positive Rate**, **100.00% Precision**, **F1: 1.0000**.
+  - Expose REST API routes under `/api/benchmark` (`core/app/routes/benchmark.py`):
+    - `GET /api/benchmark/scenarios`: List scenario catalog and target rules.
+    - `POST /api/benchmark/scenarios/run`: Execute individual scenario in sandbox mode.
+    - `GET /api/benchmark/corpus`: Summary of labeled benchmark corpus.
+    - `POST /api/benchmark/run`: Full benchmark execution.
+    - `GET /api/benchmark/latest`: Latest benchmark run metrics.
+  - Implement standalone CLI runner (`labs/run_benchmark.py`) with `--min-recall 0.90` and `--max-fpr 0.10` gates and terminal reporting.
+  - Integrated into `.github/workflows/ci.yml` ensuring all PRs and commits verify Gate 3 detection performance automatically.
+  - Verified with Part 24 test suite (`core/tests/test_part24_benchmark_corpus_and_ci.py`) with 7/7 tests passing.
+
+---
+
+## ADR-031: Alert Quality, Sliding-Window Deduplication, Suppression Windows, and SOC Fatigue Reduction (Phase 3.7)
+
+* **Context**:
+  - High-volume transaction processing and telemetry ingestion in Ethiopian financial infrastructure can cause alert floods, where repeated identical events (e.g. brute force sprays, automated retry bursts) overwhelm SOC analysts with duplicate tickets.
+  - Furthermore, routine penetration testing, maintenance windows, and rule tuning require temporary, time-bounded suppression without permanently disabling core detection rules.
+  - Phase 3.7 completes Phase 3 (Detection Engine v2) by delivering deterministic SHA-256 alert fingerprinting, sliding-window deduplication, dynamic severity escalation, entity-centric correlation grouping, time-based suppression windows, and real-time alert fatigue reduction metrics.
+
+* **Decision**:
+  - **Deterministic Alert Fingerprinting**: Calculate canonical SHA-256 hash over invariant attributes: `sha256(f"{org_id}:{rule_id}:{entity_type}:{entity_id}:{alert_type}")`. Identical incident attributes consistently map to the identical fingerprint.
+  - **Sliding-Window Deduplication**:
+    - During a configurable deduplication window (default: 15 minutes / 900 seconds), incoming candidate alerts matching an active open alert with the identical fingerprint are absorbed rather than spawning new alert records.
+    - Increments `duplicate_count`, updates `last_seen_at`, and appends the new `trigger_event_id` to `related_event_ids`.
+    - **Risk Score & Severity Escalation**: If duplicate events carry higher risk scores than the initial alert, the parent alert's `risk_score`, `severity`, and `title` automatically escalate to reflect the elevated threat level.
+  - **Entity-Centric Alert Grouping & Attack-Chain Correlation**:
+    - Multiple distinct detection rules firing on the same entity (e.g. AUTH-001 followed by TX-001) within a 30-minute grouping window share a correlated `group_id`, visually clustering the multi-vector campaign together for analysts.
+  - **Time-Based Suppression Windows (`alert_suppression_rules`)**:
+    - Allow SOC teams and administrators to define temporary suppression rules on specific entities (IP, account, user) or rule IDs with an explicit duration and reason.
+    - Candidate alerts matching active, unexpired suppression rules are suppressed (`action: 'suppressed'`), preventing alert creation and incident dispatch.
+    - Expired rules are ignored automatically; manual early revocation supported via API.
+  - **Fatigue Reduction Metrics**:
+    - Track total evaluated, created, deduplicated, and suppressed candidate alerts per tenant.
+    - Compute `alert_reduction_rate = (deduplicated + suppressed) / total_evaluated`, average duplicates per alert, and SOC health grade (`Optimal` $\ge 70\%$, `Good` $\ge 50\%$, `Moderate` $\ge 30\%$, `Critical Fatigue` $< 30\%$).
+  - **Database Persistence & Multi-Tenancy**:
+    - Table `alert_suppression_rules` with strict `organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE`.
+    - New columns on `alerts`: `fingerprint`, `duplicate_count`, `last_seen_at`, `group_id`, `entity_type`, `entity_id`, `is_suppressed`.
+  - **Detection Engine Integration**:
+    - Integrated into `core/app/services/detection_engine.py` (`evaluate_event_stream`).
+    - Skips duplicate incident creation and duplicate outbound containment actions when candidate alerts are deduplicated or suppressed.
+  - **REST API (`/api/alerts/quality/*`)**:
+    - `GET /api/alerts/quality/metrics`: Tenant SOC alert fatigue metrics and health grades.
+    - `GET /api/alerts/quality/suppressions`: List active unexpired suppression windows.
+    - `POST /api/alerts/quality/suppressions`: Create maintenance/testing suppression rule (Analyst/Admin).
+    - `DELETE /api/alerts/quality/suppressions/<id>`: Early revocation of suppression rule.
+    - `POST /api/alerts/quality/evaluate`: Candidate alert evaluation (dedupe/suppress/group dry-run).
+  - Verified with Part 25 test suite (`core/tests/test_part25_alert_quality.py`) with 10/10 tests passing and zero regressions across detection engine test suites.
+
+---
+
+## ADR-032: Safe Response Modes, Guardrails Engine, and Declarative Playbooks (Phase 4.1, 4.2, 4.3)
+
+* **Context**:
+  - Financial and critical infrastructure operators in Ethiopia cannot risk automated containment actions accidentally disrupting interbank settlement rails (EthSwitch, RTGS), legitimate high-value commercial transfers, or administrative operations.
+  - Automation must be safe, explainable, progressive, and reversible.
+  - Phase 4.1, 4.2, and 4.3 establish the safe automation pillar:
+    1. Progressive response modes per action type and tenant (`observe`, `recommend`, `approve`, `auto`).
+    2. Comprehensive safety guardrails (Kill Switch, Allowlists, Blast Radius Rate Limits, Cooldowns, Confidence thresholds).
+    3. Declarative playbooks with dry-run capabilities and response connector control contracts with idempotent rollback.
+
+* **Decision**:
+  - **Phase 4.1: Response Modes (`core/app/services/response_modes_service.py`)**:
+    - Progressive risk postures: `observe` (shadow) $\to$ `recommend` $\to$ `approve` $\to$ `auto`.
+    - Default posture: new tenants start in `observe` (shadow) mode for $\ge 14$ days, producing simulated "would-have-done" reports without dispatching real mutations against target systems.
+    - Per-action-type and per-tenant mode overrides stored in `tenant_response_modes` table (`organization_id UUID NOT NULL`).
+    - Compiles shadow observation reports (`generate_would_have_done_report`) showing what actions ECS would have executed.
+  - **Phase 4.2: Guardrails Engine (`core/app/services/guardrails_service.py`)**:
+    - **Emergency Kill Switch**: Per-tenant toggle instantly halts all automated containment operations with audited rejection.
+    - **Allowlists & Protected Entities**: Protects critical national infrastructure IPs (e.g. EthSwitch gateway, RTGS routers) and VIP/staff accounts (`tenant_allowlists`). Actions targeting allowlisted entities are strictly blocked.
+    - **Blast Radius Rate Limits**: Enforces sliding-window action rate limits (default: 20 actions/hour, 100 actions/day per tenant). Excess actions are blocked and audited.
+    - **Entity Cooldowns**: Enforces a 15-minute lookback window (`cooldown_seconds = 900`) preventing repeat mitigations on the same entity.
+    - **Confidence Threshold**: Minimum detection confidence posture (`high`, `medium`, `low`) required before auto-containment can execute.
+    - **Audit Trail**: Every guardrail check is recorded to `guardrail_audit_log` with decision (`passed`, `blocked`) and reason.
+  - **Phase 4.3: Declarative Playbooks & Response Connectors (`core/app/services/playbook_service.py`)**:
+    - Declarative YAML playbooks stored in `core/app/playbooks/definitions/`:
+      - `PB-001-ATO-CONTAINMENT`: Multi-step ATO containment (freeze transfer, revoke session, block IP).
+      - `PB-002-MULE-FREEZE`: Mule syndicate containment (freeze transfer, disable beneficiary, lock account).
+      - `PB-003-CRED-STUFFING`: Credential stuffing & spray defense (block IP, enforce step-up).
+      - `PB-004-INSIDER-EXFIL`: Insider threat mitigation (revoke admin session, require step-up, emergency lock).
+    - **Response Connectors Control Contract**: Standardized contract defining `is_reversible`, `rollback_connector`, `requires_approval_if_irreversible`, and `supported_entities` across all controls (`freeze_transaction`, `revoke_session`, `block_ip`, `require_step_up`, `disable_beneficiary`, `lock_account`, `revert`).
+    - **Dry-Run Simulation Engine**: Evaluates triggers, guardrails, and modes returning simulated execution traces without mutations (`dry_run=True`).
+    - **Dual-Custody / Two-Person Approval**: Risky operations (`lock_account`) stage in `action_approvals` requiring two distinct authorized approvers.
+    - **Idempotent Rollback**: Revert connector (`revert_target_action`) rolls back previously dispatched reversible actions.
+  - **REST API Routes (`core/app/routes/response.py`)**:
+    - `/api/response/modes`, `/api/response/modes/would-have-done`
+    - `/api/response/guardrails`, `/api/response/guardrails/kill-switch`, `/api/response/guardrails/allowlist`, `/api/response/guardrails/logs`
+    - `/api/response/playbooks`, `/api/response/playbooks/<id>/dry-run`, `/api/response/connectors`, `/api/response/approvals`, `/api/response/actions/<id>/rollback`
+  - **Integration & Verification**:
+    - Integrated with `response_policy.py` (`evaluate_and_execute_containment`).
+    - Verified with 13/13 tests passing in `core/tests/test_part26_safe_response_modes_and_guardrails.py` and zero regressions across existing test suites (`test_part5_controlled_response.py`, `test_automated_pipeline.py`, `test_part25_alert_quality.py`).
+
+---
+
+## ADR-033: Case Management, Multi-Channel Notifications, Analyst Feedback Loop, and Post-Incident Reviews (Phases 4.4, 4.5, 4.6, 4.7)
+
+* **Context**:
+  - Security Operations Centers (SOCs) in Ethiopian financial institutions and critical infrastructure need comprehensive operational incident handling following detection:
+    1. Incident Case Management (Phase 4.4): Formal case tracking, stage-based SLA timers (TTA, TTC, TTR), assignment history, collaborative analyst notes, SHA-256 evidence attachments, cross-time entity timelines, related-alert attack graphs, and cross-time telemetry searches.
+    2. Multi-Channel Notifications (Phase 4.5): Real-time alerting across Telegram, SMS, Email, and signed Webhooks; privacy-preserving data minimization (zero PII in messages); local Addis Ababa timezone quiet hours with critical severity override; and automated SLA escalation alerts.
+    3. Analyst Feedback Loop (Phase 4.6): Triage verdicts (TP, FP, benign positive, test), precision and False Positive Rate (FPR) tracking, automated rule tuning warnings (FPR >= 25%), and 1-click suppression rule generation from recurring FP invariants.
+    4. Post-Incident Review (PIR) Template (Phase 4.7): Automated compilation of executive post-incident reports with operational metrics, ETB financial impact, regulatory mapping (INSA Proc. 1426/2026, NBE Directives, PDPP Proc. 1321/2024), 5 Whys root cause analysis, bilingual summaries (Amharic and English), and cryptographic SHA-256 evidence sealing.
+
+* **Decision**:
+  - **Phase 4.4: Case Management (`core/app/services/case_service.py`, `core/app/routes/cases.py`)**:
+    - **SLA Engine**: Dynamically computes response (TTA), containment (TTC), and resolution (TTR) milestone adherence by severity (`critical`: 15m/60m/240m; `high`: 30m/240m/720m; `medium`: 120m/720m/1440m; `low`: 480m/1440m/2880m). Tracks SLA health (`on_track`, `at_risk`, `breached`, `met`).
+    - **Milestones**: Status transitions automatically record `acknowledged_at` (on investigating), `contained_at` (on contained), and `resolved_at` (on resolved/closed).
+    - **Case Notes & Attachments**: Scoped by `organization_id UUID NOT NULL` in `case_notes` and `case_attachments` tables. Every attachment is cryptographically hash-sealed with SHA-256 and verified for tamper resistance.
+    - **Cross-Time Entity Timeline & Graph**: Aggregates security events, alerts, incidents, and response mitigations for an account/IP/device across time into a unified chronological feed and node/edge graph.
+    - **Saved Searches**: Stores user and shared search queries in `saved_searches` table with multi-parameter event querying.
+  - **Phase 4.5: Multi-Channel Notifications (`core/app/services/notification_service.py`, `core/app/routes/notifications.py`)**:
+    - **Envelope Encryption**: Sensitive connector credentials (`bot_token`, `webhook_secret`, `smtp_password`, `sms_api_key`) are envelope-encrypted with AES-256-GCM (`crypto_service.encrypt_secret`) and stored in `tenant_notification_configs`. Raw secrets are masked in API outputs (`enc:***MASKED***`).
+    - **Privacy Preservation & Redaction**: All notifications strictly redact sensitive customer PII (`ACC-***1234`, `196.188.***.***`, `+25191****56`, `[MASKED_NATIONAL_ID]`, `[REDACTED_SECRET]`).
+    - **Severity Routing & Quiet Hours**: Messages routed by minimum severity threshold. Quiet hours enforced in East Africa Time (`Africa/Addis_Ababa`, UTC+3) with critical incident override.
+    - **Outbound Webhook Signatures**: Outbound payloads signed with HMAC-SHA256 (`X-ECS-Signature: sha256=<hex>`) and timestamped.
+    - **SLA Breach Escalation Watchdog**: Automatically identifies active incidents reaching >= 50% of response SLA target or breached, dispatching urgent escalation alerts.
+  - **Phase 4.6: Analyst Feedback Loop (`core/app/services/analyst_feedback_service.py`, `core/app/routes/feedback.py`)**:
+    - **Triage Feedback**: Captures verdicts (`true_positive`, `false_positive`, `benign_positive`, `test`) in `rule_feedback` table.
+    - **Rule Tuning Statistics**: Aggregates precision and False Positive Rate (FPR) per rule. Triggers automated warning when FPR >= 25% recommending parameter adjustments or shadow mode.
+    - **Automated Suppression Suggestions**: Analyzes recurring false-positive invariants (e.g. repeated benign internal IPs or batch accounts) and generates 1-click suppression rule suggestions (`AlertQualityService.create_suppression_rule`).
+  - **Phase 4.7: Post-Incident Review & Evidence Sealing (`core/app/services/pir_service.py`, `core/app/routes/pir.py`)**:
+    - **Auto-Compilation**: Auto-gathers incident telemetry, operational metrics (TTD, TTA, TTC, TTR, SLA grade), and financial impact in ETB (amount at risk, intercepted/saved, net loss).
+    - **Regulatory Evidence Register**: Maps incident evidence to INSA Proclamation No. 1426/2026, NBE Cyber Resilience Directives, and PDPP Proclamation No. 1321/2024 ("Supports Evidence For Compliance").
+    - **Root Cause & Lessons Learned**: Generates 5 Whys analysis and actionable rule-tuning tasks.
+    - **Bilingual Summaries**: Generates executive summaries in both Amharic and English.
+    - **Cryptographic Sealing**: Computes canonical SHA-256 seal locking the PIR document against any future tampering. Verification endpoint validates seal integrity.
+    - **Report Export**: Exports complete executive Markdown reports.
+
+* **Consequences**:
+  - Completes Phase 4.4, 4.5, 4.6, and 4.7 of the ECS platform roadmap.
+  - Verified with 12/12 passing tests in `core/tests/test_part27_case_management_notifications_feedback_pir.py` with zero regressions across Phase 4.1-4.3 (`test_part26`) and Phase 3.7 (`test_part25`).
+
+---
+
+## ADR-034: Incident Readiness Engine, 48-Hour Statutory Clock, Evidence Vault, and Compliance Assistance (Phase 5)
+
+* **Context**:
+  - Ethiopian critical infrastructure operators (banks, payment system operators, telecommunications, energy) face strict regulatory reporting obligations under Proclamation No. 1426/2026 (Part 4 §18: mandatory reporting to National CERT within 48 hours of detection), National Bank of Ethiopia (NBE) Financial Cyber Resilience Directives, and PDPP Proclamation No. 1321/2024.
+  - Without automated readiness tooling, manual forensic collation takes days, breaching statutory 48-hour deadlines and risking administrative penalties.
+  - Architectural mandates require tamper-evident evidence, bilingual reporting (Amharic & English), privacy preservation, and strict non-overclaiming ("supports evidence for", never "guarantees compliance").
+
+* **Decision**:
+  - **Phase 5.1: Reportable-Incident Classification (`core/app/services/readiness_service.py`, `core/app/routes/readiness.py`)**:
+    - Evaluates statutory triggers: critical severity / risk $\ge 75$, ransomware / ATO, ETB financial exposure $\ge 50,000$ ETB, customer data exposure $\ge 100$ records (PDPP Art. 31), or interbank settlement / EthSwitch / RTGS involvement.
+    - Explicit detection timestamp anchor (`detection_date`) locked at detection time; human-in-the-loop confirmation step (`confirm_reportable_status`) records certifying officer attestation.
+  - **Phase 5.2: The 48-Hour Statutory Clock Engine**:
+    - Calculates real-time countdown in East Africa Time (`Africa/Addis_Ababa`, UTC+3).
+    - Milestone stages: `green` (0-24h), `yellow_warning` (24-36h), `amber_warning` (36-44h), `red_critical` (44-48h), and `breached` (>48h).
+    - Escalation watchdog (`check_48h_clock_escalations`) dispatches statutory warnings via `NotificationService`.
+    - EthioCERT submission recording (`record_cert_submission`) halts the clock as `submitted_on_time`.
+  - **Phase 5.3: Submission-Ready EthioCERT / INSA Package (`ECS-IRS-v1.0`)**:
+    - Compiles standard statutory JSON (`incident_report_v1.0.json`) conforming to `docs/INCIDENT_REPORT_FALLBACK_SPEC.md`.
+    - Generates unique statutory reference: `ECS-REP-YYYYMMDD-<short_id>`.
+    - Generates mandatory bilingual executive summaries (English technical narrative & Amharic official declaration: `በአዋጅ ቁጥር 1426/2026 መሰረት የቀረበ የ48 ሰዓት የሳይበር ደህንነት ክስተት ሪፖርት`).
+  - **Phase 5.4: Tamper-Evident Evidence Vault & Chain of Custody**:
+    - Creates immutable snapshots in `evidence_vaults` table with 10-year retention (`retention_days=3650`).
+    - Triple SHA-256 cryptographic sealing: `telemetry_sha256_digest` (ordered raw events), `audit_trail_sha256_digest` (hash-chained audit logs), and composite `manifest_sha256`.
+    - Chain-of-custody log in `evidence_chain_of_custody` tracking all creation, verification, export, and submission events.
+  - **Phase 5.5: Statutory Obligation Register & Compliance Support Guide**:
+    - Versioned register in `regulatory_obligations` mapping ECS capabilities to INSA Proc. 1426/2026 (§18, §19, §20), NBE Directives (§6, §8), and PDPP 1321/2024 (§31, §32).
+    - Strictly labels status as `"supports_evidence_for"`, `"partially_supported"`, or `"not_covered"` — NEVER `"compliant"` or `"guarantees compliance"`.
+    - Published comprehensive guide: `docs/COMPLIANCE_SUPPORT.md`.
+  - **Phase 5.6: One-Click Sealed Audit Pack**:
+    - All-in-one sealed regulatory audit package (`generate_audit_pack`) bundling policy, statutory mapping, breach logs, vault manifests, and SHA-256 seal.
+  - **Phase 5.7 & 5.8: Auditor Role & Data Protection Controls**:
+    - Read-only `auditor` role with inspection access to vaults, 48h clock, and audit packs without mutation privileges.
+    - PII minimization and privacy scrubbing on all exported telemetry.
+
+* **Consequences**:
+  - Completes Phase 5 of the ECS platform roadmap.
+  - Verified with 9/9 passing tests in `core/tests/test_part28_incident_readiness_48h_vault.py` with zero regressions across Phase 4 suites (`test_part27`, `test_part26`).
+
+---
+
+## ADR-035: Community Defense, Privacy-Preserving Keyed Hashing, Anti-Poisoning Corroboration, and STIX 2.1 Exchange (Phase 6)
+
+* **Context**:
+  - Cyber fraud syndicates and advanced threat actors operate across multiple Ethiopian financial operators and infrastructure sectors simultaneously (e.g., mule account rings routing stolen funds across CBE, Dashen, Awash, and telebirr).
+  - Exchanging raw indicators directly risks exposing sensitive customer PII, account numbers, and balances, violating PDPP Proclamation No. 1321/2024 and banking secrecy rules.
+  - Furthermore, untrusted community feeds introduce "signal poisoning" risks where false indicators could cause catastrophic automated denial of service against legitimate counterparties or critical infrastructure.
+  - Phase 6 builds the long-term defensive moat through privacy-preserving signal exchange, anti-poisoning corroboration, and national EthioCERT STIX 2.1 interoperability.
+
+* **Decision**:
+  - **Phase 6.1: Signal Schema, Keyed Hashing & TLP Policy (`core/app/services/signal_exchange_service.py`, `core/app/routes/signals.py`)**:
+    - **Keyed Hashing**: Customer accounts, phone numbers, and mule IDs are hashed using HMAC-SHA256 with an offline hub salt (`HUB_PEPPER`). Raw PII is mathematically irrecoverable across tenant boundaries. Public network observables (IP, domain) remain plain for firewall/WAF matching.
+    - **Traffic Light Protocol (TLP)**: Enforces `TLP:CLEAR/WHITE`, `TLP:GREEN`, `TLP:AMBER`, and `TLP:RED`. `TLP:RED` is strictly local and rejected from community egress.
+    - **Sharing Preferences & Consent**: Stored in `tenant_sharing_preferences` table. Strict opt-in check enforced before any signal contribution.
+  - **Phase 6.2: Anti-Poisoning & Corroboration Engine**:
+    - **Reporter Reputation Scoring**: Tracks participant credibility (0.00 to 1.00) in `reporter_reputations` table. Increments on verified corroborations (+0.05); penalizes on retracted false positives (-0.20).
+    - **Corroboration Threshold ($N \ge 2$)**: Single-contributor signals start as uncorroborated (`is_corroborated: false`). Corroboration requires independent observation by $\ge 2$ distinct licensed institutions.
+    - **Non-Negotiable Safe Automation Rule**: Single-source uncorroborated signals produce ONLY advisory warnings (`IOC-COMMUNITY-ADVISORY`, 15 pts) and **NEVER** trigger automated blocking (`allow_automated_block: false`). Only corroborated signals or locally approved rules can trigger containment.
+    - **Retraction & Dispute Flow**: Contributor or administrator can retract false signals (`retract_signal`), deprecating them network-wide.
+  - **Phase 6.3: Hub Service & Anonymized Feed Consumption**:
+    - Community feed endpoint (`/api/signals/feed`) anonymizes contributor identities (`HUB-ANONYMIZED-PARTICIPANT`) and filters by recipient permitted TLP levels.
+    - Audit logging of all contributions, consumptions, and matches in `signal_exchange_audit`.
+  - **Phase 6.4: Detection Engine Integration**:
+    - Extends `IOC-001` with `COMMUNITY_CORROBORATED_IOC` and `COMMUNITY_UNVERIFIED_ADVISORY`.
+    - Enables Gate 6 verification: an indicator contributed by Tenant A flags and prevents a seeded attack at Tenant B.
+  - **Phase 6.5: EthioCERT STIX 2.1 Interoperability**:
+    - Exports active signals as standardized OASIS STIX 2.1 JSON Bundles (`export_stix_bundle`) with indicators, patterns, and TLP markings.
+    - Ingests official EthioCERT threat advisories (`import_cert_advisories`).
+  - **Phase 6.6: Governance Charter & Privacy Impact Assessment (PIA)**:
+    - Published [`docs/SIGNAL_EXCHANGE_GOVERNANCE.md`](file:///home/neuron/dev/cybershield/Ethio-Cyber-Shield/docs/SIGNAL_EXCHANGE_GOVERNANCE.md) establishing consortium terms, data-handling charter, takedown process, and PIA.
+  - **Phase 6.7: Network Effect Dashboard**:
+    - Metrics endpoint (`/api/signals/metrics`) tracking signals contributed, signals corroborated, and attacks prevented via community signals.
+
+* **Consequences**:
+  - Completes Phase 6 of the ECS platform roadmap.
+  - Verified with 8/8 passing tests in `core/tests/test_part29_community_signal_exchange.py` with zero regressions across Phase 5 (`test_part28`), Phase 4 (`test_part27`, `test_part26`), and Phase 3 (`test_part25`).
+
+---
+
+## ADR-036: Product Editions, Feature Entitlements, Executive Metrics, Multilingual Localization, and Pilot Onboarding (Phase 7)
+
+* **Context**:
+  - Having completed core multi-tenant decoupling (Phases 1–3), safe response automation (Phase 4), the 48-hour statutory incident readiness engine (Phase 5), and community signal exchange (Phase 6), ECS required a clear product packaging, governance structure, and operational framework for go-to-market.
+  - Target operators span independent fintech startups, small microfinance institutions (MFIs), large commercial banks, telecom operators, and national sector hubs (EthSwitch/INSA).
+  - Furthermore, operational realities in Ethiopian critical infrastructure require:
+    1. Clear edition boundaries (open-source Community vs commercial Pro vs Managed defense vs Sector Hub).
+    2. Executive KPIs (MTTD, MTTA, MTTC, MTTR, total ETB protected, 48h compliance rate).
+    3. Low-Bandwidth Mode (<1 KB compact telemetry) for regional branches operating over constrained 2G/3G and VSAT links.
+    4. Multilingual cybersecurity terminology across English, Amharic (`አማርኛ`), and Afaan Oromo (`Afaan Oromoo`).
+    5. Standardized 14-day progressive shadow-mode onboarding runbook.
+
+* **Decision**:
+  - **Phase 7.1: Editions & Feature Entitlements (`core/app/services/editions_service.py`, `core/app/routes/settings.py`)**:
+    - Defines four distinct tiers:
+      1. `community`: Free, self-hosted, Apache-2.0 open-source defense platform for startups and MFIs.
+      2. `pro`: Commercial edition for licensed financial institutions, equipped with 48h readiness clock, evidence vault, safe automation, and advanced Ethiopian fraud packs.
+      3. `managed`: Dedicated managed defense operations with monthly tuning reviews and facilitated tabletop drills.
+      4. `sector_hub`: Multi-tenant signal exchange hub and consortium governance platform for EthSwitch, INSA, and banking associations.
+    - Feature gating (`is_feature_enabled`) strictly isolates tenant capabilities based on active edition.
+    - Endpoints: `GET /api/settings/editions`, `PUT /api/settings/editions`.
+  - **Phase 7.2: Open-Source Governance & Legal Assets**:
+    - Standard Apache-2.0 `LICENSE` at repository root.
+    - `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` establishing engineering standards and community pledge.
+    - `docs/ROADMAP.md` mapping v3.0 release through future HSM and air-gapped SCADA horizons.
+    - `docs/SUPPORT_MODEL.md` establishing clear SLA tiers, emergency escalation paths, and explicit Rule #6 disclaimers (no automatic 24/7 SOC guarantee, tools *"support evidence for"* compliance).
+  - **Phase 7.3: Executive & Operational Metrics (`core/app/services/metrics_service.py`, `core/app/routes/dashboard.py`)**:
+    - Computes real-time MTTD, MTTA, MTTC, MTTR in minutes.
+    - Calculates total ETB financial volume protected across blocked transactions and contained incident assets.
+    - Evaluates 48-hour statutory compliance adherence percentage under INSA Proclamation No. 1426/2026.
+    - Measures alert fatigue reduction and noise suppression percentage.
+    - **Low-Bandwidth Mode**: Endpoint `GET /api/dashboard/executive?low_bandwidth=true` returns a compact numeric summary payload under 1,024 bytes (<1 KB) for rural banking branches.
+  - **Phase 7.4: Multilingual Terminology Service (`core/app/services/i18n_service.py`)**:
+    - Localized glossary supporting English (`en`), Amharic (`am`), and Afaan Oromo (`om`).
+    - Standardizes terminology for Account Takeover (`የሂሳብ ቁጥጥር ስርቆት` / `Herrega Dhuunfaa Qabachuu`), Evidence Vault (`የማስረጃ ማከማቻ` / `Kuusaa Ragaa`), Emergency Kill Switch (`የአደጋ ጊዜ ድንገተኛ ማቆሚያ` / `Cufaa Balaa Hatattamaa`), etc.
+    - Endpoint: `GET /api/settings/i18n`.
+  - **Phase 7.5: Operations Runbook & 14-Day Pilot Onboarding Protocol**:
+    - `docs/OPERATIONS_RUNBOOK.md`: Docker Compose deployment, backup/restore, emergency kill switch activation, and security hardening checklist.
+    - `docs/PILOT_ONBOARDING.md`: 14-day progressive shadow-mode protocol (`observe` $\to$ `recommend` $\to$ reversibility test $\to$ 48h drill $\to$ sign-off).
+
+* **Consequences**:
+  - Completes Phase 7 of the ECS platform roadmap, concluding the planned v3.0 Independent Platform transformation.
+  - Verified with 10/10 passing tests in `core/tests/test_part30_productization_editions_and_operations.py` with zero regressions across Phase 6 (`test_part29`), Phase 5 (`test_part28`), and Phase 4 (`test_part27`, `test_part26`).
+
+---
+
+## ADR-037: Selective Expansion — Multilingual Explainable Narratives, Host/Email Adapters, Exposure Management, Fayda ID Assurance, and Sector Hub Dashboards (Phase 8)
+
+* **Context**:
+  - With the core multi-tenant platform, safe automation, incident readiness engine, community exchange, and product packaging completed (Phases 1–7), Phase 8 executes high-value, demand-driven expansions identified during operator discovery.
+  - Specifically, operators require:
+    1. Explainable, human-readable narratives in national languages (English, Amharic, Afaan Oromo) to translate deterministic detection evidence for executives and regulators without unverified LLM hallucinations.
+    2. Ingestion of endpoint (Sysmon/Wazuh/Defender) and email security logs to catch ransomware precursors (e.g. shadow copy deletion) and Business Email Compromise (BEC) wire lures before bank transaction settlement.
+    3. External attack surface exposure auditing (LocalShield concepts: TLS expiry, deprecated ciphers, missing security headers, exposed open ports) feeding directly into ECS risk context.
+    4. National Digital ID (Fayda - Proclamation No. 1284/2023) authentication telemetry to differentiate verified biometric customer transactions from presentation spoofing or identity theft attacks.
+    5. Anonymized sector-wide threat intelligence and statutory compliance dashboards for regulatory authorities (INSA, NBE, EthSwitch) that protect banking secrecy.
+
+* **Decision**:
+  - **Phase 8.1: Explainable Multilingual Narratives (`core/app/services/narrative_service.py`, `core/app/routes/narrative.py`)**:
+    - Generates deterministic, explainable incident debriefs and executive summaries in English, Amharic (`አማርኛ`), and Afaan Oromo (`Afaan Oromoo`).
+    - Adheres strictly to Principle #1 (Explainable by default; LLM is advisory-only) and Principle #4 (PII scrubbed before narrative synthesis).
+    - Endpoints: `POST /api/narrative/incident/<id>`, `GET /api/narrative/incident/<id>`.
+  - **Phase 8.2: Endpoint & Email Telemetry Adapters (`core/app/services/endpoint_email_adapter_service.py`, `core/app/routes/telemetry_adapters.py`)**:
+    - **Endpoint Telemetry**: Normalizes host events; flags ransomware precursors (`vssadmin delete shadows`, `wbadmin delete catalog`, MITRE ATT&CK T1490) and suspicious script execution (MITRE T1059).
+    - **Email Telemetry**: Evaluates SPF/DKIM/DMARC verdicts; flags BEC C-Suite/VIP impersonation combined with urgent financial wire transfer lures.
+    - Endpoints: `POST /api/adapters/endpoint/ingest`, `POST /api/adapters/email/ingest`, `GET /api/adapters/events`.
+  - **Phase 8.3: Exposure Management & Attack Surface Context (`core/app/services/exposure_service.py`, `core/app/routes/exposure.py`)**:
+    - Manages external asset inventory (domains, FQDNs, IPs).
+    - Audits TLS certificates (validity, expiration within 14 days, self-signed, deprecated versions) and missing HTTP security headers (HSTS, CSP, X-Frame-Options).
+    - Checks for insecure exposed public ports (22, 3389, 5432, 6379) and computes asset exposure score (0-100) integrated into ECS transaction risk scoring.
+    - Endpoints: `POST /api/exposure/assets`, `GET /api/exposure/assets`, `POST /api/exposure/assets/<id>/scan`.
+  - **Phase 8.4: National Identity Assurance — Fayda Digital ID Adapter (`core/app/services/fayda_id_service.py`, `core/app/routes/fayda.py`)**:
+    - Connects to Ethiopian National ID Program (NIDP) rails under Proclamation No. 1284/2023.
+    - Privacy-preserving keyed hashing of Fayda FIN (`fayda_fin_h_...`) ensures no raw national ID numbers leave tenant premises.
+    - Biometric face/fingerprint verification yields high assurance (risk mitigation factor); presentation attack / deepfake spoof yields critical identity theft alert (+90 risk penalty).
+    - Endpoints: `POST /api/fayda/verify`, `GET /api/fayda/account/<account_number>`.
+  - **Phase 8.5: Regulator & Sector-Wide Telemetry Dashboard (`core/app/services/regulator_dashboard_service.py`, `core/app/routes/regulator.py`)**:
+    - Provides aggregated cross-institution threat posture across Commercial Banking, Microfinance, FinTech, and Telecom sectors.
+    - Strict privacy mandate: Strips all individual institutional names, account numbers, and customer PII.
+    - Tracks sector-wide 48-hour statutory compliance adherence and total ETB protected volume.
+    - Endpoint: `GET /api/regulator/sector-overview`.
+
+* **Consequences**:
+  - Completes Phase 8 (Selective Expansion), delivering end-to-end host/email/identity/exposure correlation.
+  - Verified with 7/7 passing tests in `core/tests/test_part31_selective_expansion.py` and 59/59 passing regression tests with zero regressions across Phases 4–7.
+
+---
+
+## ADR-032: Thread-Isolated Database Clients, Resilient Target Polling & Telemetry-Only UI Enforcement
+
+* **Context**:
+  - Running Flask in development/threaded mode with active Server-Sent Events (SSE) streaming (`/api/live/stream`) and simultaneous REST polling (`/api/live/recent-events`, `/api/live/summary`, `/api/dashboard/stats`) triggered `RuntimeError: deque mutated during iteration` due to concurrent access across worker threads to a shared global `httpx.Client` / PostgREST HPACK compression table.
+  - Target system poller flooded stdout with full connection refused stack traces when the target system was stopped or restarting, and failed loudly when attempting to update nonexistent remote `target_systems` schema cache.
+  - Legacy manual entry forms and buttons ("Add Transaction", "New Incident", "Add Indicator") confused operators and undermined the automated telemetry-driven platform architecture.
+
+* **Decision**:
+  1. **Thread-Isolated Database Clients**:
+     - Refactor `get_service_supabase()` in `core/app/services/db.py` to use `threading.local()`, giving each Flask worker thread its own PostgREST/PostgreSQL client instance. This eliminates shared state in `httpx` HTTP/2 HPACK tables.
+  2. **Graceful Target Poller Resilience**:
+     - Update default target URL to `http://127.0.0.1:8081` (matching `targetsys` Vite default).
+     - Log target connection refused states at `logger.debug`, treating offline target as a routine transient state and triggering exponential backoff.
+     - Fall back seamlessly to in-memory `_LOCAL_TARGETS` cache when `target_systems` table is absent in remote schema cache.
+     - Start background poller daemon only in child worker process when Flask debug reloader is active (`WERKZEUG_RUN_MAIN == 'true'`).
+  3. **Telemetry-Only UI Enforcement**:
+     - Remove manual data creation buttons and modal forms (`#btnCreate`, `#createModal`, `submitCreate()`) across `ui/fraud.html`, `ui/incidents.html`, and `ui/indicators.html`.
+     - Retain full operational review, containment, and audit actions (Delete, Ack, Resolve, Add Note, Dispatch Mitigation, Dossier Export, Root Hash Verification).
+
+* **Consequences**:
+  - Stress testing confirmed 20/20 concurrent REST requests succeed with zero errors during active SSE streaming.
+  - Startup logs are clean without repetitive connection refused tracebacks.
+  - UI strictly reflects automated ingestion from live target telemetry and log streams.
+
+
+
+
+
+
 
 
 
