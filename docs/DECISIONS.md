@@ -1163,6 +1163,19 @@
 
 ---
 
+## ADR-045: Master Universal Target System Integration Specification
+
+* **Context**: External financial technology teams, core banking architects (CBE, Awash, Dashen), payment system operators (EthSwitch, telebirr), and third-party developers require a definitive, end-to-end guide on integrating their applications into Ethio-Cyber-Shield with minimal friction while upholding Ethiopian statutory security requirements.
+* **Decision**:
+  1. **Publish Master `INTEGRATION_GUIDE.md`**: Created a root-level integration specification detailing the Canonical Security Event Contract v1.1, zero-PII compliance under PDPP No. 1321/2024 (mandatory SHA-256 phone/ID hashing), and anti-replay HMAC-SHA256 headers.
+  2. **Multi-Language Drop-In Implementations**: Documented production-ready snippets in 6 technology stacks: cURL, TypeScript/Node.js, Python, Java/Spring Boot, Go, and PHP.
+  3. **No-Code Webhook Ingestion**: Detailed zero-code JSON field mapping for proprietary payment switches and core banking engines (telebirr, EthSwitch, Temenos T24).
+  4. **Closed-Loop Mitigation Webhooks**: Documented target application webhook receivers (`POST /api/security/mitigate`) supporting automated/human-approved containment (`FREEZE_ACCOUNT`, `KILL_SESSION`, `STEP_UP_OTP`, `BLOCK_IP`) with idempotent rollback (`/revert`).
+* **Consequences**:
+  - Developers can integrate any web, mobile, or enterprise banking infrastructure into ECS in under 15 minutes with complete cryptographic guarantees.
+
+---
+
 ## ADR-044: Project Submission Packaging & Redundant Artifact Deprecation
 
 * **Context**: Prior to final project submission, the project root contained loose duplicate markdown files from early milestones (`ATTACK_SIMULATION_GUIDE.md`, `ECS_COMPLETE_SYSTEM_ARCHITECTURE_AND_FLOWS.md`, `FULL_SYSTEM_SETUP_AND_RUN_GUIDE.md`, `TEAM_RUNBOOK.md`), `targetsys` contained obsolete generator prompt packs (`targetsys-promot.md`, `shieldbank-spec.md`), and `Ethio-Cyber-Shield` contained obsolete early-phase planning files (`AUTOMATED_INTEGRATION_PLAN.md`, `ECS_Independent_Redesign_Execution_Plan.md`, `COMPETITION_DEMO_RUNBOOK.md`). Furthermore, the project root lacked an overarching master README, and subproject READMEs contained outdated v1.0 / boilerplate information.
