@@ -1,162 +1,162 @@
-# Ethio-Cyber Shield (ECS)
+# Ethio-Cyber-Shield (ECS) v3.0
 
-**Homegrown Cybersecurity MVP for INSA Ethiopia Competition**
-
-A real, simple, working cybersecurity platform for recording incidents, threat indicators, fraud detection, risk scoring, alerts, and audit logging.
-
-## Stack (Strictly as Specified)
-
-| Layer       | Technology              |
-|-------------|-------------------------|
-| Backend     | Python (Flask)          |
-| Frontend    | HTML5 + CSS3 + Vanilla JS + Bootstrap 5 |
-| Database    | Supabase (PostgreSQL)   |
-| Deployment  | Frontend → Netlify<br>Backend → Render / Railway / any Python host |
-
-**No React. No AI. No ML. No fake data. Real Supabase.**
-
-### Why there is no Supabase JS on the frontend
-
-All database access goes through the **Python backend** (`supabase-py`).  
-This is intentional and more secure:
-
-- Service role key and JWT secret stay on the server only  
-- Security rules, fraud detection, risk scoring and audit logging run server-side  
-- Frontend never talks directly to Supabase (no exposed keys)
-
-Flow:
-```
-HTML / Vanilla JS  →  Python API  →  Supabase PostgreSQL
-```
-
-You do **not** need `@supabase/supabase-js` in the browser for this architecture.
+> **Independent Threat-Detection, Explainable Risk Scoring & Incident-Readiness Platform**  
+> Built for Ethiopian critical infrastructure and digital finance operators.  
+> **Live Cloud Production Console**: [https://ethio-cyber-shield.onrender.com](https://ethio-cyber-shield.onrender.com)  
+> **Connected Banking Target**: [https://honorpay-banking.vercel.app](https://honorpay-banking.vercel.app)
 
 ---
 
-## Features
+## 1. Executive Summary
 
-1. **Secure Login** – JWT auth, roles: Admin / Analyst / Viewer
-2. **Incident Management** – CRUD, search, filter, types (phishing, ATO, fraud, malware…)
-3. **Threat Indicators (IOCs)** – IP, Domain, URL, Email, File Hash + status
-4. **Rule-based Security Analysis** – risk score with transparent reasons
-5. **Simple Fraud Detection** – high amount, burst, multi-account device rules
-6. **Cyber ↔ Fraud Correlation** – time proximity + IP matching
-7. **Risk Levels** – Low / Medium / High / Critical with reasons
-8. **Alerts** – auto-created, acknowledge, resolve
-9. **Live Dashboard** – real counts from Supabase
-10. **Immutable Audit Log**
+**Ethio-Cyber-Shield (ECS)** is an independent, multi-tenant cybersecurity detection, threat intelligence, and incident-readiness platform. Built to support compliance with **INSA Critical Infrastructure Proclamation No. 1426/2026** and **National Bank of Ethiopia (NBE)** risk directives, ECS correlates real-time security events, detects complex multi-stage attack chains, calculates explainable risk scores (0–100), and executes safe, closed-loop mitigations with full rollback capabilities.
 
 ---
 
-## Quick Start
+## 2. Core Architectural Principles
 
-### 1. Supabase Setup
+1. **Explainable by Default**:
+   Every alert displays exact deterministic rules triggered, condition evaluations, feature weights, and raw event evidence. Deterministic evaluation drives all decisions; ML/LLM is strictly advisory/explanatory.
+2. **Safe & Reversible Automation**:
+   Mitigations follow progressive risk postures: `observe` (shadow) → `recommend` → `approve` (human-in-the-loop) → `auto`. Actions support blast-radius limits, cooldowns, and idempotent rollbacks (`revert`).
+3. **Evidence First & Hash-Sealed**:
+   All incident telemetry, detection evaluations, and containment actions are hash-sealed using SHA-256 in an append-only audit trail and exportable in regulatory 48-hour incident packages.
+4. **Self-Hostable & Vendor Independent**:
+   Zero proprietary cloud lock-in. Operates anywhere via standard Docker Compose, PostgreSQL 18, and Redis 8.
+5. **Strict Multi-Tenancy**:
+   Every database entity scopes by `organization_id UUID NOT NULL` with Row-Level Security (RLS) enforcement.
+6. **Privacy-Preserving Threat Exchange**:
+   Cross-tenant community threat indicators exchange only keyed hashes, confidence scores, and TLP markings—never raw PII or banking transaction details.
+7. **Ethiopian Operational Context**:
+   Native Ethiopian Birr (ETB) currency formatting, Addis Ababa local timezone (`Africa/Addis_Ababa`, UTC+3), local payment rails (P2P, USSD, mobile money, EthSwitch), and multilingual localization.
 
-1. Create a project at [supabase.com](https://supabase.com)
-2. Go to **SQL Editor** → paste and run `sql/schema.sql`
-3. Copy **Project URL**, **anon key**, and **service_role key** from Settings → API
+---
 
-### 2. Backend
+## 3. System Architecture
 
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│             CONNECTED DIGITAL BANKING TARGET (e.g., HonorPay)          │
+│   • Customer Portal   • Mobile Rails   • Transactional Security Outbox │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ HMAC-SHA256 Signed Telemetry (JSON)
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                        ETHIO-CYBER-SHIELD (ECS)                        │
+├────────────────────────────────────────────────────────────────────────┤
+│  1. Ingest Gateway       Bounded Redis Streams / Transactional Outbox  │
+│  2. Detection Engine     Declarative Rules (L1 Schema → L2 Velocity    │
+│                          → L3 Cross-Source → L4 Stateful Correlation)  │
+│  3. Risk Scoring (0-100) Multi-factor, 100% Explainable Score Breakdown│
+│  4. Containment Dispatch Reversible Mitigation Connectors (HMAC-SHA256)│
+│  5. Immutable Audit Log  SHA-256 Hash-Sealed Cryptographic Audit Trail │
+│  6. Regulatory Packages  INSA / NBE 48-Hour Incident Dossier Generator │
+├────────────────────────────────────────────────────────────────────────┤
+│  7. SOC Web Console      Minimalist Institutional UI + Web Audio Siren │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. Multi-Layer Detection Hierarchy
+
+ECS evaluates inbound security events through a four-tier declarative detection hierarchy:
+
+| Tier | Name | Target Latency | Detection Scope |
+| :--- | :--- | :--- | :--- |
+| **L1** | **Deterministic / Schema** | < 5 ms | Known bad signatures, SQLi/XSS injection payloads, malformed headers |
+| **L2** | **Statistical & Velocity** | < 25 ms | Rapid credential brute-force, high-velocity fund transfers, burst thresholds |
+| **L3** | **Cross-Source Correlation** | < 100 ms | Multiple accounts sharing single device fingerprint, IP watchlist cross-match |
+| **L4** | **Stateful Attack Chains** | < 250 ms | Multi-step Account Takeover (Password reset + Device switch + Instant max-limit drain) |
+
+---
+
+## 5. Technology Stack
+
+- **Backend**: Python 3.12, Flask, Gunicorn
+- **Datastores**: PostgreSQL 18 (Relational & RLS), Redis 8 (Streams & Velocity Caching)
+- **Frontend Console**: Vanilla ES6+, HTML5, CSS3, Bootstrap 5 (High-contrast Institutional SOC theme)
+- **Audio Engine**: Web Audio API synthesized alert sirens (Critical, High, Medium)
+- **Deployment**: Render Web Service + Managed PostgreSQL + Managed Redis
+
+---
+
+## 6. Quick Start (Local Development)
+
+### Prerequisites
+- Python 3.11+
+- PostgreSQL 16+ or Docker Compose
+- Redis 7+
+
+### 1. Environment Setup
 ```bash
-cd backend
-python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
+cd core
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with your Supabase keys and a strong JWT_SECRET
-python run.py
 ```
 
-API runs at `http://localhost:5000`
+### 2. Configure Environment
+```bash
+cp ../.env.example .env
+# Configure DATABASE_URL, REDIS_URL, and JWT_SECRET
+```
 
-Default admin (after schema seed):
-- Email: `admin@ethiocybershield.et`
-- Password: `Admin@123`  
-**Change this immediately in production.**
+### 3. Initialize Database
+```bash
+psql -d ecs_db -f ../deploy/postgres/init.sql
+```
 
-### 3. Frontend
+### 4. Run Services
+```bash
+# Terminal 1: Backend API (Port 5000)
+cd backend && python run.py
+
+# Terminal 2: SOC Web Console (Port 5500)
+cd ui && python3 -m http.server 5500
+```
+
+Access the SOC Console at `http://localhost:5500`.
+
+---
+
+## 7. Cloud Production Deployment (Render)
+
+ECS is deployed in cloud production on **Render**:
+- **Console & API**: [https://ethio-cyber-shield.onrender.com](https://ethio-cyber-shield.onrender.com)
+- **Database**: Managed PostgreSQL 18 (`ecs-postgres`)
+- **Streams**: Managed Redis Key-Value (`ecs-redis`)
+- **Health Check**: `GET /api/health`
+
+### Production Operator Credentials
+- **Username**: `admin@shieldbank.test` *(or `admin@ethiocybershield.et` / `admin@honorpay.et`)*
+- **Password**: `Testbed#2026`
+
+---
+
+## 8. Verification & Test Suites
+
+ECS includes comprehensive automated test suites covering unit, integration, and security multi-tenancy isolation:
 
 ```bash
-cd frontend
-# Update js/config.js → API_BASE_URL to your backend URL
-# Serve locally for testing:
-npx serve . -p 5500
-# or use any static server / VS Code Live Server
+cd core
+source venv/bin/activate
+
+# Run backend unit & integration tests
+pytest tests/ -v
+
+# Run multi-tenancy isolation tests
+pytest tests/test_multi_tenancy.py -v
 ```
 
-Open `http://localhost:5500/login.html`
-
-### 4. Deploy
-
-**Frontend (Netlify)**  
-- Drag & drop the `frontend` folder, or connect Git repo  
-- Set publish directory to `frontend` (or root if you upload only frontend)  
-- Update `js/config.js` with production API URL before deploy
-
-**Backend (Render free tier example)**  
-- New Web Service → connect repo or upload  
-- Build: `pip install -r requirements.txt`  
-- Start: `gunicorn -b 0.0.0.0:$PORT run:app` (from backend folder)  
-- Add environment variables from `.env.example`
+For complete attack scenario simulation (28 attack scenarios including Burp Suite scripts), see [`ATTACK_TESTING_GUIDE.md`](ATTACK_TESTING_GUIDE.md).
 
 ---
 
-## Demo Workflow
+## 9. Regulatory Compliance Mapping
 
-1. Login as admin  
-2. Create an Incident (e.g. Phishing, High severity)  
-3. Add a Malicious Indicator (IP or URL)  
-4. Link indicator to the incident  
-5. Click **Run Analysis** → risk score + reasons appear  
-6. Add a high-value Transaction (e.g. 600 000 ETB) on a new device  
-7. System flags it and creates an Alert  
-8. View Dashboard (real numbers)  
-9. Check Audit Log  
-
-Every step uses the real database.
-
----
-
-## Project Structure
-
-```
-ethio-cyber-shield/
-├── backend/
-│   ├── app/
-│   │   ├── routes/          # API endpoints
-│   │   ├── services/        # auth, rules, audit, db
-│   │   ├── config.py
-│   │   └── __init__.py
-│   ├── requirements.txt
-│   ├── run.py
-│   └── .env.example
-├── frontend/
-│   ├── css/style.css
-│   ├── js/                  # config, api, common
-│   ├── *.html               # pages
-│   └── netlify.toml
-├── sql/schema.sql
-└── README.md
-```
-
----
-
-## Security Notes
-
-- Passwords hashed with bcrypt  
-- JWT tokens with expiry  
-- Role-based authorization on every mutating endpoint  
-- Input validation & basic sanitization  
-- Secrets only in environment variables  
-- Audit log is append-only (no update/delete endpoints)  
-- CORS restricted to configured origins  
-
----
-
-## License & Attribution
-
-Built as a homegrown Ethiopian cybersecurity MVP for the INSA competition.  
-Keep it real. Keep it simple. Keep it working.
-
-**Ethio-Cyber Shield** – Protecting digital Ethiopia.
+| Directive / Proclamation | ECS Capability |
+| :--- | :--- |
+| **INSA Proclamation No. 1426/2026 (§16)** | Mandatory 48-hour incident reporting package generator with SHA-256 evidence sealing |
+| **NBE Cyber Risk Guideline (§5.2)** | Real-time transaction fraud monitoring, velocity throttling & step-up authentication |
+| **Ethiopian PDPP (Data Protection)** | Strict tenant isolation, privacy-preserving threat intelligence exchange (TLP:AMBER / TLP:GREEN) |

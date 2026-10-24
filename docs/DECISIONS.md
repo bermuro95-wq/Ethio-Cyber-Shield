@@ -1163,6 +1163,24 @@
 
 ---
 
+## ADR-044: Project Submission Packaging & Redundant Artifact Deprecation
+
+* **Context**: Prior to final project submission, the project root contained loose duplicate markdown files from early milestones (`ATTACK_SIMULATION_GUIDE.md`, `ECS_COMPLETE_SYSTEM_ARCHITECTURE_AND_FLOWS.md`, `FULL_SYSTEM_SETUP_AND_RUN_GUIDE.md`, `TEAM_RUNBOOK.md`), `targetsys` contained obsolete generator prompt packs (`targetsys-promot.md`, `shieldbank-spec.md`), and `Ethio-Cyber-Shield` contained obsolete early-phase planning files (`AUTOMATED_INTEGRATION_PLAN.md`, `ECS_Independent_Redesign_Execution_Plan.md`, `COMPETITION_DEMO_RUNBOOK.md`). Furthermore, the project root lacked an overarching master README, and subproject READMEs contained outdated v1.0 / boilerplate information.
+* **Decision**:
+  1. **Purge Redundant and Obsolete Markdown Files**:
+     - Removed loose duplicate files from workspace root `/home/neuron/dev/cybershield`. All canonical guides are consolidated within `Ethio-Cyber-Shield/docs/` and `Ethio-Cyber-Shield/ATTACK_TESTING_GUIDE.md`.
+     - Removed obsolete prompt packs from `targetsys`.
+     - Removed superseded planning artifacts from `Ethio-Cyber-Shield/`.
+  2. **Author Master Project Root README**:
+     - Created `/home/neuron/dev/cybershield/README.md` providing an institutional overview of the complete CyberShield platform, live cloud production deployment links on Render and Vercel, operator credentials, local quickstart instructions, repository layout, and compliance mapping.
+  3. **Modernize Subproject Documentation**:
+     - Rewrote `Ethio-Cyber-Shield/README.md` to reflect v3.0 Independent Platform capabilities (PostgreSQL 18, Redis 8, L1-L4 detection hierarchy, explainable risk scoring, reversible containment, Render deployment).
+     - Rewrote `targetsys/README.md` to accurately document the HonorPay digital banking architecture, transactional security outbox, mitigation receiver, and Vercel deployment.
+* **Consequences**:
+  - The repository root and subprojects are clean, highly professional, and immediately evaluable by competition judges and technical auditors.
+
+---
+
 ## ADR-043: Full Cloud Production Deployment of ECS on Render via Render CLI
 
 * **Context**: Following the configuration of unified static serving and Render Blueprint files, the user authenticated the Render CLI and requested automated cloud deployment and infrastructure provisioning for the ECS platform.

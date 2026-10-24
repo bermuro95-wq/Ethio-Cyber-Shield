@@ -442,3 +442,11 @@
   - Successfully deployed to live URL: **`https://ethio-cyber-shield.onrender.com`**.
   - Verified live endpoint responses over HTTPS: `/api/health` (HTTP 200 OK, database healthy 1ms latency, Redis stream engine active), UI console (`/`, `/login.html`, `/dashboard.html`), and authenticated JWT session authentication (`/api/auth/login`).
 
+- [x] **Project Root Submission Readiness & Redundant Documentation Cleanup (ADR-044)**:
+  - Purged obsolete and duplicate markdown files from project root (`ATTACK_SIMULATION_GUIDE.md`, `ECS_COMPLETE_SYSTEM_ARCHITECTURE_AND_FLOWS.md`, `FULL_SYSTEM_SETUP_AND_RUN_GUIDE.md`, `TEAM_RUNBOOK.md`).
+  - Purged obsolete prompt pack files from `targetsys` (`targetsys-promot.md`, `docs/shieldbank-spec.md`).
+  - Purged superseded planning artifacts from `Ethio-Cyber-Shield` (`AUTOMATED_INTEGRATION_PLAN.md`, `ECS_Independent_Redesign_Execution_Plan.md`, `COMPETITION_DEMO_RUNBOOK.md`).
+  - Created master institutional root `README.md` at project root linking the dual ecosystem (ECS + HonorPay), live cloud deployment endpoints (Render + Vercel), architecture, credentials, local runbook, and verification suites.
+  - Upgraded `Ethio-Cyber-Shield/README.md` and `targetsys/README.md` to professional v3.0 platform specifications.
+
+
