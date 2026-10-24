@@ -174,3 +174,14 @@ For complete attack scenario simulation (28 attack scenarios including Burp Suit
 | **INSA Proclamation No. 1426/2026 (§16)** | Mandatory 48-hour incident reporting package generator with SHA-256 evidence sealing |
 | **NBE Cyber Risk Guideline (§5.2)** | Real-time transaction fraud monitoring, velocity throttling & step-up authentication |
 | **Ethiopian PDPP (Data Protection)** | Strict tenant isolation, privacy-preserving threat intelligence exchange (TLP:AMBER / TLP:GREEN) |
+
+---
+
+## 10. Universal System Integration Guide
+
+To integrate any third-party digital banking system, payment switch, mobile money app, or core banking service into ECS, refer to the master **[`INTEGRATION_GUIDE.md`](../INTEGRATION_GUIDE.md)**:
+- Canonical Event Contract v1.1 Specification
+- Drop-in implementations: **cURL**, **Node.js/TypeScript**, **Python**, **Java/Spring Boot**, **Go**, and **PHP**
+- No-code webhook field mapping for **telebirr**, **EthSwitch**, and **Temenos T24**
+- Closed-loop automated mitigation webhook receivers (`POST /api/security/mitigate`)
+
