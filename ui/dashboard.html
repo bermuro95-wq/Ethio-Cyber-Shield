@@ -28,13 +28,13 @@
                 <span class="badge bg-dark border border-secondary text-muted d-none d-sm-inline-flex align-items-center gap-1 font-mono small" id="targetSyncBadge">
                     <i class="bi bi-broadcast text-success"></i> Pipeline: Connected
                 </span>
-                <button class="btn btn-outline-warning btn-sm" id="btnTestSound" onclick="playAlertTone('critical', true)" title="Test audible siren & alert chime">
-                    <i class="bi bi-bell-fill me-1"></i> Test Audio Alert
+                <button class="btn btn-soc btn-sm" id="btnTestSound" onclick="playAlertTone('critical', true)" title="Test audible siren & alert chime">
+                    <i class="bi bi-bell me-1"></i> Test Sound
                 </button>
-                <button class="btn btn-outline-info btn-sm" id="btnSync" onclick="pollTargetNow()">
-                    <i class="bi bi-cloud-arrow-down me-1"></i> Poll Target
+                <button class="btn btn-soc btn-sm" id="btnSync" onclick="pollTargetNow()">
+                    <i class="bi bi-cloud-arrow-down me-1"></i> Poll Pipeline
                 </button>
-                <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshDashboard()">
+                <button class="btn btn-soc btn-soc-primary btn-sm" id="btnRefresh" onclick="manualRefreshDashboard()">
                     <i class="bi bi-arrow-repeat me-1"></i> Refresh
                 </button>
             </div>
@@ -45,28 +45,28 @@
             <div class="col-6 col-md-3">
                 <div class="stat-box accent-emerald">
                     <div class="stat-label">Security Posture</div>
-                    <div class="stat-number text-success" id="statPosture">NORMAL</div>
+                    <div class="stat-number text-light" id="statPosture">NORMAL</div>
                     <div class="stat-desc" id="statPostureDesc">Deterministic engine active</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
                 <div class="stat-box accent-rose">
                     <div class="stat-label">Active Attacks & Alerts</div>
-                    <div class="stat-number text-danger" id="statAlerts">0</div>
+                    <div class="stat-number text-light" id="statAlerts">0</div>
                     <div class="stat-desc" id="statAlertsCritical">0 Critical Attacks</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
                 <div class="stat-box accent-amber">
                     <div class="stat-label">Documented Incidents</div>
-                    <div class="stat-number text-warning" id="statIncidents">0</div>
+                    <div class="stat-number text-light" id="statIncidents">0</div>
                     <div class="stat-desc" id="statIncidentsHigh">0 High / Critical</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
                 <div class="stat-box accent-sky">
                     <div class="stat-label">Telemetry Ingested</div>
-                    <div class="stat-number text-info" id="statTelemetry">0</div>
+                    <div class="stat-number text-light" id="statTelemetry">0</div>
                     <div class="stat-desc">Durable canonical stream</div>
                 </div>
             </div>
@@ -84,7 +84,7 @@
                         </span>
                         <div class="d-flex align-items-center gap-2">
                             <span class="badge bg-secondary font-mono" id="streamEventCount">0 events</span>
-                            <a href="alerts.html" class="btn btn-sm btn-outline-light py-0 px-2 font-mono" style="font-size: 0.75rem;">View All Alerts &rarr;</a>
+                            <a href="alerts.html" class="btn btn-soc btn-soc-sm font-mono">View All Alerts &rarr;</a>
                         </div>
                     </div>
                     <div class="card-body p-0">
@@ -92,7 +92,7 @@
                             <table class="table table-hover align-middle mb-0" id="attacksTable">
                                 <thead>
                                     <tr>
-                                        <th style="width: 145px;"><i class="bi bi-clock-history text-warning me-1"></i>Time Attacked</th>
+                                        <th style="width: 145px;"><i class="bi bi-clock me-1"></i>Time Attacked</th>
                                         <th style="width: 85px;">Severity</th>
                                         <th>Attack & Rule Fired</th>
                                         <th>Origin & Location</th>
@@ -136,8 +136,8 @@
                             <span class="small text-muted font-mono" id="targetLastPolled">Active</span>
                         </div>
                         <div class="d-grid gap-2">
-                            <button class="btn btn-outline-info btn-sm" onclick="pollTargetNow()">
-                                <i class="bi bi-cloud-arrow-down me-1"></i> Poll Target Now
+                            <button class="btn btn-soc w-100" onclick="pollTargetNow()">
+                                <i class="bi bi-arrow-down-circle me-1"></i> Poll Target Now
                             </button>
                         </div>
                     </div>
@@ -370,21 +370,21 @@
                 <!-- Interactive Remediation Action Footer -->
                 <div class="modal-footer border-secondary d-flex justify-content-between align-items-center py-2 px-3">
                     <div class="d-flex align-items-center gap-2">
-                        <button class="btn btn-outline-danger btn-sm" id="btnModalBlockIp" onclick="doModalBlockIp()">
+                        <button class="btn btn-soc btn-soc-danger btn-sm" id="btnModalBlockIp" onclick="doModalBlockIp()">
                             <i class="bi bi-slash-circle me-1"></i> Block Attacker IP
                         </button>
-                        <button class="btn btn-outline-warning btn-sm" id="btnModalRevokeSession" onclick="doModalRevokeSession()">
+                        <button class="btn btn-soc btn-soc-warning btn-sm" id="btnModalRevokeSession" onclick="doModalRevokeSession()">
                             <i class="bi bi-key me-1"></i> Revoke Session
                         </button>
-                        <button class="btn btn-outline-info btn-sm" id="btnModalEscalate" onclick="doModalEscalate()">
+                        <button class="btn btn-soc btn-soc-primary btn-sm" id="btnModalEscalate" onclick="doModalEscalate()">
                             <i class="bi bi-shield-exclamation me-1"></i> Escalate to Incident
                         </button>
                     </div>
                     <div class="d-flex align-items-center gap-2">
-                        <button class="btn btn-outline-secondary btn-sm" onclick="exportDossierJson()">
+                        <button class="btn btn-soc btn-sm" onclick="exportDossierJson()">
                             <i class="bi bi-download me-1"></i> Export Evidence
                         </button>
-                        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                        <button class="btn btn-soc btn-soc-primary btn-sm" data-bs-dismiss="modal">Close</button>
                     </div>
                 </div>
             </div>
@@ -442,8 +442,10 @@
             const highIncidents = inc.high_risk || 0;
 
             document.getElementById('statAlerts').textContent = openAlerts;
+            document.getElementById('statAlerts').className = openAlerts > 0 ? 'stat-number text-danger' : 'stat-number text-light';
             document.getElementById('statAlertsCritical').textContent = `${criticalAlerts} Critical Attacks`;
             document.getElementById('statIncidents').textContent = openIncidents;
+            document.getElementById('statIncidents').className = openIncidents > 0 ? 'stat-number text-warning' : 'stat-number text-light';
             document.getElementById('statIncidentsHigh').textContent = `${highIncidents} High / Critical`;
 
             const totalTelemetry = (tx.total || 0) + openAlerts;
@@ -453,26 +455,25 @@
             const postureEl = document.getElementById('statPosture');
             const postureDesc = document.getElementById('statPostureDesc');
             const postureBadge = document.getElementById('threatPostureBadge');
-            const threatLevelText = document.getElementById('threatLevelText');
 
             if (criticalAlerts > 0) {
                 postureEl.textContent = 'CRITICAL';
                 postureEl.className = 'stat-number text-danger';
                 postureDesc.textContent = 'Active critical threat detected';
-                postureBadge.className = 'badge bg-danger text-light';
-                threatLevelText.textContent = 'POSTURE: CRITICAL THREAT';
+                postureBadge.className = 'badge badge-critical font-mono';
+                postureBadge.innerHTML = '<span class="live-pulse me-1" style="background:#f43f5e"></span><span id="threatLevelText">POSTURE: CRITICAL</span>';
             } else if (openAlerts > 1 || highIncidents > 0) {
                 postureEl.textContent = 'ELEVATED';
                 postureEl.className = 'stat-number text-warning';
                 postureDesc.textContent = 'Suspicious attack probe flagged';
-                postureBadge.className = 'badge bg-warning text-dark';
-                threatLevelText.textContent = 'POSTURE: ELEVATED';
+                postureBadge.className = 'badge badge-high font-mono';
+                postureBadge.innerHTML = '<span class="live-pulse me-1" style="background:#f59e0b"></span><span id="threatLevelText">POSTURE: ELEVATED</span>';
             } else {
                 postureEl.textContent = 'NORMAL';
-                postureEl.className = 'stat-number text-success';
+                postureEl.className = 'stat-number text-light';
                 postureDesc.textContent = 'Deterministic engine active';
-                postureBadge.className = 'badge bg-dark border border-secondary text-success';
-                threatLevelText.textContent = 'POSTURE: NORMAL';
+                postureBadge.className = 'badge badge-soc-neutral font-mono';
+                postureBadge.innerHTML = '<span class="live-pulse me-1"></span><span id="threatLevelText">POSTURE: NORMAL</span>';
             }
         }
 
@@ -511,13 +512,13 @@
                 return `
                 <tr id="alertRow_${escapeHtml(a.id)}">
                     <td class="font-mono small" data-threat-time="${escapeHtml(a.created_at || a.occurred_at || '')}">
-                        <div class="fw-bold text-light">${escapeHtml(tInfo.timeOnly)} <span class="badge bg-dark border border-secondary text-warning font-mono time-relative" style="font-size:0.68rem;">${escapeHtml(tInfo.relative)}</span></div>
-                        <div class="text-muted" style="font-size:0.68rem;" title="${escapeHtml(tInfo.full)}">${escapeHtml(tInfo.dateOnly)} EAT</div>
+                        <div class="fw-bold text-light">${escapeHtml(tInfo.timeOnly)} <span class="badge badge-soc-neutral font-mono time-relative" style="font-size:0.68rem;">${escapeHtml(tInfo.relative)}</span></div>
+                        <div class="text-dim" style="font-size:0.7rem;" title="${escapeHtml(tInfo.full)}">${escapeHtml(tInfo.dateOnly)} EAT</div>
                     </td>
                     <td><span class="badge ${sevClass} text-uppercase">${escapeHtml(a.severity)}</span></td>
                     <td>
                         <div class="fw-semibold text-light">${escapeHtml(d.attack.rule_name || a.title)}</div>
-                        <div class="small text-muted font-mono"><span class="badge bg-dark border border-secondary text-success me-1">${escapeHtml(d.attack.rule_id)}</span>Risk: ${d.risk_score}/100</div>
+                        <div class="small text-muted font-mono"><span class="badge badge-soc-neutral text-light me-1">${escapeHtml(d.attack.rule_id)}</span>Risk: ${d.risk_score}/100</div>
                     </td>
                     <td>
                         <div><span class="me-1">${d.geo.flag}</span><strong class="text-light">${escapeHtml(d.geo.city)}</strong>, <span class="small text-muted">${escapeHtml(d.geo.country_name)}</span></div>
@@ -531,11 +532,11 @@
                         <div class="small font-mono text-muted">${escapeHtml(d.device.os)} &middot; ${escapeHtml(d.device.device_id)}</div>
                     </td>
                     <td>
-                        <div class="font-mono small text-warning fw-semibold">${escapeHtml(d.target.account)}</div>
-                        <div class="small font-mono text-muted">${escapeHtml(d.target.endpoint)}</div>
+                        <div class="font-mono small text-light fw-semibold">${escapeHtml(d.target.account)}</div>
+                        <div class="small font-mono text-dim">${escapeHtml(d.target.endpoint)}</div>
                     </td>
                     <td>
-                        <button class="btn btn-outline-info btn-sm py-1 px-2 font-mono" style="font-size: 0.76rem;" onclick="openAttackDossier('${escapeHtml(a.id)}')">
+                        <button class="btn btn-soc btn-soc-sm font-mono" onclick="openAttackDossier('${escapeHtml(a.id)}')">
                             <i class="bi bi-shield-shaded me-1"></i>Inspect
                         </button>
                     </td>
@@ -880,22 +881,30 @@
             }
 
             // Update KPI cards
+            const openCount = _cachedAlerts.filter(a => a.status === 'open').length;
             const alertsCountEl = document.getElementById('statAlerts');
             if (alertsCountEl) {
-                alertsCountEl.textContent = _cachedAlerts.filter(a => a.status === 'open').length;
+                alertsCountEl.textContent = openCount;
+                alertsCountEl.className = openCount > 0 ? 'stat-number text-danger' : 'stat-number text-light';
             }
 
             // Re-evaluate posture
+            const postureEl = document.getElementById('statPosture');
+            const postureDesc = document.getElementById('statPostureDesc');
+            const postureBadge = document.getElementById('threatPostureBadge');
+
             if (alertData.severity === 'critical') {
-                document.getElementById('statPosture').textContent = 'CRITICAL';
-                document.getElementById('statPosture').className = 'stat-number text-danger';
-                document.getElementById('threatPostureBadge').className = 'badge bg-danger text-light';
-                document.getElementById('threatLevelText').textContent = 'POSTURE: CRITICAL THREAT';
+                postureEl.textContent = 'CRITICAL';
+                postureEl.className = 'stat-number text-danger';
+                postureDesc.textContent = 'Active critical threat detected';
+                postureBadge.className = 'badge badge-critical font-mono';
+                postureBadge.innerHTML = '<span class="live-pulse me-1" style="background:#f43f5e"></span><span id="threatLevelText">POSTURE: CRITICAL</span>';
             } else if (alertData.severity === 'high') {
-                document.getElementById('statPosture').textContent = 'ELEVATED';
-                document.getElementById('statPosture').className = 'stat-number text-warning';
-                document.getElementById('threatPostureBadge').className = 'badge bg-warning text-dark';
-                document.getElementById('threatLevelText').textContent = 'POSTURE: ELEVATED';
+                postureEl.textContent = 'ELEVATED';
+                postureEl.className = 'stat-number text-warning';
+                postureDesc.textContent = 'Suspicious attack probe flagged';
+                postureBadge.className = 'badge badge-high font-mono';
+                postureBadge.innerHTML = '<span class="live-pulse me-1" style="background:#f59e0b"></span><span id="threatLevelText">POSTURE: ELEVATED</span>';
             }
         };
     </script>

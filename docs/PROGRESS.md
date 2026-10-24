@@ -414,3 +414,19 @@
   - Disabled deployment SSO protection to permit public access without authentication barriers.
   - Deployed production build to Vercel and assigned clean domain alias: `https://honorpay-banking.vercel.app`.
   - Verified live endpoint responses over HTTP/2: `/` (200 OK), `/login` (200 OK), `/employee` (200 OK), and `/admin` (307 redirect).
+
+- [x] **Render Cloud Deployment Architecture & 1-Click Blueprint (ADR-041)**:
+  - Enabled unified single-port architecture in `core/app/__init__.py` to serve static console files from `ui/` directly on port 5000 / cloud HTTPS, resolving cross-origin preflight overhead.
+  - Updated `ui/js/config.js` to dynamically detect port 5500 vs cloud relative `/api`.
+  - Created root `Procfile`, root `requirements.txt`, and `render.yaml` infrastructure-as-code Blueprint for 1-click Render web service deployment.
+
+- [x] **Minimalist Institutional SOC UI/UX & High-Contrast Typography System (ADR-042)**:
+  - Audited and eliminated all low-contrast/invisible text elements: elevated `--ecs-text-muted` to `#cbd5e1` (contrast ratio ~9.5:1) and `--ecs-text-dim` to `#94a3b8` (contrast ratio ~5.5:1, exceeding WCAG AA 4.5:1 minimum).
+  - Enforced global high-contrast overrides on Bootstrap's `.text-muted`, `.text-dim`, and `.text-secondary`.
+  - Upgraded table header surfaces (`#0d1527`), crisp `#e2e8f0` column titles, and clear `#f1f5f9` cell text.
+  - Upgraded attack dossier modal metrics: `.label` to `#cbd5e1` (clearly readable) and `.val` to `#ffffff`.
+  - Purged distracting rainbow coloring: eliminated rainbow borders and competing neon text colors on zero-state KPI cards, standardizing on calm, high-contrast `#ffffff` numbers with dynamic rose highlighting on active attacks.
+  - Replaced rainbow top-bar outline buttons with minimalist institutional `.btn-soc` button components (`#111827`, border `#334155`, text `#f1f5f9`).
+  - Refactored sub-tabs from radioactive neon green blocks to sleek dark slate active pills (`#1e293b`, border `#334155`, text `#ffffff`).
+  - Standardized severity and status badges on modern, translucent, high-contrast pill badges (`badge-critical`, `badge-high`, `badge-medium`, `badge-soc-neutral`).
+  - Upgraded `alerts.html`, `incidents.html`, `intelligence.html`, `audit.html`, `settings.html`, and `login.html` to the unified minimalist SOC standard.

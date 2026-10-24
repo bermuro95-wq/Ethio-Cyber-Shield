@@ -121,19 +121,26 @@ async function doLogout() {
 }
 
 function severityBadge(sev) {
-    const map = { low: 'secondary', medium: 'info', high: 'warning', critical: 'danger' };
-    return `<span class="badge bg-${map[sev] || 'secondary'}">${(sev||'').toUpperCase()}</span>`;
+    const s = (sev || 'low').toLowerCase();
+    const cls = s === 'critical' ? 'badge-critical' :
+                s === 'high' ? 'badge-high' :
+                s === 'medium' ? 'badge-medium' : 'badge-low';
+    return `<span class="badge ${cls} text-uppercase font-mono">${escapeHtml(s)}</span>`;
 }
 
 function statusBadge(status) {
-    const map = {
-        open: 'danger', investigating: 'warning', contained: 'info',
-        resolved: 'success', closed: 'secondary',
-        acknowledged: 'info', false_positive: 'secondary',
-        unknown: 'secondary', suspicious: 'warning', malicious: 'danger', benign: 'success',
-        flagged: 'danger', completed: 'success', pending: 'info'
-    };
-    return `<span class="badge bg-${map[status] || 'secondary'}">${(status||'').replace('_',' ')}</span>`;
+    const s = (status || 'unknown').toLowerCase();
+    let cls = 'badge-soc-neutral';
+    if (['open', 'critical', 'malicious', 'flagged'].includes(s)) {
+        cls = 'badge-critical';
+    } else if (['investigating', 'high', 'suspicious', 'pending'].includes(s)) {
+        cls = 'badge-high';
+    } else if (['contained', 'acknowledged', 'medium'].includes(s)) {
+        cls = 'badge-medium';
+    } else if (['resolved', 'closed', 'benign', 'completed'].includes(s)) {
+        cls = 'badge-soc-neutral';
+    }
+    return `<span class="badge ${cls} font-mono">${escapeHtml(s.replace(/_/g, ' '))}</span>`;
 }
 
 function riskBadge(level) {

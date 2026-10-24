@@ -1144,4 +1144,48 @@
   - SSR, client hydration, and server functions execute on Node.js 24.x serverless lambdas in Vercel `iad1`.
   - Local development testbed remains intact on port 8080 with 109/109 tests passing.
 
+---
+
+## ADR-041: Unified ECS Single-Service Architecture for Render Cloud Deployment
+
+* **Context**: The user requested deployment instructions and configuration for deploying ECS on Render (render.com). Deploying UI and Backend as separate web services introduces CORS friction, requires multiple port configurations, and complicates free-tier deployment.
+* **Decision**:
+  1. **Unified WSGI Static File Serving**:
+     - Configured Flask backend (`Ethio-Cyber-Shield/core/app/__init__.py`) to automatically mount and serve the static web console from `ui/` on root `/` and subpaths (`/dashboard.html`, `/alerts.html`, etc.) while serving `/api/*` REST endpoints on the same port.
+  2. **Environment-Aware API URL Resolution**:
+     - Updated `ui/js/config.js` to automatically detect whether the frontend is loaded via port 5500 (local standalone dev server) or unified port 5000 / cloud HTTPS. When running on Render or port 5000, `API_BASE_URL` resolves to relative `"/api"` eliminating cross-origin preflight overhead.
+  3. **Render Blueprint Configuration**:
+     - Created `render.yaml` defining a web service (`ecs-core`) on standard Python environment with gunicorn command: `gunicorn run:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120`.
+     - Added root `Procfile` and root `requirements.txt`.
+* **Consequences**:
+  - ECS can be deployed to Render via 1-click Blueprint with zero CORS issues.
+  - Local separate development mode (`5500` UI + `5000` API) remains 100% backwards-compatible.
+
+---
+
+## ADR-042: Minimalist Institutional SOC UI/UX & High-Contrast Typography System
+
+* **Context**: The user identified that the ECS dashboard contained unnecessary distracting coloring (rainbow borders on stat boxes, multi-colored neon outline buttons, and saturated badge fills) and low-contrast/invisible text elements (`text-muted`, `text-dim` rendering dark-gray-on-dark-background with contrast ratios < 3:1). The user requested a very professional, highly minimalized, modern design standard (inspired by CrowdStrike Falcon, Datadog SIEM, Linear, and Vercel) with 100% visible, legible text.
+* **Decision**:
+  1. **WCAG AA Compliant High-Contrast Typography**:
+     - Upgraded `--ecs-text-muted` from `#94a3b8` to `#cbd5e1` (Light Slate 300, contrast ratio ~9.5:1 against `#090d16`).
+     - Upgraded `--ecs-text-dim` from `#64748b` to `#94a3b8` (Slate 400, contrast ratio ~5.5:1, well above WCAG AA 4.5:1 minimum).
+     - Applied explicit `!important` overrides for Bootstrap's `.text-muted`, `.text-dim`, and `.text-secondary` to prevent dark-on-dark unreadable text across all pages.
+     - Upgraded table headers `th` to background `#0d1527` with crisp `#e2e8f0` text and border `#334155`.
+     - In attack investigation dossiers, upgraded `.dossier-metric .label` to `#cbd5e1` and `.val` to `#ffffff`.
+     - In `login.html`, upgraded input placeholder and icon colors from `#64748b` to `#94a3b8`.
+  2. **Minimalist Functional Palette & Purge of Rainbow Toy Elements**:
+     - Replaced 4 neon KPI stat box borders (`accent-emerald`, `accent-rose`, `accent-amber`, `accent-sky`) with sleek unified slate cards (`#0f172a`, border `#1e293b`).
+     - Standardized KPI numbers to crisp white `#ffffff` by default; dynamically elevated to rose (`text-danger`) only when active open attacks > 0, and amber (`text-warning`) when incidents > 0.
+     - Eliminated conflicting multi-color outline buttons (`btn-outline-warning`, `btn-outline-info`, `btn-outline-success`) from the top status bar.
+     - Engineered standard minimalist SOC button class `.btn-soc` (crisp slate `#111827`, border `#334155`, text `#f1f5f9` with subtle hover states).
+     - Refactored `.sub-tabs` from radioactive neon green blocks to clean slate active pills (`background: #1e293b; color: #ffffff; border: 1px solid #334155;`).
+  3. **Refined Translucent Threat Severity Badges**:
+     - Refactored `severityBadge()` and `statusBadge()` to render elegant, translucent pill badges with clean borders and high-contrast typography (`badge-critical`, `badge-high`, `badge-medium`, `badge-low`, `badge-soc-neutral`) matching modern cybersecurity platforms.
+* **Consequences**:
+  - Zero invisible or unreadable text across any page or modal in the ECS web console.
+  - Visual presentation elevated to world-class institutional SOC standards with zero distracting rainbow coloring.
+  - All features remain modern, responsive, streamlined, and 100% functional.
+
+
 

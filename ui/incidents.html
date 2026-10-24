@@ -21,7 +21,7 @@
                 </span>
             </div>
             <div class="d-flex align-items-center gap-2">
-                <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshIncidents()">
+                <button class="btn btn-soc btn-soc-primary btn-sm" id="btnRefresh" onclick="manualRefreshIncidents()">
                     <i class="bi bi-arrow-repeat me-1"></i> Refresh
                 </button>
             </div>
@@ -64,7 +64,7 @@
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <button class="btn btn-outline-success btn-sm w-100" onclick="loadIncidents()">Filter</button>
+                        <button class="btn btn-soc btn-sm w-100" onclick="loadIncidents()">Filter</button>
                     </div>
                 </div>
             </div>
@@ -127,9 +127,9 @@
                         <td>
                             ${i.risk_level ? `<span class="badge bg-dark border border-secondary font-mono text-warning">Risk ${escapeHtml(i.risk_level)}</span>` : '-'}
                         </td>
-                        <td class="small font-mono text-muted">${formatDate(i.incident_date || i.created_at)}</td>
+                        <td class="small font-mono text-dim">${formatDate(i.incident_date || i.created_at)}</td>
                         <td>
-                            <a href="incident-detail.html?id=${i.id}" class="btn btn-outline-info btn-sm py-0 px-2 font-mono" style="font-size: 0.75rem;">
+                            <a href="incident-detail.html?id=${i.id}" class="btn btn-soc btn-soc-sm font-mono">
                                 Manage &rarr;
                             </a>
                         </td>

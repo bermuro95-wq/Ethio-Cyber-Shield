@@ -19,7 +19,7 @@
                 <span class="live-pill"><span class="live-pulse"></span>STREAM ACTIVE</span>
             </div>
             <div class="d-flex align-items-center gap-2">
-                <button class="btn btn-outline-success btn-sm" id="btnRefresh" onclick="manualRefreshAlerts()">
+                <button class="btn btn-soc btn-soc-primary btn-sm" id="btnRefresh" onclick="manualRefreshAlerts()">
                     <i class="bi bi-arrow-repeat me-1"></i> Refresh
                 </button>
             </div>
@@ -48,7 +48,7 @@
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <button class="btn btn-outline-success btn-sm w-100" onclick="loadAlerts()">Filter</button>
+                        <button class="btn btn-soc btn-sm w-100" onclick="loadAlerts()">Filter</button>
                     </div>
                 </div>
             </div>
@@ -158,14 +158,14 @@
 
                 <div class="modal-footer border-secondary d-flex justify-content-between align-items-center py-2 px-3">
                     <div class="d-flex align-items-center gap-2">
-                        <button class="btn btn-outline-danger btn-sm" onclick="doAlertModalBlockIp()">
+                        <button class="btn btn-soc btn-soc-danger btn-sm" onclick="doAlertModalBlockIp()">
                             <i class="bi bi-slash-circle me-1"></i> Block Attacker IP
                         </button>
-                        <button class="btn btn-outline-warning btn-sm" onclick="doAlertModalRevokeSession()">
+                        <button class="btn btn-soc btn-soc-warning btn-sm" onclick="doAlertModalRevokeSession()">
                             <i class="bi bi-key me-1"></i> Revoke Session
                         </button>
                     </div>
-                    <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                    <button class="btn btn-soc btn-soc-primary btn-sm" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
@@ -226,18 +226,18 @@
                         </td>
                         <td>${statusBadge(a.status)}</td>
                         <td class="small font-mono" data-threat-time="${escapeHtml(a.created_at || a.occurred_at || '')}">
-                            <div class="fw-bold text-light">${escapeHtml(tInfo.timeOnly)} <span class="badge bg-dark border border-secondary text-warning font-mono time-relative" style="font-size:0.68rem;">${escapeHtml(tInfo.relative)}</span></div>
-                            <div class="text-muted" style="font-size:0.68rem;" title="${escapeHtml(tInfo.full)}">${escapeHtml(tInfo.dateOnly)} EAT</div>
+                            <div class="fw-bold text-light">${escapeHtml(tInfo.timeOnly)} <span class="badge badge-soc-neutral font-mono time-relative" style="font-size:0.68rem;">${escapeHtml(tInfo.relative)}</span></div>
+                            <div class="text-dim" style="font-size:0.7rem;" title="${escapeHtml(tInfo.full)}">${escapeHtml(tInfo.dateOnly)} EAT</div>
                         </td>
                         <td>
                             <div class="d-flex gap-1 flex-wrap align-items-center">
-                                <button class="btn btn-outline-info btn-sm py-0 px-2 font-mono" style="font-size:0.75rem;" onclick="openAlertDetailsModal('${escapeHtml(a.id)}')">
+                                <button class="btn btn-soc btn-soc-sm font-mono" onclick="openAlertDetailsModal('${escapeHtml(a.id)}')">
                                     <i class="bi bi-shield-shaded me-1"></i>Inspect
                                 </button>
                                 ${canAct ? `
-                                    ${a.status === 'open' ? `<button class="btn btn-outline-primary btn-sm py-0 px-2 font-mono" style="font-size:0.75rem;" onclick="ack('${a.id}')">Ack</button>` : ''}
-                                    ${a.status !== 'resolved' && a.status !== 'false_positive' ? `<button class="btn btn-outline-success btn-sm py-0 px-2 font-mono" style="font-size:0.75rem;" onclick="resolve('${a.id}')">Resolve</button>` : ''}
-                                    ${role === 'admin' ? `<button class="btn btn-outline-danger btn-sm py-0 px-2 font-mono" style="font-size:0.75rem;" onclick="delAlert('${a.id}')">Del</button>` : ''}
+                                    ${a.status === 'open' ? `<button class="btn btn-soc btn-soc-sm font-mono" onclick="ack('${a.id}')">Ack</button>` : ''}
+                                    ${a.status !== 'resolved' && a.status !== 'false_positive' ? `<button class="btn btn-soc btn-soc-success btn-soc-sm font-mono" onclick="resolve('${a.id}')">Resolve</button>` : ''}
+                                    ${role === 'admin' ? `<button class="btn btn-soc btn-soc-danger btn-soc-sm font-mono" onclick="delAlert('${a.id}')">Del</button>` : ''}
                                 ` : '-'}
                             </div>
                         </td>
@@ -254,7 +254,7 @@
                                     <th>Origin & Location</th>
                                     <th>Attacker Device / Tool</th>
                                     <th>Status</th>
-                                    <th style="width: 145px;"><i class="bi bi-clock-history text-warning me-1"></i>Time Attacked</th>
+                                    <th style="width: 145px;"><i class="bi bi-clock me-1"></i>Time Attacked</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
