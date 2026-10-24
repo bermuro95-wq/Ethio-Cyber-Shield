@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -165,7 +165,7 @@
                                         <strong class="text-success small">Tier 1: L1 Schema</strong>
                                         <span class="badge bg-dark border border-success text-success small">&lt; 5ms</span>
                                     </div>
-                                    <div class="text-dim" style="font-size:0.75rem;">Known signatures, SQLi/XSS, header malformations</div>
+                                    <div class="text-light" style="font-size:0.78rem;">Known signatures, SQLi/XSS, header malformations</div>
                                 </div>
                             </div>
                             <div class="col-6 col-md-3">
@@ -174,7 +174,7 @@
                                         <strong class="text-info small">Tier 2: L2 Velocity</strong>
                                         <span class="badge bg-dark border border-info text-info small">&lt; 25ms</span>
                                     </div>
-                                    <div class="text-dim" style="font-size:0.75rem;">Rapid brute-force, high-frequency fund bursts</div>
+                                    <div class="text-light" style="font-size:0.78rem;">Rapid brute-force, high-frequency fund bursts</div>
                                 </div>
                             </div>
                             <div class="col-6 col-md-3">
@@ -183,7 +183,7 @@
                                         <strong class="text-warning small">Tier 3: L3 Cross-Tenant</strong>
                                         <span class="badge bg-dark border border-warning text-warning small">&lt; 100ms</span>
                                     </div>
-                                    <div class="text-dim" style="font-size:0.75rem;">Device sharing, structuring, watchlist matching</div>
+                                    <div class="text-light" style="font-size:0.78rem;">Device sharing, structuring, watchlist matching</div>
                                 </div>
                             </div>
                             <div class="col-6 col-md-3">
@@ -192,7 +192,7 @@
                                         <strong class="text-danger small">Tier 4: L4 Chains</strong>
                                         <span class="badge bg-dark border border-danger text-danger small">&lt; 250ms</span>
                                     </div>
-                                    <div class="text-dim" style="font-size:0.75rem;">Multi-stage ATO (Password reset &rarr; device swap &rarr; drain)</div>
+                                    <div class="text-light" style="font-size:0.78rem;">Multi-stage ATO (Password reset &rarr; device swap &rarr; drain)</div>
                                 </div>
                             </div>
                         </div>
@@ -205,29 +205,29 @@
                 <!-- Target Ingestion Pipeline Status -->
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-bank text-success me-2"></i>Protected Target Infrastructure</span>
+                        <span class="text-light fw-semibold"><i class="bi bi-bank text-success me-2"></i>Protected Target Infrastructure</span>
                         <span class="badge bg-success font-mono" id="pipelineStatusBadge">ONLINE</span>
                     </div>
                     <div class="card-body p-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="small text-muted">Target Asset:</span>
+                            <span class="small text-light fw-medium">Target Asset:</span>
                             <span class="small fw-semibold text-light" id="targetNameText">HonorPay Digital Banking</span>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="small text-muted">Target Endpoint:</span>
+                            <span class="small text-light fw-medium">Target Endpoint:</span>
                             <code class="small text-info text-truncate" style="max-width: 190px;" id="targetUrlText">https://honorpay-banking.vercel.app</code>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="small text-muted">Ingestion Modes:</span>
+                            <span class="small text-light fw-medium">Ingestion Modes:</span>
                             <span class="badge bg-dark border border-secondary text-light">Direction A (Push) + B (Poller)</span>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="small text-muted">Cryptographic Guard:</span>
+                            <span class="small text-light fw-medium">Cryptographic Guard:</span>
                             <span class="badge bg-dark border border-success text-success small font-mono">HMAC-SHA256 Anti-Replay</span>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span class="small text-muted">Datastore Engine:</span>
-                            <span class="small text-muted font-mono" id="targetLastPolled">Redis Streams &middot; DB: 0ms</span>
+                            <span class="small text-light fw-medium">Datastore Engine:</span>
+                            <span class="small text-light font-mono" id="targetLastPolled">Redis Streams &middot; DB: 0ms</span>
                         </div>
                         <div class="d-grid gap-2">
                             <button class="btn btn-soc w-100" onclick="pollTargetNow()">
@@ -237,37 +237,37 @@
                     </div>
                 </div>
 
-                <!-- Attack Origin Distribution (GeoIP) -->
+                <!-- Attack Origin Distribution (GeoIP & ASN) -->
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-globe text-info me-2"></i>Attack Origins (GeoIP & ASN)</span>
-                        <span class="small text-muted font-mono" id="geoCountBadge">Active Origins</span>
+                        <span class="text-light fw-semibold"><i class="bi bi-globe text-info me-2"></i>Attack Origins (GeoIP & ASN)</span>
+                        <span class="small text-light font-mono badge bg-dark border border-secondary" id="geoCountBadge">Active Origins</span>
                     </div>
                     <div class="card-body p-3" id="geoBreakdown">
                         <div class="mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="small">🏢 Internal / Lab Testbed (127.0.0.1)</span>
-                                <span class="badge bg-secondary font-mono" id="geoLocalCount">0</span>
+                                <span class="small text-light fw-semibold">🏢 Internal / Lab Testbed (127.0.0.1)</span>
+                                <span class="badge bg-secondary text-light font-mono px-2" id="geoLocalCount">0</span>
                             </div>
-                            <div class="progress" style="height: 4px; background: #1e293b;">
+                            <div class="progress" style="height: 5px; background: #1e293b;">
                                 <div class="progress-bar bg-info" id="geoLocalBar" style="width: 0%"></div>
                             </div>
                         </div>
                         <div class="mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="small">🇪🇹 Ethiopia (Ethio Telecom / Safaricom)</span>
-                                <span class="badge bg-secondary font-mono" id="geoEtCount">0</span>
+                                <span class="small text-light fw-semibold">🇪🇹 Ethiopia (Ethio Telecom / Safaricom)</span>
+                                <span class="badge bg-secondary text-light font-mono px-2" id="geoEtCount">0</span>
                             </div>
-                            <div class="progress" style="height: 4px; background: #1e293b;">
+                            <div class="progress" style="height: 5px; background: #1e293b;">
                                 <div class="progress-bar bg-success" id="geoEtBar" style="width: 0%"></div>
                             </div>
                         </div>
                         <div class="mb-1">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="small">🌐 External Cloud Datacenter / Tor / VPN</span>
-                                <span class="badge bg-secondary font-mono" id="geoExtCount">0</span>
+                                <span class="small text-light fw-semibold">🌐 External Cloud Datacenter / Tor / VPN</span>
+                                <span class="badge bg-secondary text-light font-mono px-2" id="geoExtCount">0</span>
                             </div>
-                            <div class="progress" style="height: 4px; background: #1e293b;">
+                            <div class="progress" style="height: 5px; background: #1e293b;">
                                 <div class="progress-bar bg-danger" id="geoExtBar" style="width: 0%"></div>
                             </div>
                         </div>
@@ -277,8 +277,8 @@
                 <!-- Active Detection Rules & MITRE ATT&CK Breakdown -->
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-shield-exclamation text-warning me-2"></i>Threat Vectors Fired</span>
-                        <span class="small text-muted font-mono">MITRE ATT&CK</span>
+                        <span class="text-light fw-semibold"><i class="bi bi-shield-exclamation text-warning me-2"></i>Threat Vectors Fired</span>
+                        <span class="small text-light font-mono badge bg-dark border border-secondary">MITRE ATT&CK</span>
                     </div>
                     <div class="card-body p-3" id="typeBreakdown">
                         <div class="text-center py-4"><div class="spinner-border text-success spinner-border-sm"></div></div>
@@ -288,20 +288,20 @@
                 <!-- Statutory 48-Hour Incident Readiness Vault -->
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-file-earmark-check text-success me-2"></i>Statutory Incident Readiness</span>
+                        <span class="text-light fw-semibold"><i class="bi bi-file-earmark-check text-success me-2"></i>Statutory Incident Readiness</span>
                         <span class="badge bg-success font-mono">VERIFIED</span>
                     </div>
                     <div class="card-body p-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="small text-muted">Legal Mandate:</span>
+                            <span class="small text-light fw-medium">Legal Mandate:</span>
                             <span class="small text-light fw-semibold">INSA Proc. 1426/2026</span>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="small text-muted">Audit Trail Sealing:</span>
+                            <span class="small text-light fw-medium">Audit Trail Sealing:</span>
                             <span class="badge bg-dark border border-success text-success font-mono small">SHA-256 Sealed</span>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span class="small text-muted">Statutory Window:</span>
+                            <span class="small text-light fw-medium">Statutory Window:</span>
                             <span class="small text-light font-mono">48h Mandated Report</span>
                         </div>
                         <div class="d-grid gap-2">
@@ -744,28 +744,28 @@
                 return `
                 <tr id="alertRow_${escapeHtml(a.id)}">
                     <td class="font-mono small" data-threat-time="${escapeHtml(a.created_at || a.occurred_at || '')}">
-                        <div class="fw-bold text-light">${escapeHtml(tInfo.timeOnly)} <span class="badge badge-soc-neutral font-mono time-relative" style="font-size:0.68rem;">${escapeHtml(tInfo.relative)}</span></div>
-                        <div class="text-dim" style="font-size:0.7rem;" title="${escapeHtml(tInfo.full)}">${escapeHtml(tInfo.dateOnly)} EAT</div>
+                        <div class="fw-bold text-light">${escapeHtml(tInfo.timeOnly)} <span class="badge badge-soc-neutral font-mono time-relative text-light" style="font-size:0.68rem;">${escapeHtml(tInfo.relative)}</span></div>
+                        <div class="text-light" style="font-size:0.74rem; opacity:0.9;" title="${escapeHtml(tInfo.full)}">${escapeHtml(tInfo.dateOnly)} EAT</div>
                     </td>
                     <td><span class="badge ${sevClass} text-uppercase">${escapeHtml(a.severity)}</span></td>
                     <td>
                         <div class="fw-semibold text-light">${escapeHtml(d.attack.rule_name || a.title)}</div>
-                        <div class="small text-muted font-mono"><span class="badge badge-soc-neutral text-light me-1">${escapeHtml(d.attack.rule_id)}</span>Risk: ${d.risk_score}/100</div>
+                        <div class="small text-light font-mono" style="opacity:0.95;"><span class="badge bg-dark border border-secondary text-light me-1">${escapeHtml(d.attack.rule_id)}</span>Risk: ${d.risk_score}/100</div>
                     </td>
                     <td>
-                        <div><span class="me-1">${d.geo.flag}</span><strong class="text-light">${escapeHtml(d.geo.city)}</strong>, <span class="small text-muted">${escapeHtml(d.geo.country_name)}</span></div>
-                        <div class="small font-mono text-dim">${escapeHtml(d.geo.ip)} &middot; ${escapeHtml(d.geo.as_org)}</div>
+                        <div><span class="me-1">${d.geo.flag}</span><strong class="text-light">${escapeHtml(d.geo.city)}</strong>, <span class="small text-light fw-medium">${escapeHtml(d.geo.country_name)}</span></div>
+                        <div class="small font-mono text-light" style="opacity:0.9;">${escapeHtml(d.geo.ip)} &middot; ${escapeHtml(d.geo.as_org)}</div>
                     </td>
                     <td>
                         <div class="d-flex align-items-center gap-1">
                             <i class="bi ${d.device.icon} me-1"></i>
                             <span class="small fw-semibold text-light">${escapeHtml(d.device.client_software)}</span>
                         </div>
-                        <div class="small font-mono text-muted">${escapeHtml(d.device.os)} &middot; ${escapeHtml(d.device.device_id)}</div>
+                        <div class="small font-mono text-light" style="opacity:0.9;">${escapeHtml(d.device.os)} &middot; ${escapeHtml(d.device.device_id)}</div>
                     </td>
                     <td>
                         <div class="font-mono small text-light fw-semibold">${escapeHtml(d.target.account)}</div>
-                        <div class="small font-mono text-dim">${escapeHtml(d.target.endpoint)}</div>
+                        <div class="small font-mono text-info">${escapeHtml(d.target.endpoint)}</div>
                     </td>
                     <td>
                         <span class="badge ${d.containment?.status === 'CONTAINED' ? 'bg-success' : 'badge-soc-neutral'} font-mono small">
@@ -1046,7 +1046,7 @@
 
             if (keys.length === 0) {
                 typesEl.innerHTML = `
-                    <div class="text-center text-muted py-3 small">
+                    <div class="text-center text-light py-3 small">
                         <i class="bi bi-shield-check fs-4 text-success d-block mb-1"></i>
                         No active attack vectors detected.
                     </div>`;
@@ -1055,8 +1055,8 @@
 
             typesEl.innerHTML = keys.map(k => `
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="small text-capitalize">${escapeHtml(k.replace(/_/g, ' '))}</span>
-                    <span class="badge bg-secondary font-mono">${types[k]}</span>
+                    <span class="small text-light fw-medium text-capitalize">${escapeHtml(k.replace(/_/g, ' '))}</span>
+                    <span class="badge bg-secondary text-light font-mono px-2">${types[k]}</span>
                 </div>
             `).join('');
         }

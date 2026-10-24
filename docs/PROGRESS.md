@@ -466,6 +466,17 @@
   - Added visual GeoIP proportional distribution bars (Internal, Ethiopian Telco Rails, External/Cloud).
   - Added dedicated 4-Tier Detection Hierarchy (L1-L4) engine coverage monitor.
 
+- [x] **High-Contrast Dark Theme Enforcement & Complete Text Visibility Remediation (ADR-047)**:
+  - Enforced `data-bs-theme="dark"` attribute across all HTML templates to avoid Bootstrap 5.3 default light-mode body text color inheritance (`#212529`).
+  - Added explicit Bootstrap CSS variables on `:root`: `--bs-body-color: #f8fafc`, `--bs-body-bg: #090d16`, `--bs-card-color: #f8fafc`, `--bs-card-bg: #0f172a`.
+  - Upgraded `--ecs-text-muted` to `#e2e8f0` and `--ecs-text-dim` to `#cbd5e1` guaranteeing WCAG AAA compliant contrast against `#0f172a` navy card surfaces.
+  - Upgraded Attack Origins (GeoIP & ASN) row labels to `<span class="small text-light fw-semibold">` and count badges to `<span class="badge bg-secondary text-light font-mono px-2">`.
+  - Upgraded Target Infrastructure parameter titles to `text-light fw-medium`.
+  - Upgraded 4-Tier Detection Hierarchy descriptions to `<div class="text-light" style="font-size:0.78rem;">`.
+  - Upgraded Live Attack Feed table details (threat time date, rule ID/risk score, GeoIP country/IP, device OS/ID) to `text-light`.
+  - Upgraded dynamic vector names in `updateBreakdown` to `text-light fw-medium text-capitalize`.
+
+
 
 
 

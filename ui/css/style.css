@@ -1,5 +1,9 @@
 /* Ethio-Cyber Shield (ECS) - Minimalist Institutional SOC Design System */
 :root {
+    --bs-body-color: #f8fafc;
+    --bs-body-bg: #090d16;
+    --bs-card-color: #f8fafc;
+    --bs-card-bg: #0f172a;
     --ecs-bg: #090d16;
     --ecs-card: #0f172a;
     --ecs-card-header: #141e33;
@@ -7,8 +11,8 @@
     --ecs-border-light: rgba(255, 255, 255, 0.08);
     --ecs-border-strong: #334155;
     --ecs-text: #f8fafc;
-    --ecs-text-muted: #cbd5e1;
-    --ecs-text-dim: #94a3b8;
+    --ecs-text-muted: #e2e8f0;
+    --ecs-text-dim: #cbd5e1;
     --ecs-emerald: #10b981;
     --ecs-emerald-dim: rgba(16, 185, 129, 0.12);
     --ecs-emerald-hover: #059669;
@@ -51,6 +55,10 @@ body {
 
 .text-light {
     color: #ffffff !important;
+}
+
+.small, small {
+    color: inherit;
 }
 
 .border-secondary {
@@ -384,6 +392,11 @@ body {
     border: 1px solid var(--ecs-border);
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    color: #f8fafc;
+}
+
+.card-body {
+    color: #f8fafc;
 }
 
 .card-header {
@@ -392,7 +405,7 @@ body {
     padding: 0.65rem 1rem;
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--ecs-text);
+    color: #ffffff;
 }
 
 /* Minimalist KPI Stat Box */
@@ -763,11 +776,11 @@ code {
 }
 
 .dossier-card-title {
-    font-size: 0.74rem;
+    font-size: 0.76rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: #cbd5e1;
+    color: #f8fafc;
     margin-bottom: 0.75rem;
     display: flex;
     align-items: center;
@@ -780,7 +793,7 @@ code {
     align-items: center;
     padding-block: 0.35rem;
     font-size: 0.82rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .dossier-metric:last-child {
@@ -788,8 +801,8 @@ code {
 }
 
 .dossier-metric .label {
-    color: #cbd5e1;
-    font-weight: 500;
+    color: #e2e8f0;
+    font-weight: 600;
 }
 
 .dossier-metric .val {
