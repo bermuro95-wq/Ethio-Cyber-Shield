@@ -456,5 +456,16 @@
   - Documented no-code inbound webhook mapping for core banking engines and payment aggregators (telebirr, EthSwitch, Temenos T24).
   - Documented closed-loop automated mitigation webhook receivers (`POST /api/security/mitigate`) with idempotent rollback (`/revert`).
 
+- [x] **Institutional SOC Command Dashboard Standardization & Version Decoupling (ADR-046)**:
+  - Completely purged version text tags (e.g. `v3.0`, `.ecs-platform-version`) across all UI templates, navigation bars, headers, and stylesheets.
+  - Upgraded SOC dashboard to global cybersecurity operations standard (inspired by CrowdStrike Falcon, Splunk ES, Microsoft Sentinel).
+  - Expanded executive KPI bar to 6 metrics: Security Posture, Active Threats & Alerts, Auto-Contained Threats, Mean Time to Detect (MTTD < 15ms), Documented Incident Cases, and Telemetry Ingestion Velocity.
+  - Integrated live East Africa Time (EAT, UTC+3) digital operations clock in command bar.
+  - Added live threat category quick-filter tabs: All, Critical & High, Account Takeover (ATO), Fraud & Velocity, Injection & Web.
+  - Added real-time client-side search across live attack feed.
+  - Added visual GeoIP proportional distribution bars (Internal, Ethiopian Telco Rails, External/Cloud).
+  - Added dedicated 4-Tier Detection Hierarchy (L1-L4) engine coverage monitor.
+
+
 
 

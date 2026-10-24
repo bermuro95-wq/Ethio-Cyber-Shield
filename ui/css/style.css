@@ -1,4 +1,4 @@
-/* Ethio-Cyber Shield (ECS) v3.0 - Modern Minimalist SOC Design System */
+/* Ethio-Cyber Shield (ECS) - Minimalist Institutional SOC Design System */
 :root {
     --ecs-bg: #090d16;
     --ecs-card: #0f172a;
@@ -125,17 +125,6 @@ body {
     letter-spacing: 0.08em;
     color: #94a3b8;
     text-transform: uppercase;
-}
-
-.ecs-platform-version {
-    font-family: var(--ecs-font-mono);
-    font-size: 0.65rem;
-    font-weight: 700;
-    color: #10b981;
-    background: rgba(16, 185, 129, 0.12);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    padding: 0.1rem 0.4rem;
-    border-radius: 4px;
 }
 
 /* Center: Always-Visible Primary Navigation Links */
@@ -452,6 +441,8 @@ body {
 .stat-box.accent-rose { border-left: 3px solid rgba(244, 63, 94, 0.6); }
 .stat-box.accent-amber { border-left: 3px solid rgba(245, 158, 11, 0.6); }
 .stat-box.accent-sky { border-left: 3px solid rgba(14, 165, 233, 0.6); }
+.stat-box.accent-purple { border-left: 3px solid rgba(168, 85, 247, 0.6); }
+.stat-box.accent-indigo { border-left: 3px solid rgba(99, 102, 241, 0.6); }
 
 /* Minimalist Sub-Tab Navigation (Pills) */
 .sub-tabs {

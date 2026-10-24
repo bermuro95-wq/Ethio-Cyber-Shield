@@ -13,4 +13,4 @@ class Config:
     JWT_SECRET = os.getenv('JWT_SECRET', 'dev-secret-change-me')
     JWT_EXPIRY_HOURS = 24
     BCRYPT_ROUNDS = 12
-    PLATFORM_VERSION = '3.0.0'
+    PLATFORM_VERSION = '1.0.0'

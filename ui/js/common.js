@@ -49,7 +49,6 @@ function renderNavbar(activePage = '') {
                         <span class="ecs-brand-sub">NATIONAL SOC PLATFORM</span>
                     </div>
                 </a>
-                <span class="ecs-platform-version">v3.0</span>
             </div>
 
             <!-- Center: Core SOC Navigation Links (Always Visible, 1-Click Direct Access) -->

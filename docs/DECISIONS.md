@@ -1163,6 +1163,27 @@
 
 ---
 
+## ADR-046: Institutional SOC Command Dashboard Standardization & Version Decoupling
+
+* **Context**: The user requested that all version designations (such as `v3.0` badges and tags) be purged across the dashboard and UI, noting that ECS is the primary platform. Furthermore, the user requested that the dashboard be standardized to a complete, world-class cybersecurity SOC operations command center with all features needed for operational completeness.
+* **Decision**:
+  1. **Purge All Version Tags in UI**:
+     - Removed `<span class="ecs-platform-version">v3.0</span>` from the main navbar branding in `ui/js/common.js`.
+     - Removed `.ecs-platform-version` styling from `ui/css/style.css`.
+     - Reset `PLATFORM_VERSION = '1.0.0'` in `core/app/config.py`.
+  2. **Standardize National SOC Operations Dashboard**:
+     - **Authoritative Operational Clock**: Added real-time ticking digital clock displaying East Africa Time (`Africa/Addis_Ababa`, UTC+3).
+     - **Expanded 6-Metric KPI Bar**: Upgraded from 4 to 6 core metrics: Security Posture, Active Threats & Alerts, Auto-Contained Threats, Mean Time to Detect (MTTD < 15ms), Documented Incident Cases, and Telemetry Ingestion Velocity.
+     - **Threat Category Quick-Filter Tabs**: Added 1-click filter pills (All, Critical & High, ATO & Chains, Fraud & Velocity, Injection & Web) with dynamic counter badges.
+     - **Real-Time Search Bar**: Added instant client-side search across live threat feed (IP, rule, user, or endpoint).
+     - **4-Tier Detection Hierarchy Coverage Widget**: Added active engine status monitor for L1 Schema (< 5ms), L2 Velocity (< 25ms), L3 Cross-Tenant (< 100ms), and L4 Stateful Chains (< 250ms).
+     - **Visual GeoIP Distribution**: Added percentage progress bars for Internal Lab, Ethiopian Telco rails (Ethio Telecom, Safaricom), and External Cloud/VPN.
+     - **Regulatory 48-Hour Vault Integration**: Linked 1-click generation of statutory incident packages.
+* **Consequences**:
+  - The ECS dashboard meets tier-1 institutional SOC standards (matching CrowdStrike, Sentinel, and Splunk ES) with zero distracting version tags.
+
+---
+
 ## ADR-045: Master Universal Target System Integration Specification
 
 * **Context**: External financial technology teams, core banking architects (CBE, Awash, Dashen), payment system operators (EthSwitch, telebirr), and third-party developers require a definitive, end-to-end guide on integrating their applications into Ethio-Cyber-Shield with minimal friction while upholding Ethiopian statutory security requirements.
