@@ -407,3 +407,10 @@
   - Replaced flashing pulse dots with crisp, solid status dots.
   - Standardized on an institutional, high-contrast, deep-slate SOC visual design language matching global standards (CrowdStrike Falcon, Splunk ES, Datadog SIEM).
   - All test suites passing (targetsys 109/109 tests passing, backend unit tests passing).
+
+- [x] **HonorPay Target Banking System Vercel Cloud Deployment (ADR-040)**:
+  - Linked `targetsys` to Vercel team `rammisos-projects` as project `honorpay`.
+  - Configured 9 production environment variables on Vercel: `NITRO_PRESET=vercel`, `APP_ENCRYPTION_KEY`, `SUPABASE_PROJECT_ID`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_PROJECT_ID`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and `VITE_SUPABASE_URL`.
+  - Disabled deployment SSO protection to permit public access without authentication barriers.
+  - Deployed production build to Vercel and assigned clean domain alias: `https://honorpay-banking.vercel.app`.
+  - Verified live endpoint responses over HTTP/2: `/` (200 OK), `/login` (200 OK), `/employee` (200 OK), and `/admin` (307 redirect).

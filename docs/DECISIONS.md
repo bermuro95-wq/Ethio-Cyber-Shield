@@ -1122,3 +1122,26 @@
   - Zero reliance on Bootstrap collapse/hamburger mechanics for desktop security analysts.
   - Visual language conforms to world-class security operations centers (CrowdStrike Falcon, Splunk ES, Datadog SIEM).
 
+---
+
+## ADR-040: HonorPay Target Banking System Serverless Cloud Deployment on Vercel
+
+* **Context**: The user requested deploying the HonorPay target digital banking platform to Vercel using the authenticated Vercel CLI, setting up its production environment variables, and obtaining a clean production domain alias.
+* **Decision**:
+  1. **Nitro Vercel Preset Configuration**:
+     - Configured `targetsys/vercel.json` with `NITRO_PRESET=vercel npm run build`.
+     - Added script `"build:vercel": "NITRO_PRESET=vercel vite build"` to `package.json`.
+     - Updated `.gitignore` to exclude `.vercel/`.
+  2. **Vercel Project Linking & Secret Provisioning**:
+     - Linked `targetsys` to Vercel account `rammisos-projects` as project `honorpay` (Project ID: `prj_NmA4vhS1LIt5sQVcBy2FjWhbOxPk`).
+     - Provisioned 9 production environment variables: `NITRO_PRESET`, `APP_ENCRYPTION_KEY`, `SUPABASE_PROJECT_ID`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_PROJECT_ID`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and `VITE_SUPABASE_URL`.
+  3. **Deployment Protection Bypass & Domain Aliasing**:
+     - Disabled SSO/Vercel Authentication deployment protection via `vercel project protection disable honorpay --sso` so the application is publicly accessible.
+     - Built and deployed output using Vercel Build Output API v3 (`.vercel/output`).
+     - Assigned production domain alias: `https://honorpay-banking.vercel.app`.
+* **Consequences**:
+  - HonorPay is accessible globally on public HTTPS.
+  - SSR, client hydration, and server functions execute on Node.js 24.x serverless lambdas in Vercel `iad1`.
+  - Local development testbed remains intact on port 8080 with 109/109 tests passing.
+
+
