@@ -120,17 +120,31 @@ Access the SOC Console at `http://localhost:5500`.
 
 ---
 
-## 7. Cloud Production Deployment (Render)
+## 7. Cloud Production Deployment Directory (Render & Vercel)
 
-ECS is deployed in cloud production on **Render**:
-- **Console & API**: [https://ethio-cyber-shield.onrender.com](https://ethio-cyber-shield.onrender.com)
-- **Database**: Managed PostgreSQL 18 (`ecs-postgres`)
-- **Streams**: Managed Redis Key-Value (`ecs-redis`)
-- **Health Check**: `GET /api/health`
+Ethio-Cyber-Shield and its target systems are deployed in public cloud production:
+
+| Service / Component | Cloud Provider | Live URL / Endpoint | Purpose / Role |
+| :--- | :--- | :--- | :--- |
+| **ECS Primary Web Console** | **Render** (Oregon) | [https://ethio-cyber-shield.onrender.com](https://ethio-cyber-shield.onrender.com) | Central SOC Analyst & Incident Readiness Console |
+| • [Overview Dashboard](https://ethio-cyber-shield.onrender.com/dashboard.html) | Render | `/dashboard.html` | Real-time security posture, KPI cards, attack ticker |
+| • [Live Alert Triage](https://ethio-cyber-shield.onrender.com/alerts.html) | Render | `/alerts.html` | Alert review, explainable dossiers, Web Audio alerts |
+| • [Incident Management](https://ethio-cyber-shield.onrender.com/incidents.html) | Render | `/incidents.html` | Formal incidents, timeline & 48-hr regulatory exporter |
+| • [Threat Intelligence](https://ethio-cyber-shield.onrender.com/intelligence.html) | Render | `/intelligence.html` | IOC database & privacy-preserving community feed |
+| • [Tamper-Evident Audit](https://ethio-cyber-shield.onrender.com/audit.html) | Render | `/audit.html` | SHA-256 hash-sealed immutable audit trail |
+| • [Settings & Rules](https://ethio-cyber-shield.onrender.com/settings.html) | Render | `/settings.html` | Declarative L1-L4 rules & mitigation connectors |
+| • [Operator Login](https://ethio-cyber-shield.onrender.com/login.html) | Render | `/login.html` | Multi-alias authentication with 1-click test chips |
+| • [System Health API](https://ethio-cyber-shield.onrender.com/api/health) | Render | `/api/health` | Live health probe (PostgreSQL 1ms, Redis streams) |
+| **ECS Managed PostgreSQL** | **Render** (Oregon) | `dpg-dbefthom7kps73dp2bn0-a` | PostgreSQL 18 with Row-Level Security (RLS) |
+| **ECS Managed Redis** | **Render** (Oregon) | `red-dbeftkjncjis73e4gsb0` | Redis 8.1.10 bounded durable telemetry stream engine |
+| **HonorPay Banking (Target)** | **Vercel** (Edge) | [https://honorpay-banking.vercel.app](https://honorpay-banking.vercel.app) | Connected Ethiopian digital banking target application |
+| • [Red Team Attack Lab](https://honorpay-banking.vercel.app/admin/lab) | Vercel | `/admin/lab` | 28-scenario interactive attack simulation lab |
+| **Render Cloud Dashboard** | **Render** | [Render Web Service Console](https://dashboard.render.com/web/srv-dbefu6ss728c73c47d3g) | Infrastructure management (`srv-dbefu6ss728c73c47d3g`) |
 
 ### Production Operator Credentials
-- **Username**: `admin@shieldbank.test` *(or `admin@ethiocybershield.et` / `admin@honorpay.et`)*
-- **Password**: `Testbed#2026`
+- **Lead SOC Administrator**: `admin@shieldbank.test` | Password: `Testbed#2026`
+- **Ethio Cyber Shield Lead**: `admin@ethiocybershield.et` | Password: `Testbed#2026`
+- **HonorPay Security Admin**: `admin@honorpay.et` | Password: `Testbed#2026`
 
 ---
 
