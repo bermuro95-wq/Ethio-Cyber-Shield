@@ -144,4 +144,19 @@ def create_app():
             }
         }, 200
 
+    # Unified static UI serving for single-service cloud deployments (Render, Railway, Fly.io, etc.)
+    from flask import send_from_directory
+    ui_dir = os.path.abspath(os.path.join(repo_root, 'ui'))
+    if os.path.exists(ui_dir):
+        @app.route('/', defaults={'path': ''})
+        @app.route('/<path:path>')
+        def serve_ui(path):
+            if path.startswith('api/') or path == 'api' or path == 'health':
+                return {'error': 'Endpoint not found'}, 404
+            target_file = os.path.join(ui_dir, path)
+            if path and os.path.isfile(target_file):
+                return send_from_directory(ui_dir, path)
+            default_file = 'dashboard.html' if os.path.exists(os.path.join(ui_dir, 'dashboard.html')) else 'index.html'
+            return send_from_directory(ui_dir, default_file)
+
     return app
