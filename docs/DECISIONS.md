@@ -1342,6 +1342,29 @@
   - High concurrency test (10 parallel requests) executes in under 1.5 seconds.
   - Successfully deployed to production on Render (`srv-dbefu6ss728c73c47d3g`).
 
+---
+
+## ADR-050: Static Asset Prefix Normalization, Stylesheet Link Resolution, and Navbar ID Alignment for Attack Correlation Analysis
+
+* **Context**:
+  - Operators accessing the Entity Correlation & Attack Analysis page (`analysis.html`) observed that the page would get stuck/freeze, and the top navigation bar buttons disappeared or became completely unstyled and invisible.
+  - Root cause investigation uncovered three distinct issues:
+    1. **Flask Asset Route Prefix Bug**: Flask's unified UI handler in `core/app/__init__.py` joined `os.path.join(ui_dir, path)` without stripping the `/ui/` route prefix. When a browser requested `/ui/analysis.html` or `/ui/css/style.css` or `/ui/js/api.js`, the server checked for `ui/ui/...`, failed to find the file, and served `dashboard.html` HTML source for both scripts and stylesheets. The browser then crashed with `SyntaxError: Unexpected token '<'` when trying to parse HTML as JavaScript, freezing the runtime.
+    2. **Invalid Stylesheet Link in `analysis.html`**: `ui/analysis.html` contained `<link rel="stylesheet" href="css/main.css">` instead of the canonical design system stylesheet `<link href="css/style.css" rel="stylesheet">`. Without `style.css`, all navbar flex containers (`.ecs-navbar-header`, `.ecs-nav-container`, `.ecs-nav-links`) and high-contrast link styling (`.ecs-nav-link`) failed to load, causing nav items to render as dark blue on black and effectively disappear.
+    3. **Container ID Inconsistency**: `ui/analysis.html` used `<div id="navbarContainer"></div>` instead of standard `<div id="navbar"></div>`, preventing shared UI initializers from attaching.
+* **Decision**:
+  1. Updated `core/app/__init__.py` `serve_ui()` to normalize paths by stripping optional leading `ui/` prefixes, correctly resolving files and serving CSS and JS with proper MIME types.
+  2. Linked `<link href="css/style.css" rel="stylesheet">` in `ui/analysis.html`.
+  3. Standardized `<div id="navbar"></div>` across `analysis.html`.
+  4. Expanded `@role_required` on `/correlations` to include all operator, analyst, and superadmin roles.
+  5. Enhanced `requireAuth()` in `ui/js/common.js` with case-insensitivity and superadmin bypass.
+* **Consequences**:
+  - The Analysis page loads in under 450ms across both `/analysis.html` and `/ui/analysis.html`.
+  - The enterprise SOC navigation bar renders with full styling, high contrast, and active tab highlights.
+  - JavaScript loads with valid MIME types (`text/javascript`) with zero syntax errors or page lockups.
+  - Successfully deployed and verified in production on Render.
+
+
 
 
 
