@@ -42,6 +42,16 @@ def list_alerts():
         if alert_type: base_q = base_q.eq('alert_type', alert_type)
         res = base_q.order('created_at', desc=True).limit(100).execute()
     alerts = res.data or []
+    if not alerts and org_id:
+        try:
+            base_q = sb.table('alerts').select('*')
+            if status: base_q = base_q.eq('status', status)
+            if severity: base_q = base_q.eq('severity', severity)
+            if alert_type: base_q = base_q.eq('alert_type', alert_type)
+            res_fb = base_q.order('created_at', desc=True).limit(100).execute()
+            alerts = res_fb.data or []
+        except Exception:
+            pass
     if org_id:
         alerts = [
             a for a in alerts

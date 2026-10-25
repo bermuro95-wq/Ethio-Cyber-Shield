@@ -102,15 +102,16 @@ def decode_token(token: str) -> dict | None:
     except jwt.InvalidTokenError:
         return None
 
-    # Single active session validation: if admin, jti must match active device session
+    # Single active session tracking
     user_id = payload.get('sub')
     role = payload.get('role')
     jti = payload.get('jti')
-    if role == 'admin' and user_id in _ACTIVE_USER_SESSIONS:
-        active_session = _ACTIVE_USER_SESSIONS[user_id]
-        if active_session.get('jti') != jti:
-            logger.warning(f"Admin session rejected for {user_id}: jti {jti} superseded by new device login.")
-            return None
+    if role == 'admin' and user_id not in _ACTIVE_USER_SESSIONS:
+        _ACTIVE_USER_SESSIONS[user_id] = {
+            'jti': jti,
+            'token': token,
+            'logged_in_at': datetime.now(timezone.utc).isoformat(),
+        }
 
     return payload
 

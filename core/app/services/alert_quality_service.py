@@ -406,6 +406,11 @@ class AlertQualityService:
             res_ins = sb.table('alerts').insert(clean_alert).execute()
             if res_ins.data and len(res_ins.data) > 0:
                 created_record['id'] = res_ins.data[0]['id']
+                try:
+                    from app.routes.alerts import _ALERT_ORGS
+                    _ALERT_ORGS[str(created_record['id'])] = oid
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Alert insertion failed: {e}")
 
