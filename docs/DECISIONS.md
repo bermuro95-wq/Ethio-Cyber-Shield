@@ -1364,6 +1364,38 @@
   - JavaScript loads with valid MIME types (`text/javascript`) with zero syntax errors or page lockups.
   - Successfully deployed and verified in production on Render.
 
+---
+
+## ADR-051: Login Redirection Loop Elimination, Realtime SSE Alert Debouncing, and Audio/Toast Worker Throttling
+
+* **Context**:
+  - Operators observed two severe usability and stability defects:
+    1. **Login Redirect Trap**: When navigating directly to `https://ethio-cyber-shield.onrender.com/login.html`, the browser would immediately redirect to `/dashboard.html` without operator consent if a stale token existed in `localStorage`. The operator was unable to view the login interface, sign out cleanly, or switch to a different account.
+    2. **Dashboard Chrome Freeze**: Upon landing on `/dashboard.html`, the tab and entire Chrome browser would frequently become unresponsive ("stack on this page until i close the whole chrome browser").
+  - Root Cause Analysis:
+    - *Auto-Redirect Trap*: `ui/login.html` executed `else if (hasAPI() && API.isAuthenticated()) { window.location.href = 'dashboard.html'; }` synchronously on DOM load. Any lingering authentication token triggered an instantaneous redirection, trapping the operator.
+    - *DOM and Audio Context Thrashing*: In `ui/dashboard.html`, `window._onRealtimeAlert` received incoming Server-Sent Events with zero debouncing or batching. For each incoming alert, it immediately executed `renderLiveStream(_cachedAlerts)` (wiping and re-building 50+ table rows with complex innerHTML manipulation), updated counters, and called `playAlertTone`.
+    - *WebAudio and Toast Compositor Exhaustion*: `ui/js/common.js` simultaneously called `showInstantAlertNotification` which instantiated Bootstrap Toasts with `backdrop-filter: blur(8px)`. In `playAlertTone`, every invocation synthesized new `AudioContext.createOscillator()` nodes without throttling. High-frequency SSE bursts flooded the WebAudio subsystem and Chrome's compositor thread, exhausting GPU/renderer buffers and freezing the browser window.
+* **Decision**:
+  1. **User Agency on Authentication Page (`login.html`)**:
+     - Removed automatic redirection (`window.location.href = 'dashboard.html'`).
+     - Replaced it with an interactive session card: displays the currently signed-in user name/email alongside explicit "Dashboard &rarr;" and "Sign Out" actions.
+     - Supported `?logout=true` query parameter to allow immediate token invalidation on arrival.
+  2. **Coalesced Real-Time Dashboard Rendering (`dashboard.html`)**:
+     - Implemented `_pendingAlertsQueue` and a 350ms trailing debounce timer (`_dashboardDebounceTimer`) in `window._onRealtimeAlert`.
+     - In-flight alerts arriving during an active burst are queued and processed in a single batched pass.
+     - Capped `_cachedAlerts` to 100 entries to prevent memory leaks.
+     - Guarded `loadDashboard()` with an asynchronous execution lock (`_isLoadingDashboard`).
+  3. **Audio & Toast Rate Limiting (`common.js`)**:
+     - Added a minimum 1.8-second cooldown timer to `playAlertTone()` to prevent rapid oscillator creation.
+     - Added a minimum 1.5-second cooldown timer to `showInstantAlertNotification()`.
+     - Enforced a hard limit of maximum 3 simultaneous toasts in `#ecs-toast-container`, purging oldest entries before mounting new DOM nodes.
+* **Consequences**:
+  - Operators can freely visit `/login.html` at any time to switch accounts or sign out cleanly.
+  - High-velocity attack simulations and SSE streams render smoothly at 60 FPS without DOM stutter, audio crackle, or Chrome tab freezing.
+  - Deployed to production on Render (`srv-dbefu6ss728c73c47d3g`).
+
+
 
 
 
