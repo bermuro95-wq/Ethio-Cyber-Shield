@@ -117,6 +117,7 @@
                                 <div class="dossier-metric"><span class="label">Source IP:</span><span class="val font-mono fw-bold text-light" id="mGeoIp">127.0.0.1</span></div>
                                 <div class="dossier-metric"><span class="label">Location:</span><span class="val" id="mGeoLocation">Localhost</span></div>
                                 <div class="dossier-metric"><span class="label">ASN / ISP:</span><span class="val font-mono" id="mGeoAsn">AS0 Private</span></div>
+                                <div class="dossier-metric"><span class="label">Network Rail:</span><span class="val font-mono" id="mGeoRail"><span class="badge bg-info text-dark font-mono"><i class="bi bi-wifi me-1"></i>Wi-Fi (802.11ax)</span></span></div>
                                 <div class="dossier-metric"><span class="label">Proxy / Hosting:</span><span class="val" id="mGeoFlags"><span class="badge bg-secondary font-mono" id="mBadgeTor">Direct</span></span></div>
                             </div>
                         </div>
@@ -125,6 +126,7 @@
                                 <div class="dossier-card-title"><i class="bi bi-laptop text-warning"></i> Attacker Client & Device</div>
                                 <div class="dossier-metric"><span class="label">Client Tool:</span><span class="val fw-bold text-warning" id="mDevClient">Burp Suite</span></div>
                                 <div class="dossier-metric"><span class="label">OS:</span><span class="val font-mono" id="mDevOs">Linux x86_64</span></div>
+                                <div class="dossier-metric"><span class="label">Hardware MAC:</span><code class="val font-mono small text-info" id="mDevMac">00:00:00:00:00:00</code></div>
                                 <div class="dossier-metric"><span class="label">Device Classification:</span><span class="val" id="mDevType">Security Tool</span></div>
                                 <div class="dossier-metric"><span class="label">Device ID:</span><code class="val font-mono small text-light" id="mDevId">DEV-PROBE</code></div>
                             </div>
@@ -268,11 +270,21 @@
                         </td>
                         <td>
                             <div class="small fw-semibold text-light">${originStr}</div>
-                            <div class="small font-mono text-muted">${d ? escapeHtml(d.geo.as_org) : 'Target System'}</div>
+                            <div class="d-flex align-items-center gap-1 mt-1">
+                                <span class="badge ${d && d.network && d.network.is_wifi ? 'bg-info text-dark' : (d && d.network && d.network.is_cellular ? 'bg-warning text-dark' : 'bg-dark border border-secondary text-light')} font-mono" style="font-size:0.65rem;">
+                                    <i class="bi ${d && d.network && d.network.is_wifi ? 'bi-wifi' : (d && d.network && d.network.is_cellular ? 'bi-reception-4' : 'bi-hdd-network')} me-1"></i>${d && d.network ? escapeHtml(d.network.network_label) : 'Ethernet'}
+                                </span>
+                                <span class="small font-mono text-muted text-truncate" style="max-width:130px;">${d ? escapeHtml(d.geo.isp || d.geo.as_org) : 'Target System'}</span>
+                            </div>
                         </td>
                         <td>
                             <div class="small fw-semibold text-warning"><i class="bi bi-laptop me-1"></i>${clientStr}</div>
-                            <div class="small font-mono text-muted">${d ? escapeHtml(d.device.os) : 'Client'}</div>
+                            <div class="d-flex align-items-center gap-1 mt-1">
+                                <span class="badge bg-dark border border-secondary font-mono text-light" style="font-size:0.65rem;">
+                                    <i class="bi bi-cpu me-1"></i>${d ? escapeHtml(d.device.os) : 'Linux x86_64'}
+                                </span>
+                                ${d && d.device && d.device.device_mac ? `<span class="badge bg-secondary font-mono text-light" style="font-size:0.65rem;" title="Hardware MAC"><i class="bi bi-ethernet me-1"></i>${escapeHtml(d.device.device_mac)}</span>` : ''}
+                            </div>
                         </td>
                         <td>${statusBadge(a.status)}</td>
                         <td class="small font-mono" data-threat-time="${escapeHtml(a.created_at || a.occurred_at || '')}">
@@ -359,8 +371,20 @@
             document.getElementById('mGeoLocation').textContent = `${d.geo?.flag || '🌐'} ${d.geo?.city || 'Localhost'}, ${d.geo?.country_name || 'Internal'}`;
             document.getElementById('mGeoAsn').textContent = `${d.geo?.asn || 'AS0'} (${d.geo?.as_org || 'Internal'})`;
 
+            const railEl = document.getElementById('mGeoRail');
+            if (railEl) {
+                const net = d.network || {};
+                const isWifi = net.is_wifi;
+                const isCell = net.is_cellular;
+                const badgeClass = isWifi ? 'bg-info text-dark' : (isCell ? 'bg-warning text-dark' : 'bg-dark border border-secondary text-light');
+                const iconClass = isWifi ? 'bi-wifi' : (isCell ? 'bi-reception-4' : 'bi-hdd-network');
+                railEl.innerHTML = `<span class="badge ${badgeClass} font-mono"><i class="bi ${iconClass} me-1"></i>${escapeHtml(net.connection_type || 'Wi-Fi (Wireless LAN)')}</span>`;
+            }
+
             document.getElementById('mDevClient').textContent = d.device?.client_software || 'Web Client';
-            document.getElementById('mDevOs').textContent = d.device?.os || 'Unknown OS';
+            document.getElementById('mDevOs').textContent = d.device?.os || 'Linux x86_64';
+            const macEl = document.getElementById('mDevMac');
+            if (macEl) macEl.textContent = d.device?.device_mac || '00:00:00:00:00:00';
             document.getElementById('mDevType').textContent = d.device?.device_type || 'Desktop';
             document.getElementById('mDevId').textContent = d.device?.device_id || 'DEV-PROBE';
 

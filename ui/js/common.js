@@ -27,6 +27,7 @@ function renderNavbar(activePage = '') {
 
     const isOverview = activePage === 'dashboard' || activePage === 'live';
     const isAlerts = activePage === 'alerts';
+    const isAnalysis = activePage === 'analysis';
     const isIncidents = activePage === 'incidents' || activePage === 'incident-detail';
     const isIntel = activePage === 'intelligence' || activePage === 'indicators' || activePage === 'fraud' || activePage === 'watchlists';
     const isAudit = activePage === 'audit' || activePage === 'reports';
@@ -111,6 +112,10 @@ function renderNavbar(activePage = '') {
                 <a class="ecs-nav-link ${isAlerts ? 'active' : ''}" href="alerts.html">
                     <i class="bi bi-bell"></i>
                     <span>Alerts</span>
+                </a>
+                <a class="ecs-nav-link ${isAnalysis ? 'active' : ''}" href="analysis.html" title="Attack Pivot & Multi-Dimensional Entity Correlation Analysis">
+                    <i class="bi bi-diagram-3"></i>
+                    <span>Analysis</span>
                 </a>
                 <a class="ecs-nav-link ${isIncidents ? 'active' : ''}" href="incidents.html">
                     <i class="bi bi-shield-exclamation"></i>

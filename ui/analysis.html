@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entity Correlation & Attack Analysis — Ethio-Cyber Shield SOC</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        .analysis-header-card {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 8px;
+            padding: 1.25rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .analysis-header-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, #38bdf8, #818cf8, #34d399);
+        }
+        .correlation-kpi-card {
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .correlation-kpi-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(56, 189, 248, 0.4);
+        }
+        .correlation-kpi-val {
+            font-size: 1.85rem;
+            font-weight: 700;
+            font-family: var(--bs-font-monospace);
+            line-height: 1.2;
+        }
+        .correlation-kpi-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #94a3b8;
+            margin-bottom: 0.25rem;
+        }
+        .nav-tabs-soc {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            gap: 0.5rem;
+        }
+        .nav-tabs-soc .nav-link {
+            color: #94a3b8;
+            background: transparent;
+            border: 1px solid transparent;
+            border-bottom: 2px solid transparent;
+            border-radius: 6px 6px 0 0;
+            padding: 0.6rem 1.1rem;
+            font-size: 0.82rem;
+            font-weight: 600;
+            letter-spacing: 0.4px;
+            transition: all 0.2s;
+        }
+        .nav-tabs-soc .nav-link:hover {
+            color: #e2e8f0;
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+        .nav-tabs-soc .nav-link.active {
+            color: #38bdf8;
+            background: rgba(56, 189, 248, 0.08);
+            border-color: rgba(56, 189, 248, 0.3) rgba(56, 189, 248, 0.3) transparent rgba(56, 189, 248, 0.3);
+            border-bottom: 2px solid #38bdf8;
+        }
+        .pivot-badge {
+            background: rgba(239, 68, 68, 0.18);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #f87171;
+            font-size: 0.7rem;
+            font-family: var(--bs-font-monospace);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+        }
+        .wifi-rail-badge {
+            background: rgba(56, 189, 248, 0.15);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            color: #38bdf8;
+            font-family: var(--bs-font-monospace);
+            font-size: 0.72rem;
+            padding: 0.2rem 0.55rem;
+            border-radius: 4px;
+        }
+        .cell-rail-badge {
+            background: rgba(251, 191, 36, 0.15);
+            border: 1px solid rgba(251, 191, 36, 0.35);
+            color: #fbbf24;
+            font-family: var(--bs-font-monospace);
+            font-size: 0.72rem;
+            padding: 0.2rem 0.55rem;
+            border-radius: 4px;
+        }
+        .hotspot-card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 1.1rem;
+            position: relative;
+            transition: all 0.2s;
+        }
+        .hotspot-card:hover {
+            border-color: rgba(56, 189, 248, 0.35);
+            background: rgba(15, 23, 42, 0.85);
+        }
+        .dossier-card {
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 1rem;
+        }
+        .dossier-card-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #94a3b8;
+            margin-bottom: 0.6rem;
+            font-weight: 600;
+        }
+        .dossier-metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.4rem;
+            font-size: 0.8rem;
+        }
+        .dossier-metric .label { color: #64748b; }
+        .dossier-code-box {
+            background: #020617;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+            padding: 0.6rem;
+            font-family: var(--bs-font-monospace);
+            font-size: 0.75rem;
+            color: #cbd5e1;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="bg-dark text-light">
+    <!-- Main SOC Navbar -->
+    <div id="navbarContainer"></div>
+
+    <main class="container-fluid px-3 px-lg-4 py-3">
+        <!-- Breadcrumb & Page Header -->
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-primary font-mono text-uppercase px-2" style="font-size: 0.68rem; letter-spacing: 0.5px;">SOC Telemetry Graph</span>
+                    <span class="text-muted small">/</span>
+                    <span class="text-light small fw-bold">Multi-Dimensional Attack Correlation</span>
+                </div>
+                <h4 class="mb-0 fw-bold mt-1 text-light d-flex align-items-center gap-2">
+                    <i class="bi bi-diagram-3 text-info"></i>
+                    Attack Pivot & Entity Correlation Analysis
+                </h4>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-soc btn-soc-sm font-mono" id="btnRefresh" onclick="manualRefreshCorrelations()">
+                    <i class="bi bi-arrow-repeat me-1"></i> Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- KPI Summary Cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="correlation-kpi-card">
+                    <div class="correlation-kpi-label"><i class="bi bi-globe me-1 text-info"></i> Correlated Attacker IPs</div>
+                    <div class="correlation-kpi-val text-info" id="kpiTotalIps">-</div>
+                    <div class="small text-muted mt-1" style="font-size: 0.72rem;" id="kpiBlockedIps">0 Active Blocked</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="correlation-kpi-card">
+                    <div class="correlation-kpi-label"><i class="bi bi-laptop me-1 text-warning"></i> Unique Attacker Devices / MACs</div>
+                    <div class="correlation-kpi-val text-warning" id="kpiTotalDevices">-</div>
+                    <div class="small text-muted mt-1" style="font-size: 0.72rem;" id="kpiPivotDevices">0 Cross-Account Pivots</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="correlation-kpi-card">
+                    <div class="correlation-kpi-label"><i class="bi bi-geo-alt me-1 text-success"></i> Geographic Hotspots</div>
+                    <div class="correlation-kpi-val text-success" id="kpiTotalHotspots">-</div>
+                    <div class="small text-muted mt-1" style="font-size: 0.72rem;">Ethiopian Cities & Hubs</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="correlation-kpi-card">
+                    <div class="correlation-kpi-label"><i class="bi bi-wifi me-1 text-primary"></i> Dominant Network Vector</div>
+                    <div class="correlation-kpi-val text-primary" id="kpiWifiPct">-%</div>
+                    <div class="small text-muted mt-1" style="font-size: 0.72rem;" id="kpiNetworkBreakdown">Wi-Fi vs Cellular Split</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Multi-Dimensional Navigation Tabs -->
+        <ul class="nav nav-tabs nav-tabs-soc mb-3" id="correlationTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-ip-btn" data-bs-toggle="tab" data-bs-target="#tab-ip" type="button" role="tab">
+                    <i class="bi bi-hdd-network me-1"></i> Correlated IP Entities (<span id="badgeIpCount">0</span>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-device-btn" data-bs-toggle="tab" data-bs-target="#tab-device" type="button" role="tab">
+                    <i class="bi bi-cpu me-1"></i> Device Hardware & MAC Pivots (<span id="badgeDeviceCount">0</span>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-location-btn" data-bs-toggle="tab" data-bs-target="#tab-location" type="button" role="tab">
+                    <i class="bi bi-geo me-1"></i> Geographic Regional Clusters (<span id="badgeLocationCount">0</span>)
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Contents -->
+        <div class="tab-content" id="correlationTabsContent">
+            <!-- TAB 1: Correlated IP Entities -->
+            <div class="tab-pane fade show active" id="tab-ip" role="tabpanel">
+                <div class="card bg-soc-card border-secondary mb-4">
+                    <div class="card-header border-secondary d-flex justify-content-between align-items-center py-2 px-3">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-globe text-info"></i>
+                            <span class="fw-bold small text-light">Attacker IP Clustering & Network Profiling</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Search IP, City, ASN, Tool..." id="searchIpInput" oninput="filterIpTable()" style="max-width: 240px; font-size: 0.75rem;">
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-soc align-middle mb-0" id="tableIpCorrelations">
+                            <thead>
+                                <tr>
+                                    <th>Attacker IP</th>
+                                    <th>Location & Carrier</th>
+                                    <th>Network Rail</th>
+                                    <th>Operating System</th>
+                                    <th>Client Software</th>
+                                    <th>Target Accounts</th>
+                                    <th>Rules Triggered</th>
+                                    <th>Risk Level</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyIpCorrelations">
+                                <tr><td colspan="10" class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm me-2"></span> Correlating IP telemetry...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: Device Hardware & MAC Pivots -->
+            <div class="tab-pane fade" id="tab-device" role="tabpanel">
+                <div class="card bg-soc-card border-secondary mb-4">
+                    <div class="card-header border-secondary d-flex justify-content-between align-items-center py-2 px-3">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-cpu text-warning"></i>
+                            <span class="fw-bold small text-light">Hardware MAC & Cross-Account Pivot Threat Detection</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Search MAC, Device ID, Account..." id="searchDeviceInput" oninput="filterDeviceTable()" style="max-width: 240px; font-size: 0.75rem;">
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-soc align-middle mb-0" id="tableDeviceCorrelations">
+                            <thead>
+                                <tr>
+                                    <th>Hardware MAC & ID</th>
+                                    <th>Operating System</th>
+                                    <th>Client Tooling</th>
+                                    <th>Targeted Accounts (Pivot Threat)</th>
+                                    <th>Associated IPs</th>
+                                    <th>Network Connection</th>
+                                    <th>Attack Velocity</th>
+                                    <th>Reputation</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyDeviceCorrelations">
+                                <tr><td colspan="9" class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm me-2"></span> Correlating hardware devices...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: Geographic Regional Clusters -->
+            <div class="tab-pane fade" id="tab-location" role="tabpanel">
+                <div class="row g-3 mb-4" id="hotspotsContainer">
+                    <div class="col-12 text-center py-5 text-muted">
+                        <span class="spinner-border spinner-border-sm me-2"></span> Clustered Ethiopian regional hotspots loading...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Unified Attack Dossier Modal -->
+    <div class="modal fade" id="analysisDossierModal" tabindex="-1" aria-labelledby="analysisDossierModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content bg-dark text-light border-secondary shadow-lg">
+                <div class="modal-header border-secondary py-2 px-3 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-shield-shaded text-danger fs-5"></i>
+                        <div>
+                            <div class="modal-title fw-bold font-mono text-light mb-0" style="font-size:0.95rem;" id="mDossierTitle">Attacker Telemetry Dossier</div>
+                            <div class="text-muted" style="font-size:0.7rem;" id="mDossierId">ALERT-ID</div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-danger font-mono" id="mDossierSeverity">CRITICAL</span>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+
+                <div class="modal-body p-3">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <div class="dossier-card h-100">
+                                <div class="dossier-card-title"><i class="bi bi-globe text-info"></i> Attacker Network & Location</div>
+                                <div class="dossier-metric"><span class="label">Source IP:</span><span class="val font-mono fw-bold text-light" id="mGeoIp">127.0.0.1</span></div>
+                                <div class="dossier-metric"><span class="label">Location:</span><span class="val" id="mGeoLocation">Localhost</span></div>
+                                <div class="dossier-metric"><span class="label">ASN / ISP:</span><span class="val font-mono" id="mGeoAsn">AS0 Private</span></div>
+                                <div class="dossier-metric"><span class="label">Network Rail:</span><span class="val font-mono" id="mGeoRail">Wi-Fi (802.11ax)</span></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="dossier-card h-100">
+                                <div class="dossier-card-title"><i class="bi bi-laptop text-warning"></i> Attacker Client & Device</div>
+                                <div class="dossier-metric"><span class="label">Client Tool:</span><span class="val fw-bold text-warning" id="mDevClient">Burp Suite</span></div>
+                                <div class="dossier-metric"><span class="label">Operating System:</span><span class="val font-mono" id="mDevOs">Linux x86_64</span></div>
+                                <div class="dossier-metric"><span class="label">Hardware MAC:</span><code class="val font-mono small text-info" id="mDevMac">00:00:00:00:00:00</code></div>
+                                <div class="dossier-metric"><span class="label">Device ID:</span><code class="val font-mono small text-light" id="mDevId">DEV-PROBE</code></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dossier-card mb-3">
+                        <div class="dossier-card-title"><i class="bi bi-shield-check text-success"></i> Rules & Evaluation Reasons</div>
+                        <div class="dossier-code-box" id="mDossierReasons">Telemetry evidence</div>
+                    </div>
+
+                    <div>
+                        <div class="dossier-card-title"><i class="bi bi-terminal text-info"></i> Attacker User-Agent & Platform Hints</div>
+                        <div class="dossier-code-box font-mono small" id="mDossierUserAgent">User-Agent</div>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-secondary d-flex justify-content-between align-items-center py-2 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-soc btn-soc-danger btn-sm" onclick="doModalBlockIp()">
+                            <i class="bi bi-slash-circle me-1"></i> Block Attacker IP
+                        </button>
+                        <button class="btn btn-soc btn-soc-warning btn-sm" onclick="doModalRevokeSession()">
+                            <i class="bi bi-key me-1"></i> Revoke Session
+                        </button>
+                    </div>
+                    <button class="btn btn-soc btn-soc-primary btn-sm" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/common.js"></script>
+    <script>
+        requireAuth(['admin', 'analyst', 'viewer', 'superadmin', 'operator']);
+        document.getElementById('navbarContainer').innerHTML = renderNavbar('analysis');
+
+        let _correlationsData = null;
+        let _activeDossier = null;
+        let _modalInst = null;
+
+        async function loadCorrelations() {
+            try {
+                const params = {};
+                const tenant = API.getSelectedTenant();
+                if (tenant && tenant !== 'all') {
+                    params.tenant_id = tenant;
+                }
+                const res = await API.getAttackCorrelations(params);
+                _correlationsData = res;
+                renderSummary(res.summary);
+                renderIpTable(res.ip_correlations || []);
+                renderDeviceTable(res.device_correlations || []);
+                renderHotspots(res.location_correlations || []);
+            } catch (err) {
+                console.error("Correlations load error:", err);
+                showToast(`Failed to load attack correlations: ${err.message}`, 'error');
+            }
+        }
+
+        function renderSummary(summary) {
+            if (!summary) return;
+            document.getElementById('kpiTotalIps').textContent = summary.total_correlated_ips ?? 0;
+            document.getElementById('badgeIpCount').textContent = summary.total_correlated_ips ?? 0;
+
+            document.getElementById('kpiTotalDevices').textContent = summary.total_correlated_devices ?? 0;
+            document.getElementById('badgeDeviceCount').textContent = summary.total_correlated_devices ?? 0;
+            document.getElementById('kpiPivotDevices').innerHTML = summary.cross_account_pivot_devices_count > 0 
+                ? `<span class="text-danger fw-bold"><i class="bi bi-exclamation-triangle me-1"></i>${summary.cross_account_pivot_devices_count} Account Pivots</span>`
+                : 'No Cross-Account Pivots';
+
+            document.getElementById('kpiTotalHotspots').textContent = summary.total_hotspots ?? 0;
+            document.getElementById('badgeLocationCount').textContent = summary.total_hotspots ?? 0;
+
+            document.getElementById('kpiWifiPct').textContent = `${summary.wifi_percentage ?? 0}%`;
+            document.getElementById('kpiNetworkBreakdown').textContent = `Wi-Fi (${summary.wifi_attacks ?? 0}) vs Cell (${summary.cellular_attacks ?? 0})`;
+        }
+
+        function renderIpTable(list) {
+            const tbody = document.getElementById('tbodyIpCorrelations');
+            if (!list || !list.length) {
+                tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-muted">No correlated attacker IP addresses recorded.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = list.map(item => {
+                const railBadge = item.is_wifi
+                    ? `<span class="wifi-rail-badge"><i class="bi bi-wifi me-1"></i>${escapeHtml(item.network_label || 'Wi-Fi')}</span>`
+                    : (item.is_cellular
+                        ? `<span class="cell-rail-badge"><i class="bi bi-reception-4 me-1"></i>${escapeHtml(item.network_label || 'Cellular')}</span>`
+                        : `<span class="badge bg-dark border border-secondary font-mono"><i class="bi bi-hdd-network me-1"></i>${escapeHtml(item.network_label || 'Ethernet')}</span>`);
+
+                const statusBadge = item.is_blocked
+                    ? `<span class="badge bg-danger font-mono"><i class="bi bi-slash-circle me-1"></i>BLOCKED</span>`
+                    : `<span class="badge bg-success font-mono">ACTIVE</span>`;
+
+                const rulesStr = (item.rules_fired || []).map(r => `<span class="badge bg-dark border border-secondary text-info font-mono me-1">${escapeHtml(r.rule_id)} (${r.count})</span>`).join('');
+                const accStr = (item.targeted_accounts || []).length
+                    ? item.targeted_accounts.map(a => `<div class="font-mono small text-warning">${escapeHtml(a)}</div>`).join('')
+                    : `<span class="text-muted small">Target System</span>`;
+
+                return `
+                <tr>
+                    <td>
+                        <span class="font-mono fw-bold text-light">${escapeHtml(item.ip)}</span>
+                    </td>
+                    <td>
+                        <div class="small fw-semibold text-light">${item.flag || '🌐'} ${escapeHtml(item.city)}, ${escapeHtml(item.country_name)}</div>
+                        <div class="small font-mono text-muted">${escapeHtml(item.isp || item.asn)}</div>
+                    </td>
+                    <td>${railBadge}</td>
+                    <td>
+                        <span class="badge bg-dark border border-secondary font-mono text-light">
+                            <i class="bi bi-cpu me-1 text-info"></i>${escapeHtml(item.os || 'Linux x86_64')}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="small fw-semibold text-warning">${escapeHtml(item.client_software || 'Standard Client')}</span>
+                    </td>
+                    <td>${accStr}</td>
+                    <td>${rulesStr || '<span class="text-muted small">AUTH-001</span>'}</td>
+                    <td>
+                        <span class="badge ${item.max_risk_score >= 70 ? 'bg-danger' : (item.max_risk_score >= 35 ? 'bg-warning text-dark' : 'bg-info text-dark')} font-mono">
+                            ${item.max_risk_score}/100
+                        </span>
+                    </td>
+                    <td>${statusBadge}</td>
+                    <td class="text-end">
+                        <div class="d-flex justify-content-end gap-1">
+                            <button class="btn btn-soc btn-soc-sm font-mono" onclick="inspectSampleAlert('${escapeHtml(item.sample_alert_id)}')">
+                                <i class="bi bi-shield-shaded me-1"></i>Dossier
+                            </button>
+                            ${!item.is_blocked ? `
+                            <button class="btn btn-soc btn-soc-danger btn-soc-sm font-mono" onclick="quickBlockIp('${escapeHtml(item.ip)}')">
+                                Block
+                            </button>` : ''}
+                        </div>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
+
+        function renderDeviceTable(list) {
+            const tbody = document.getElementById('tbodyDeviceCorrelations');
+            if (!list || !list.length) {
+                tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted">No correlated attacker devices recorded.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = list.map(dev => {
+                const isPivot = dev.is_cross_account_pivot;
+                const pivotHtml = isPivot
+                    ? `<div class="mt-1"><span class="pivot-badge"><i class="bi bi-exclamation-triangle me-1"></i>Cross-Account Pivot (${dev.accounts_count} Accounts)</span></div>`
+                    : '';
+
+                const accountsHtml = (dev.targeted_accounts || []).map(a => `<div class="font-mono small text-warning">${escapeHtml(a)}</div>`).join('') || '<span class="text-muted small">Single User</span>';
+                const ipsHtml = (dev.ips_used || []).map(ip => `<span class="badge bg-dark border border-secondary font-mono text-light me-1">${escapeHtml(ip)}</span>`).join('');
+
+                const repClass = dev.reputation_status === 'high_risk' ? 'bg-danger' : (dev.reputation_status === 'suspicious' ? 'bg-warning text-dark' : 'bg-success');
+
+                return `
+                <tr>
+                    <td>
+                        <div class="font-mono fw-bold text-info"><i class="bi bi-ethernet me-1"></i>${escapeHtml(dev.device_mac)}</div>
+                        <div class="font-mono small text-muted text-truncate" style="max-width:140px;" title="${escapeHtml(dev.device_id)}">${escapeHtml(dev.device_id)}</div>
+                    </td>
+                    <td>
+                        <span class="badge bg-dark border border-secondary font-mono text-light">
+                            <i class="bi bi-cpu me-1 text-info"></i>${escapeHtml(dev.os || 'Linux x86_64')}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="small fw-semibold text-warning">${escapeHtml(dev.client_software || 'Burp Suite')}</span>
+                    </td>
+                    <td>
+                        ${accountsHtml}
+                        ${pivotHtml}
+                    </td>
+                    <td>${ipsHtml}</td>
+                    <td>
+                        <span class="small font-mono text-light">${escapeHtml(dev.network_label || dev.connection_type || 'Wi-Fi')}</span>
+                    </td>
+                    <td>
+                        <div class="font-mono fw-bold text-light">${dev.attack_count} attacks</div>
+                    </td>
+                    <td>
+                        <span class="badge ${repClass} font-mono">${escapeHtml((dev.reputation_status || 'HIGH RISK').toUpperCase())}</span>
+                    </td>
+                    <td class="text-end">
+                        <div class="d-flex justify-content-end gap-1">
+                            <button class="btn btn-soc btn-soc-sm font-mono" onclick="inspectSampleAlert('${escapeHtml(dev.sample_alert_id)}')">
+                                Dossier
+                            </button>
+                            <button class="btn btn-soc btn-soc-warning btn-soc-sm font-mono" onclick="quickRevokeDevice('${escapeHtml(dev.device_key)}')">
+                                Revoke
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
+
+        function renderHotspots(list) {
+            const container = document.getElementById('hotspotsContainer');
+            if (!list || !list.length) {
+                container.innerHTML = `<div class="col-12 text-center py-5 text-muted">No geographic attack clusters recorded.</div>`;
+                return;
+            }
+
+            container.innerHTML = list.map(item => {
+                const total = item.attack_count || 1;
+                const wifiPct = Math.round((item.wifi_count / total) * 100);
+                const cellPct = Math.round((item.cellular_count / total) * 100);
+
+                const topIpsStr = (item.top_ips || []).map(ip => `<span class="badge bg-dark border border-secondary font-mono text-info me-1">${escapeHtml(ip)}</span>`).join('');
+
+                return `
+                <div class="col-md-6 col-lg-4">
+                    <div class="hotspot-card h-100">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h5 class="mb-0 fw-bold text-light">${item.flag || '🇪🇹'} ${escapeHtml(item.city)}</h5>
+                                <div class="small font-mono text-muted">${escapeHtml(item.region)}, ${escapeHtml(item.country_name)}</div>
+                            </div>
+                            <span class="badge bg-danger font-mono fs-6">${item.attack_count} Attacks</span>
+                        </div>
+
+                        <div class="my-3">
+                            <div class="d-flex justify-content-between small font-mono text-muted mb-1">
+                                <span><i class="bi bi-wifi text-info me-1"></i>Wi-Fi (${wifiPct}%)</span>
+                                <span><i class="bi bi-reception-4 text-warning me-1"></i>Cellular (${cellPct}%)</span>
+                            </div>
+                            <div class="progress" style="height: 6px; background-color: #1e293b;">
+                                <div class="progress-bar bg-info" style="width: ${wifiPct}%"></div>
+                                <div class="progress-bar bg-warning" style="width: ${cellPct}%"></div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between small text-muted font-mono mb-2">
+                            <span>Unique IPs: <strong class="text-light">${item.unique_ips_count}</strong></span>
+                            <span>Devices: <strong class="text-light">${item.unique_devices_count}</strong></span>
+                            <span>Accounts: <strong class="text-light">${item.targeted_accounts_count}</strong></span>
+                        </div>
+
+                        <div>
+                            <div class="small text-muted mb-1 font-mono" style="font-size:0.7rem;">Top Associated Attacker IPs:</div>
+                            <div>${topIpsStr || '<span class="text-muted small">None</span>'}</div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        async function inspectSampleAlert(alertId) {
+            if (!alertId) return;
+            try {
+                const alertObj = await API.getAlert(alertId);
+                const d = alertObj.dossier;
+                if (!d) return;
+
+                _activeDossier = d;
+
+                document.getElementById('mDossierTitle').textContent = d.title || 'Attacker Dossier';
+                document.getElementById('mDossierId').textContent = d.alert_id || alertId;
+                document.getElementById('mDossierSeverity').textContent = (d.severity || 'CRITICAL').toUpperCase();
+                document.getElementById('mDossierSeverity').className = d.severity === 'critical' ? 'badge bg-danger font-mono' : 'badge bg-warning text-dark font-mono';
+
+                document.getElementById('mGeoIp').textContent = d.geo?.ip || '127.0.0.1';
+                document.getElementById('mGeoLocation').textContent = `${d.geo?.flag || '🌐'} ${d.geo?.city || 'Addis Ababa'}, ${d.geo?.country_name || 'Ethiopia'}`;
+                document.getElementById('mGeoAsn').textContent = `${d.geo?.asn || 'AS24757'} (${d.geo?.isp || d.geo?.as_org || 'Ethio Telecom'})`;
+                document.getElementById('mGeoRail').innerHTML = `<span class="badge ${d.network?.is_wifi ? 'bg-info text-dark' : 'bg-warning text-dark'} font-mono">${escapeHtml(d.network?.connection_type || 'Wi-Fi (Wireless LAN)')}</span>`;
+
+                document.getElementById('mDevClient').textContent = d.device?.client_software || 'Burp Suite Professional';
+                document.getElementById('mDevOs').textContent = d.device?.os || 'Linux x86_64';
+                document.getElementById('mDevMac').textContent = d.device?.device_mac || '00:00:00:00:00:00';
+                document.getElementById('mDevId').textContent = d.device?.device_id || 'DEV-PROBE';
+
+                document.getElementById('mDossierReasons').innerHTML = (d.attack?.reasons || [d.title]).map(r => `• ${escapeHtml(r)}`).join('<br>');
+                document.getElementById('mDossierUserAgent').textContent = d.device?.user_agent || 'Mozilla/5.0';
+
+                if (!_modalInst) {
+                    _modalInst = new bootstrap.Modal(document.getElementById('analysisDossierModal'));
+                }
+                _modalInst.show();
+            } catch (err) {
+                showToast(`Could not open alert dossier: ${err.message}`, 'error');
+            }
+        }
+
+        async function quickBlockIp(ip) {
+            if (!confirm(`Deploy signed HMAC containment control to block IP ${ip}?`)) return;
+            try {
+                await API.blockAttackerIp(ip, `Attacker IP blocked from correlation analysis graph`);
+                showToast(`HMAC Block Dispatched for ${ip}`, 'success');
+                loadCorrelations();
+            } catch (err) {
+                showToast(`Block failed: ${err.message}`, 'error');
+            }
+        }
+
+        async function quickRevokeDevice(deviceKey) {
+            if (!confirm(`Revoke all active sessions and tokens for device ${deviceKey}?`)) return;
+            try {
+                await API.revokeAttackerSession(deviceKey, `Compromised sessions revoked from device correlation`);
+                showToast(`Sessions revoked for ${deviceKey}`, 'success');
+                loadCorrelations();
+            } catch (err) {
+                showToast(`Revocation failed: ${err.message}`, 'error');
+            }
+        }
+
+        async function doModalBlockIp() {
+            if (!_activeDossier || !_activeDossier.geo?.ip) return;
+            await quickBlockIp(_activeDossier.geo.ip);
+            if (_modalInst) _modalInst.hide();
+        }
+
+        async function doModalRevokeSession() {
+            if (!_activeDossier) return;
+            const target = _activeDossier.target?.account || _activeDossier.device?.device_id;
+            await quickRevokeDevice(target);
+            if (_modalInst) _modalInst.hide();
+        }
+
+        function filterIpTable() {
+            const q = (document.getElementById('searchIpInput')?.value || '').toLowerCase();
+            const filtered = (_correlationsData?.ip_correlations || []).filter(item => {
+                return item.ip.toLowerCase().includes(q) ||
+                       item.city.toLowerCase().includes(q) ||
+                       (item.isp && item.isp.toLowerCase().includes(q)) ||
+                       (item.client_software && item.client_software.toLowerCase().includes(q)) ||
+                       (item.os && item.os.toLowerCase().includes(q));
+            });
+            renderIpTable(filtered);
+        }
+
+        function filterDeviceTable() {
+            const q = (document.getElementById('searchDeviceInput')?.value || '').toLowerCase();
+            const filtered = (_correlationsData?.device_correlations || []).filter(dev => {
+                return (dev.device_mac && dev.device_mac.toLowerCase().includes(q)) ||
+                       (dev.device_id && dev.device_id.toLowerCase().includes(q)) ||
+                       (dev.os && dev.os.toLowerCase().includes(q)) ||
+                       (dev.client_software && dev.client_software.toLowerCase().includes(q)) ||
+                       (dev.targeted_accounts || []).some(a => a.toLowerCase().includes(q));
+            });
+            renderDeviceTable(filtered);
+        }
+
+        async function manualRefreshCorrelations() {
+            const btn = document.getElementById('btnRefresh');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Refreshing...';
+            }
+            await loadCorrelations();
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Refresh';
+            }
+            showToast('Correlation graph updated', 'success');
+        }
+
+        // Global tenant switch hook
+        window.onGlobalTenantSwitch = function(tId) {
+            API.setTenant(tId);
+            loadCorrelations();
+        };
+
+        // Auto poll every 6s
+        setInterval(loadCorrelations, 6000);
+        loadCorrelations();
+    </script>
+</body>
+</html>

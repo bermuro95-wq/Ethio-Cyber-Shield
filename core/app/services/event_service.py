@@ -114,6 +114,9 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
         'endpoint': endpoint,
         'result': result,
         'attributes': attributes,
+        'user_agent': attributes.get('user_agent') or data.get('user_agent'),
+        'device_mac': attributes.get('device_mac') or data.get('device_mac'),
+        'network_type': attributes.get('network_type') or data.get('network_type'),
     }
     if norm_event.get('seq') is not None:
         canonical_event['seq'] = norm_event['seq']

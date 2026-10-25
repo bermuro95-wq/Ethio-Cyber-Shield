@@ -88,12 +88,35 @@ def receive_event():
             return jsonify({'error': 'Unauthorized', 'detail': err}), 401
 
     data = request.get_json(silent=True) or {}
+
+    # Extract client headers if direct probe / client
+    client_ua = request.headers.get('User-Agent')
+    client_plat = request.headers.get('Sec-Ch-Ua-Platform')
+    client_mac = request.headers.get('X-Device-Mac') or request.headers.get('X-Mac-Address')
+    client_net = request.headers.get('X-Network-Type') or request.headers.get('X-Connection-Type')
+
+    def _inject_client_meta(ev_item):
+        if not isinstance(ev_item, dict):
+            return
+        attrs = ev_item.setdefault('attributes', {})
+        if not ev_item.get('user_agent') and not attrs.get('user_agent') and client_ua:
+            attrs['user_agent'] = client_ua
+        if client_plat and not attrs.get('sec_ch_ua_platform'):
+            attrs['sec_ch_ua_platform'] = client_plat
+        if client_mac and not attrs.get('device_mac'):
+            attrs['device_mac'] = client_mac
+        if client_net and not attrs.get('network_type'):
+            attrs['network_type'] = client_net
+
     try:
         from app.services.event_service import ingest_batch
         if 'events' in data and isinstance(data['events'], list):
+            for e in data['events']:
+                _inject_client_meta(e)
             count = ingest_batch(data['events'], target=target)
             return jsonify({'status': 'ok', 'ingested': count}), 200
         else:
+            _inject_client_meta(data)
             result = ingest_event(data, target=target)
             return jsonify(result), 200
     except ValueError as val_err:

@@ -67,6 +67,7 @@ Both the target banking platform (**HonorPay**) and the central detection engine
 | **Ethio-Cyber-Shield (ECS)** | **Render Cloud** | `https://ethio-cyber-shield.onrender.com` | Central SOC Detection & Containment Platform |
 | • Overview Dashboard | Render Linux | `https://ethio-cyber-shield.onrender.com/dashboard.html` | Real-time posture, KPI cards, high-velocity attack ticker |
 | • Live Alert Triage | Render Linux | `https://ethio-cyber-shield.onrender.com/alerts.html` | Real-time alert stream, audio cues, explainable dossiers |
+| • Entity & Attack Correlation | Render Linux | `https://ethio-cyber-shield.onrender.com/analysis.html` | Multi-dimensional correlation graph: IP clustering, device hardware MAC pivots, and Ethiopian regional hotspots |
 | • Incident Management | Render Linux | `https://ethio-cyber-shield.onrender.com/incidents.html` | Formal incident lifecycle & **48-hr INSA Dossier Exporter** |
 | • Threat Intelligence | Render Linux | `https://ethio-cyber-shield.onrender.com/intelligence.html` | Community IOC feed & malicious IP / Tor exit database |
 | • Tamper-Evident Audit | Render Linux | `https://ethio-cyber-shield.onrender.com/audit.html` | Cryptographic SHA-256 Merkle hash chain audit ledger |

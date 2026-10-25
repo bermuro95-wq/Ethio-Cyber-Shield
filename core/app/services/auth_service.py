@@ -316,7 +316,7 @@ def role_required(*roles):
             user = get_current_user()
             if not user:
                 return jsonify({'error': 'Authentication required'}), 401
-            if user['role'] not in allowed_roles:
+            if user['role'] not in allowed_roles and not (user.get('role') == 'superadmin' or user.get('is_superadmin')):
                 return jsonify({'error': 'Insufficient permissions'}), 403
             g.user = user
             g.organization_id = user['organization_id']

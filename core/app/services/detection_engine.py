@@ -416,6 +416,11 @@ def evaluate_event_stream(event: dict) -> dict:
                 'source_ip': source_ip,
                 'device_id': device_id,
                 'amount_etb': amount_etb,
+                'user_agent': event.get('user_agent') or attributes.get('user_agent') or attributes.get('headers', {}).get('User-Agent') or attributes.get('headers', {}).get('user-agent'),
+                'sec_ch_ua_platform': attributes.get('sec_ch_ua_platform') or attributes.get('sec-ch-ua-platform'),
+                'device_mac': attributes.get('device_mac') or attributes.get('mac_address'),
+                'network_type': attributes.get('network_type') or attributes.get('connection_type'),
+                'attributes': attributes,
             }
         }
 

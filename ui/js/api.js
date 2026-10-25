@@ -432,6 +432,12 @@ const API = {
         return this.request('POST', '/audit/anchor');
     },
 
+    // Attack Correlation Analysis
+    getAttackCorrelations(params = {}) {
+        const q = new URLSearchParams(params).toString();
+        return this.request('GET', `/analysis/correlations${q ? '?' + q : ''}`);
+    },
+
     // System Health
     getPlatformHealth() {
         return this.request('GET', '/health');
