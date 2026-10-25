@@ -483,19 +483,10 @@ function initRealTimeStream() {
             // Heartbeat ok
         });
 
-        _ecsEventSource.onerror = async () => {
+        _ecsEventSource.onerror = () => {
             if (_ecsEventSource) {
                 try { _ecsEventSource.close(); } catch (e) {}
                 _ecsEventSource = null;
-            }
-            // Check if token was invalidated / superseded by another device
-            if (typeof API !== 'undefined' && API.isAuthenticated()) {
-                try {
-                    await API.me();
-                } catch (e) {
-                    // API.request handles 401 redirect automatically
-                    return;
-                }
             }
             if (!_ecsReconnectTimer) {
                 _ecsReconnectTimer = setTimeout(() => {
