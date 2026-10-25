@@ -392,3 +392,30 @@ def set_auto_containment():
     return jsonify({'auto_containment_enabled': enabled, 'status': 'updated'}), 200
 
 
+_TARGET_STATE_STORE = {}
+
+@targets_bp.route('/state', methods=['GET', 'POST', 'OPTIONS'])
+def target_state_sync():
+    """
+    Synchronizes ephemeral target banking system state (accounts, profiles, registered customers)
+    across isolated serverless execution environments.
+    """
+    global _TARGET_STATE_STORE
+    if request.method == 'OPTIONS':
+        return '', 200
+
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        if data:
+            if 'users' in data and isinstance(data['users'], list):
+                _TARGET_STATE_STORE['users'] = data['users']
+            if 'tables' in data and isinstance(data['tables'], dict):
+                if 'tables' not in _TARGET_STATE_STORE:
+                    _TARGET_STATE_STORE['tables'] = {}
+                _TARGET_STATE_STORE['tables'].update(data['tables'])
+        return jsonify({'status': 'synced', 'timestamp': datetime.now(timezone.utc).isoformat()}), 200
+
+    return jsonify(_TARGET_STATE_STORE), 200
+
+
+

@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, g
 import jwt
 import logging
+import re
 from datetime import datetime, timezone, timedelta
 from app.config import Config
 from app.services.auth_service import (
@@ -17,11 +18,93 @@ from app.services.db import get_service_supabase
 logger = logging.getLogger(__name__)
 auth_bp = Blueprint('auth', __name__)
 
+SQLI_PATTERNS = [
+    re.compile(r"""(?:'\s*(?:or|and)\s+(?:'?[^'\s]+'?\s*=\s*'?[^'\s]+'?|\d+\s*=\s*\d+|true|false))""", re.I),
+    re.compile(r"""(?:'\s*or\s+''=')""", re.I),
+    re.compile(r"""(?:\b(?:or|and)\b\s+['"]?[\w]+['"]?\s*=\s*['"]?[\w]+['"]?)""", re.I),
+    re.compile(r"""(?:['"]\s*(?:--|#|\/\*))""", re.I),
+    re.compile(r"""(?:--\s*$)""", re.I),
+    re.compile(r"""(?:\bunion\b\s+(?:all\s+)?\bselect\b)""", re.I),
+    re.compile(r"""(?:;\s*(?:drop|alter|truncate|delete|insert|update|exec|execute|declare|select)\b)""", re.I),
+    re.compile(r"""(?:\b(?:sleep|pg_sleep|waitfor\s+delay|benchmark)\s*\(?)""", re.I),
+    re.compile(r"""(?:\b(?:schema|information_schema|database\(\)|version\(\)|user\(\)|load_file|into\s+outfile|xp_cmdshell)\b)""", re.I),
+    re.compile(r"""(?:\b(?:extractvalue|updatexml|floor\(rand)\b)""", re.I),
+    re.compile(r"""(?:0x[0-9a-fA-F]{4,}|\bchar\(\d+)""", re.I),
+]
+
+def check_sqli_attack(text: str) -> tuple[bool, str]:
+    if not text or not isinstance(text, str):
+        return False, ""
+    for pat in SQLI_PATTERNS:
+        m = pat.search(text)
+        if m:
+            return True, m.group(0)
+    return False, ""
+
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json() or {}
-    email = (data.get('email') or '').strip().lower()
-    password = data.get('password') or ''
+    raw_email = str(data.get('email') or '').strip()
+    email = raw_email.lower()
+    password = str(data.get('password') or '')
+
+    # 1. Proactive Web Application Parameter Injection (SQLi) Detection on ECS Login
+    is_sqli_user, user_sample = check_sqli_attack(raw_email)
+    is_sqli_pass, pass_sample = check_sqli_attack(password)
+
+    if is_sqli_user or is_sqli_pass:
+        field_name = 'email' if is_sqli_user else 'password'
+        detected_sample = user_sample if is_sqli_user else '[REDACTED_PASSWORD_SQLI]'
+        log_action(None, 'sqli_login_attempt_blocked', details={
+            'field': field_name,
+            'sample': detected_sample[:80],
+            'endpoint': request.path
+        })
+        try:
+            from app.services.event_service import ingest_event
+            import uuid
+            ingest_event({
+                'event_id': f"ev-sqli-{uuid.uuid4().hex[:12]}",
+                'event_type': 'SUSPICIOUS_PARAMETER_PATTERN',
+                'source_system': 'ECS Admin Portal',
+                'user_id': raw_email[:60] if raw_email else 'anonymous',
+                'account_id': raw_email[:60] if raw_email else 'anonymous',
+                'source_ip': request.remote_addr or '127.0.0.1',
+                'endpoint': request.path,
+                'result': 'BLOCKED',
+                'attributes': {
+                    'pattern_class': 'SQLI',
+                    'field_name': field_name,
+                    'sample': detected_sample[:80],
+                    'attack_type': 'SQL_INJECTION',
+                    'payload': detected_sample[:100],
+                    'identifier': raw_email[:60],
+                    'user_agent': request.headers.get('User-Agent', '')
+                }
+            })
+            ingest_event({
+                'event_id': f"ev-auth-{uuid.uuid4().hex[:12]}",
+                'event_type': 'LOGIN_FAILED',
+                'source_system': 'ECS Admin Portal',
+                'user_id': raw_email[:60] if raw_email else 'anonymous',
+                'account_id': raw_email[:60] if raw_email else 'anonymous',
+                'source_ip': request.remote_addr or '127.0.0.1',
+                'endpoint': request.path,
+                'result': 'FAILURE',
+                'attributes': {
+                    'identifier': raw_email[:60],
+                    'failure_reason': 'SQL_INJECTION_ATTEMPT',
+                    'consecutive_failures_for_identifier': 1,
+                    'user_agent': request.headers.get('User-Agent', '')
+                }
+            })
+        except Exception as e_ev:
+            logger.error(f"Failed to ingest login SQLi event: {e_ev}")
+
+        return jsonify({
+            'error': 'Malicious SQL injection signature detected in authentication request. Event recorded in SOC telemetry.',
+            'code': 'SQL_INJECTION_DETECTED'
+        }), 400
 
     if not email or not password:
         return jsonify({'error': 'Email and password are required'}), 400
