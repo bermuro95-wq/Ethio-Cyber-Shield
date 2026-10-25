@@ -476,6 +476,14 @@
   - Upgraded Live Attack Feed table details (threat time date, rule ID/risk score, GeoIP country/IP, device OS/ID) to `text-light`.
   - Upgraded dynamic vector names in `updateBreakdown` to `text-light fw-medium text-capitalize`.
 
+- [x] **HonorPay First-Time Login Password Change Synchronization & Instant Dashboard Unlock (ADR-048)**:
+  - Resolved circular modal re-render bug where newly registered customers saving a new personal password were redirected back into the "First-Time Login Password Change" modal.
+  - Root-caused issue to stale `x-honorpay-entities` headers re-syncing `must_change_password = true` in stateless serverless instances due to un-updated client `localStorage["hp_custom_entities"]`.
+  - Implemented `markStoredEntityPasswordChanged(userIdOrEmail, newPassword)` and `isPasswordChangeCompleted(userIdOrEmail)` in `src/lib/client-headers.ts`.
+  - Updated `CustomerShell` with instant local unlock state and modal bypass logic once new credentials are confirmed.
+  - Verified with full test suite (111 tests passing), pushed to GitHub `main`, and deployed live to production on Vercel (`https://honorpay-banking.vercel.app`).
+
+
 
 
 

@@ -1285,6 +1285,36 @@
   - 100% WCAG AAA compliant text visibility across all views and cards in the ECS platform.
   - Zero invisible or low-contrast text across the platform on any display or ambient lighting condition.
 
+---
+
+## ADR-048: HonorPay First-Time Login Password Change Synchronization & Instant Dashboard Unlock
+
+* **Context**:
+  - When bank tellers registered a new customer in HonorPay with default initial password `Welcome@2026`, the customer was flagged with `mustChangePassword: true`.
+  - Upon logging in for the first time, the customer was correctly presented with the "First-Time Login Password Change" modal.
+  - However, after entering their new personal password and clicking *"Save New Password & Continue"*, the system redirected right back to the password change modal rather than unlocking and loading the customer's dashboard (`/app`).
+  - Investigation revealed the root cause in serverless testbed state synchronization:
+    1. During teller registration, `storeRegisteredEntity(res)` in `employee/index.tsx` saved the registered customer in `localStorage["hp_custom_entities"]` with `mustChangePassword: true`.
+    2. Client requests sent this entity payload via the `x-honorpay-entities` HTTP header.
+    3. The serverless `/api/customer/force-change-password` endpoint updated the in-memory database to `must_change_password: false`.
+    4. However, the client's `localStorage["hp_custom_entities"]` was never updated to reflect `mustChangePassword: false`.
+    5. Upon navigation to `/app`, the browser sent the stale header back to Vercel serverless. Fresh serverless invocations re-hydrated the customer with `must_change_password: true`, causing `CustomerShell` to re-trigger the password change modal in an infinite loop.
+* **Decision**:
+  1. **Dual Client Storage Synchronization**:
+     - Added `markStoredEntityPasswordChanged(userIdOrEmail, newPassword)` in `src/lib/client-headers.ts` to update `mustChangePassword: false` across all matching entities in `localStorage["hp_custom_entities"]` and write a durable completion marker `hp_pwd_changed_<target> = "true"`.
+     - Added `isPasswordChangeCompleted(userIdOrEmail)` helper to check local completion state.
+  2. **Local Database In-Memory Reconciliation**:
+     - Updated `syncFromEntities` in `src/integrations/supabase/local-store.ts` so existing profiles recognize `mustChangePassword === false` and set `profile.must_change_password = false`.
+  3. **Immediate Shell Unlock & Smooth Redirect**:
+     - Updated `FirstLoginPasswordChangeModal` in `src/components/customer-shell.tsx` with an `onSuccess` callback.
+     - On successful password change, immediately invokes `markStoredEntityPasswordChanged`, triggers `onSuccess()`, refreshes the auth profile, and transitions to `/app` with zero modal flickering.
+     - In `CustomerShell`, checked `isLocallyUnlocked` so if the password change has been completed locally or during the session, the modal never re-renders.
+* **Consequences**:
+  - Newly registered customers smoothly complete their first-time password change and are automatically redirected into their functional personal banking dashboard (`/app`).
+  - Stale entity headers in serverless environments can no longer re-lock an active customer session.
+  - All 111 unit and integration tests pass, changes committed, pushed to `origin/main`, and deployed live to production on Vercel (`https://honorpay-banking.vercel.app`).
+
+
 
 
 
