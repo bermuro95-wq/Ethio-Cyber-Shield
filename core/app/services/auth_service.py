@@ -36,6 +36,7 @@ _REVOKED_TOKENS = set()
 _ACTIVE_USER_SESSIONS = {}  # user_id -> {'jti': str, 'token': str, 'logged_in_at': str, 'ip': str, 'user_agent': str}
 _API_TOKENS = {}
 _USER_MFA_SECRETS = {}
+_USER_ORGS = {}
 
 VALID_ROLES = ('admin', 'analyst', 'responder', 'viewer', 'auditor')
 
@@ -342,7 +343,7 @@ def authenticate_user(email: str, password: str) -> dict | None:
         user = result.data[0]
         if not verify_password(password, user['password_hash']):
             return None
-        org_id = user.get('organization_id') or DEFAULT_ORGANIZATION_ID
+        org_id = user.get('organization_id') or _USER_ORGS.get(str(user.get('id'))) or _USER_ORGS.get(norm_email) or DEFAULT_ORGANIZATION_ID
         set_current_organization_id(org_id)
         return {
             'id': user['id'],
@@ -365,17 +366,37 @@ def create_user(email: str, password: str, full_name: str, role: str = 'viewer',
     try:
         sb = get_service_supabase()
         password_hash = hash_password(password)
-        org_id = organization_id or get_current_organization_id()
+        org_id = str(organization_id or get_current_organization_id())
+        norm_email = email.lower().strip()
+        _USER_ORGS[norm_email] = org_id
+
         data = {
-            'email': email.lower().strip(),
+            'email': norm_email,
             'password_hash': password_hash,
             'full_name': full_name.strip(),
             'role': role,
             'organization_id': org_id
         }
-        result = sb.table('users').insert(data).execute()
-        if result.data:
-            return result.data[0]
+        try:
+            result = sb.table('users').insert(data).execute()
+            if result.data:
+                u = result.data[0]
+                _USER_ORGS[str(u.get('id'))] = org_id
+                return u
+        except Exception as e_insert:
+            logger.debug(f"User insert with org_id fallback: {e_insert}")
+            min_data = {
+                'email': norm_email,
+                'password_hash': password_hash,
+                'full_name': full_name.strip(),
+                'role': role
+            }
+            res_min = sb.table('users').insert(min_data).execute()
+            if res_min.data:
+                u = res_min.data[0]
+                u['organization_id'] = org_id
+                _USER_ORGS[str(u.get('id'))] = org_id
+                return u
         return None
     except Exception as e:
         logger.error(f"Create user error: {e}")

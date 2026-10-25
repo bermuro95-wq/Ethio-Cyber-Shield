@@ -22,20 +22,71 @@ function renderNavbar(activePage = '') {
     const user = API.getUser();
     const name = user ? (user.full_name || user.email || 'SOC Operator') : 'SOC Operator';
     const role = (user && user.role) ? user.role.toLowerCase() : 'admin';
-    const orgId = user && user.organization_id ? (user.organization_id.length > 12 ? user.organization_id.slice(0, 8) + '...' : user.organization_id) : 'ShieldBank SOC';
+    const orgName = (user && (user.organization_name || user.organization_id)) ? (user.organization_name || user.organization_id) : 'National SOC';
+    const isSuperadmin = user && (user.is_superadmin || user.role === 'superadmin' || user.email === 'admin@ethiocybershield.et' || user.email === 'admin' || user.organization_id === '00000000-0000-0000-0000-000000000001');
 
     const isOverview = activePage === 'dashboard' || activePage === 'live';
     const isAlerts = activePage === 'alerts';
     const isIncidents = activePage === 'incidents' || activePage === 'incident-detail';
     const isIntel = activePage === 'intelligence' || activePage === 'indicators' || activePage === 'fraud' || activePage === 'watchlists';
     const isAudit = activePage === 'audit' || activePage === 'reports';
-    const isSettings = activePage === 'settings' || activePage === 'users';
+    const isSettings = activePage === 'settings';
+    const isTenants = activePage === 'tenants';
+    const isUsers = activePage === 'users';
 
     const soundBtnHtml = `
         <button class="ecs-header-btn ${isSoundEnabled() ? 'ecs-header-btn-sound-on' : 'ecs-header-btn-sound-off'}" id="btnSoundToggle" onclick="toggleSound()" title="${isSoundEnabled() ? 'Audio threat notifications active. Click to mute.' : 'Audio threat notifications muted. Click to enable sound.'}">
             <i class="bi ${isSoundEnabled() ? 'bi-volume-up-fill' : 'bi-volume-mute-fill'} me-1"></i><span>Sound: ${isSoundEnabled() ? 'ON' : 'OFF'}</span>
         </button>
     `;
+
+    // SaaS Tenants and Users nav links
+    let saasLinksHtml = '';
+    if (isSuperadmin) {
+        saasLinksHtml += `
+            <a class="ecs-nav-link ${isTenants ? 'active' : ''}" href="tenants.html" title="SaaS Tenant Organizations & SDK Onboarding">
+                <i class="bi bi-buildings"></i>
+                <span>Tenants (SaaS)</span>
+            </a>
+            <a class="ecs-nav-link ${isUsers ? 'active' : ''}" href="users.html" title="Cross-Tenant User Management & Access Control">
+                <i class="bi bi-people"></i>
+                <span>User Control</span>
+            </a>
+        `;
+    } else if (role === 'admin') {
+        saasLinksHtml += `
+            <a class="ecs-nav-link ${isUsers ? 'active' : ''}" href="users.html" title="Manage Organization Users">
+                <i class="bi bi-people"></i>
+                <span>Users</span>
+            </a>
+        `;
+    }
+
+    // Tenant Switcher dropdown or Institutional Tag
+    let tenantScopeHtml = '';
+    if (isSuperadmin) {
+        const curTenant = API.getSelectedTenant();
+        tenantScopeHtml = `
+            <div class="ecs-tenant-switcher-wrapper d-flex align-items-center gap-1" title="Platform Tenant Viewport">
+                <i class="bi bi-building text-warning small"></i>
+                <select id="globalTenantSwitcher" class="form-select form-select-sm bg-dark text-light border-secondary font-mono py-0 px-2" style="font-size: 0.75rem; height: 28px; max-width: 170px;" onchange="onGlobalTenantSwitch(this.value)">
+                    <option value="all" ${curTenant === 'all' ? 'selected' : ''}>🏢 All Tenants</option>
+                </select>
+            </div>
+        `;
+    } else {
+        tenantScopeHtml = `
+            <div class="ecs-org-tag" title="Authenticated Tenant Scope: ${escapeHtml(orgName)}">
+                <i class="bi bi-building"></i>
+                <span class="font-mono text-truncate" style="max-width: 140px;">${escapeHtml(orgName)}</span>
+            </div>
+        `;
+    }
+
+    // Asynchronously populate tenant options if superadmin
+    if (isSuperadmin) {
+        setTimeout(loadTenantSwitcherOptions, 50);
+    }
 
     return `
     <header class="ecs-navbar-header sticky-top">
@@ -46,7 +97,7 @@ function renderNavbar(activePage = '') {
                     <img src="assets/logo-shield.jpg" alt="ECS Shield" class="ecs-brand-icon" width="28" height="28">
                     <div class="ecs-brand-titles">
                         <span class="ecs-brand-main">ETHIO-CYBER SHIELD</span>
-                        <span class="ecs-brand-sub">NATIONAL SOC PLATFORM</span>
+                        <span class="ecs-brand-sub">${isSuperadmin ? 'NATIONAL SAAS SOC PLATFORM' : escapeHtml(orgName.toUpperCase())}</span>
                     </div>
                 </a>
             </div>
@@ -77,6 +128,7 @@ function renderNavbar(activePage = '') {
                     <i class="bi bi-sliders"></i>
                     <span>Settings & Rules</span>
                 </a>
+                ${saasLinksHtml}
             </nav>
 
             <!-- Right: Operational Controls & Session Metadata -->
@@ -90,17 +142,14 @@ function renderNavbar(activePage = '') {
                 <!-- Audible Alarm Toggle -->
                 ${soundBtnHtml}
 
-                <!-- Tenant / Sector Indicator -->
-                <div class="ecs-org-tag" title="Authenticated Tenant Scope">
-                    <i class="bi bi-building"></i>
-                    <span class="font-mono">${escapeHtml(orgId)}</span>
-                </div>
+                <!-- Tenant / Sector Indicator or Switcher -->
+                ${tenantScopeHtml}
 
                 <!-- Operator Identity Badge -->
                 <div class="ecs-user-badge" title="Active Security Operator">
                     <i class="bi bi-person-circle"></i>
                     <span class="ecs-user-name">${escapeHtml(name)}</span>
-                    <span class="ecs-role-pill">${escapeHtml(role.toUpperCase())}</span>
+                    <span class="ecs-role-pill">${escapeHtml(isSuperadmin ? 'SUPERADMIN' : role.toUpperCase())}</span>
                 </div>
 
                 <!-- Sign Out -->
@@ -111,6 +160,33 @@ function renderNavbar(activePage = '') {
             </div>
         </div>
     </header>`;
+}
+
+function onGlobalTenantSwitch(tenantId) {
+    API.setSelectedTenant(tenantId);
+    showToast(`Active tenant context updated: ${tenantId === 'all' ? 'All Tenants (Global Platform)' : 'Scoped Organization'}`);
+    setTimeout(() => {
+        window.location.reload();
+    }, 350);
+}
+
+async function loadTenantSwitcherOptions() {
+    const sel = document.getElementById('globalTenantSwitcher');
+    if (!sel) return;
+    try {
+        const tenants = await API.getTenants();
+        const cur = API.getSelectedTenant();
+        let opts = `<option value="all" ${cur === 'all' ? 'selected' : ''}>🏢 All Tenants (Global)</option>`;
+        if (Array.isArray(tenants)) {
+            tenants.forEach(t => {
+                const isSel = String(t.id) === String(cur);
+                opts += `<option value="${t.id}" ${isSel ? 'selected' : ''}>🏛️ ${escapeHtml(t.name || t.slug)}</option>`;
+            });
+        }
+        sel.innerHTML = opts;
+    } catch (e) {
+        console.debug('Tenant switcher load notice:', e);
+    }
 }
 
 async function doLogout() {

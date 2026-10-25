@@ -71,6 +71,8 @@ Both the target banking platform (**HonorPay**) and the central detection engine
 | • Threat Intelligence | Render Linux | `https://ethio-cyber-shield.onrender.com/intelligence.html` | Community IOC feed & malicious IP / Tor exit database |
 | • Tamper-Evident Audit | Render Linux | `https://ethio-cyber-shield.onrender.com/audit.html` | Cryptographic SHA-256 Merkle hash chain audit ledger |
 | • Rules & Mitigations | Render Linux | `https://ethio-cyber-shield.onrender.com/settings.html` | Declarative L1-L4 YAML rule editor & response policies |
+| • SaaS Multi-Tenant Console | Render Linux | `https://ethio-cyber-shield.onrender.com/tenants.html` | Multi-tenant organization governance, target provisioning & SDK keys |
+| • User Control & IAM | Render Linux | `https://ethio-cyber-shield.onrender.com/users.html` | Cross-tenant user lifecycle, password reset & RBAC governance |
 | • Operator Sign-In | Render Linux | `https://ethio-cyber-shield.onrender.com/login.html` | Role-based SOC analyst access with 1-click test chips |
 | • System Health Probe | Render Linux | `https://ethio-cyber-shield.onrender.com/api/health` | Live diagnostic probe (PostgreSQL, Redis Streams, rules) |
 | • Event Ingest Gateway | Render Linux | `https://ethio-cyber-shield.onrender.com/api/events` | HMAC-SHA256 authenticated event ingestion endpoint |

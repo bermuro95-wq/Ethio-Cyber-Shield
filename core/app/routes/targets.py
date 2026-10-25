@@ -22,6 +22,8 @@ from app.services.response_policy import (
 from app.services.poller_service import poll_target_once
 from datetime import datetime, timezone
 import logging
+from app.services.tenant_service import DEFAULT_ORGANIZATION_ID, get_current_organization_id
+from app.services.tenant_mgmt_service import is_superadmin
 
 logger = logging.getLogger(__name__)
 targets_bp = Blueprint('targets', __name__)
@@ -31,36 +33,61 @@ targets_bp = Blueprint('targets', __name__)
 @login_required
 def get_targets():
     """
-    List all configured target systems with health and sync statistics scoped to organization.
+    List configured target systems with health and sync statistics.
+    Superadmin can view all targets or filter by ?tenant_id=.
+    Tenant admins/analysts receive only targets scoped to their organization.
     """
+    sb = get_service_supabase()
+    is_sup = is_superadmin(g.user)
+    tenant_param = request.args.get('tenant_id')
+    all_tenants_param = request.args.get('all_tenants', '').lower() in ('true', '1')
+
+    filter_org = None
+    if is_sup:
+        if tenant_param and tenant_param not in ('all', ''):
+            filter_org = tenant_param
+        elif not all_tenants_param and tenant_param not in ('all',):
+            header_tenant = request.headers.get('X-ECS-Tenant')
+            if header_tenant and header_tenant != 'all':
+                filter_org = header_tenant
+    else:
+        filter_org = g.user.get('organization_id') or get_current_organization_id()
+
     targets = []
     try:
-        from app.services.tenant_service import get_current_organization_id
-        org_id = get_current_organization_id()
-        sb = get_service_supabase()
         query = sb.table('target_systems').select('*')
-        if org_id:
-            try:
-                query = query.eq('organization_id', org_id)
-            except Exception:
-                pass
+        if filter_org:
+            query = query.eq('organization_id', filter_org)
         res = query.order('created_at', desc=True).execute()
         targets = res.data or []
     except Exception as e:
         logger.debug(f"Target systems query fallback: {e}")
 
-    org_id = (g.user.get('organization_id') if hasattr(g, 'user') else None) or get_current_organization_id()
     if not targets:
-        targets = [dict(t) for t in list_active_targets() if not t.get('organization_id') or str(t.get('organization_id')) == str(org_id)]
-    elif org_id:
-        targets = [dict(t) for t in targets if not t.get('organization_id') or str(t.get('organization_id')) == str(org_id)]
+        from app.services.target_system_service import _LOCAL_TARGETS
+        all_local = list(_LOCAL_TARGETS.values())
+        if filter_org:
+            targets = [dict(t) for t in all_local if str(t.get('organization_id') or DEFAULT_ORGANIZATION_ID) == str(filter_org)]
+        else:
+            targets = [dict(t) for t in all_local]
 
-    # Mask secrets in API responses
+    # Organizations mapping for institutional context
+    org_map = {}
+    try:
+        org_res = sb.table('organizations').select('id, name').execute()
+        for o in (org_res.data or []):
+            org_map[str(o.get('id'))] = o.get('name')
+    except Exception:
+        pass
+
+    # Mask secrets in API responses & annotate organization
     for t in targets:
         sec = t.get('secret_key') or ''
         t['secret_key_masked'] = f"{sec[:4]}...{sec[-4:]}" if len(sec) >= 8 else '****'
-        # Do not leak plaintext secret in listing
         t.pop('secret_key', None)
+        oid = str(t.get('organization_id') or DEFAULT_ORGANIZATION_ID)
+        t['tenant_id'] = oid
+        t['tenant_name'] = org_map.get(oid) or ('Commercial Bank of Ethiopia (Primary)' if oid == DEFAULT_ORGANIZATION_ID else 'Organization')
 
     return jsonify(targets), 200
 
@@ -105,8 +132,10 @@ def register_target():
 
     sb = get_service_supabase()
     from app.services.crypto_service import encrypt_secret
-    from app.services.tenant_service import get_current_organization_id
-    org_id = get_current_organization_id()
+    if is_superadmin(g.user):
+        org_id = data.get('organization_id') or g.user.get('organization_id') or get_current_organization_id()
+    else:
+        org_id = g.user.get('organization_id') or get_current_organization_id()
 
     # Test health before creating
     health = check_target_health(base_url)

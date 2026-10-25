@@ -8,6 +8,10 @@ dashboard_bp = Blueprint('dashboard', __name__)
 
 
 def _get_org_id() -> str:
+    from app.services.tenant_mgmt_service import is_superadmin
+    tenant_req = request.args.get('tenant_id') or request.headers.get('X-ECS-Tenant')
+    if tenant_req and tenant_req != 'all' and hasattr(g, 'user') and is_superadmin(g.user):
+        return str(tenant_req)
     org_id = g.user.get('organization_id') if hasattr(g, 'user') and g.user else None
     return str(org_id or get_current_organization_id() or "00000000-0000-0000-0000-000000000001")
 

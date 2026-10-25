@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Tenants & Organization Governance | Ethio-Cyber Shield</title>
+    <link rel="icon" type="image/jpeg" href="assets/logo-shield.jpg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <div id="navbar"></div>
+
+    <div class="container-fluid py-3 px-3 px-md-4">
+        <!-- Page Header -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary gap-2">
+            <div class="d-flex align-items-center gap-3">
+                <div>
+                    <h4 class="mb-0 fw-bold text-light d-flex align-items-center gap-2">
+                        <i class="bi bi-buildings text-warning"></i>
+                        <span>SaaS Multi-Tenant Operations & Governance</span>
+                    </h4>
+                    <span class="text-muted small font-mono">Platform root control plane: tenant lifecycle, isolated telemetry channels & SDK onboarding</span>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-soc btn-soc-primary btn-sm" onclick="loadTenantsData()">
+                    <i class="bi bi-arrow-repeat me-1"></i> Refresh
+                </button>
+                <button class="btn btn-success btn-sm fw-semibold" onclick="openRegisterTenantModal()">
+                    <i class="bi bi-plus-circle me-1"></i> Register New Tenant
+                </button>
+            </div>
+        </div>
+
+        <!-- SaaS KPI Overview Cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3">
+                <div class="card p-3 border-secondary bg-dark-subtle">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted small text-uppercase font-mono">Total Tenants</span>
+                            <h3 class="mb-0 fw-bold text-light font-mono" id="statTotalTenants">0</h3>
+                        </div>
+                        <div class="fs-2 text-primary opacity-75"><i class="bi bi-buildings"></i></div>
+                    </div>
+                    <div class="small text-muted mt-1 font-mono" id="statActiveTenantsSub">0 active organizations</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card p-3 border-secondary bg-dark-subtle">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted small text-uppercase font-mono">Connected Targets</span>
+                            <h3 class="mb-0 fw-bold text-success font-mono" id="statTotalTargets">0</h3>
+                        </div>
+                        <div class="fs-2 text-success opacity-75"><i class="bi bi-cpu"></i></div>
+                    </div>
+                    <div class="small text-muted mt-1 font-mono" id="statActiveTargetsSub">Active ingestion channels</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card p-3 border-secondary bg-dark-subtle">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted small text-uppercase font-mono">Tenant Users</span>
+                            <h3 class="mb-0 fw-bold text-info font-mono" id="statTotalUsers">0</h3>
+                        </div>
+                        <div class="fs-2 text-info opacity-75"><i class="bi bi-people"></i></div>
+                    </div>
+                    <div class="small text-muted mt-1 font-mono">Across all financial institutions</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card p-3 border-secondary bg-dark-subtle">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted small text-uppercase font-mono">Platform Alerts</span>
+                            <h3 class="mb-0 fw-bold text-danger font-mono" id="statPlatformAlerts">0</h3>
+                        </div>
+                        <div class="fs-2 text-danger opacity-75"><i class="bi bi-shield-exclamation"></i></div>
+                    </div>
+                    <div class="small text-danger mt-1 font-mono" id="statCritAlertsSub">0 critical detections</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Tabs -->
+        <ul class="nav nav-pills mb-3 border-bottom border-secondary pb-2" id="tenantTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active font-mono small py-1 px-3" id="tab-dir-btn" data-bs-toggle="pill" data-bs-target="#tab-directory" type="button">
+                    <i class="bi bi-list-ul me-1"></i> Tenant Directory & Posture
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link font-mono small py-1 px-3" id="tab-targets-btn" data-bs-toggle="pill" data-bs-target="#tab-targets" type="button">
+                    <i class="bi bi-cpu me-1"></i> Integrated Target Systems
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link font-mono small py-1 px-3" id="tab-sdk-btn" data-bs-toggle="pill" data-bs-target="#tab-sdk" type="button">
+                    <i class="bi bi-code-square me-1"></i> SDK Quickstart & Keys
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="tenantTabsContent">
+            <!-- TAB 1: TENANT DIRECTORY -->
+            <div class="tab-pane fade show active" id="tab-directory">
+                <div class="card">
+                    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fw-bold text-light"><i class="bi bi-buildings text-warning me-2"></i>Registered Financial Tenants</span>
+                            <span class="badge bg-secondary font-mono" id="tenantsCountBadge">0 organizations</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="text" id="tenantSearchInput" class="form-control form-control-sm bg-dark text-light border-secondary font-mono" placeholder="Search tenants..." style="width: 220px;" oninput="filterTenantsTable()">
+                            <select id="sectorFilter" class="form-select form-select-sm bg-dark text-light border-secondary font-mono" style="width: 180px;" onchange="filterTenantsTable()">
+                                <option value="">All Sectors</option>
+                                <option value="Commercial Bank">Commercial Banks</option>
+                                <option value="Payment Switch">Payment Switches</option>
+                                <option value="Microfinance">Microfinance</option>
+                                <option value="Fintech">Fintechs</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Organization / Bank</th>
+                                        <th>Sector & License</th>
+                                        <th>Target Systems</th>
+                                        <th>Users</th>
+                                        <th>Alert Breakdown</th>
+                                        <th>Status</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tenantsTableBody">
+                                    <tr><td colspan="7" class="text-center py-4 text-muted">Loading tenant organizations...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: INTEGRATED TARGET SYSTEMS -->
+            <div class="tab-pane fade" id="tab-targets">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center py-2">
+                        <span class="fw-bold text-light"><i class="bi bi-cpu text-success me-2"></i>Connected Target Applications (Cross-Tenant)</span>
+                        <span class="badge bg-secondary font-mono" id="allTargetsCountBadge">0 targets</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Target System</th>
+                                        <th>Tenant Organization</th>
+                                        <th>Base Endpoint</th>
+                                        <th>Auth Key ID</th>
+                                        <th>Sync Mode</th>
+                                        <th>Health</th>
+                                        <th class="text-end">Integration</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="crossTargetsTableBody">
+                                    <tr><td colspan="7" class="text-center py-4 text-muted">Loading target systems...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: SDK INTEGRATION CENTER -->
+            <div class="tab-pane fade" id="tab-sdk">
+                <div class="card p-3 mb-3 border-info">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h5 class="mb-1 text-light fw-bold"><i class="bi bi-shield-check text-info me-2"></i>ECS Deterministic Telemetry SDK</h5>
+                            <p class="text-muted small mb-0">
+                                Any banking application, payment switch, or web platform can integrate the ECS SDK to stream real-time events into their dedicated tenant dashboard.
+                            </p>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="text-muted small font-mono">Select Tenant:</label>
+                            <select id="sdkTenantSelector" class="form-select form-select-sm bg-dark text-light border-secondary font-mono" onchange="renderSdkSnippetsForTenant(this.value)">
+                                <option value="">Select an organization...</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="sdkSnippetsContainer">
+                        <div class="alert alert-secondary font-mono small">
+                            <i class="bi bi-info-circle me-1"></i> Select a tenant above to view their pre-configured SDK credentials and integration code snippets.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: REGISTER NEW TENANT -->
+    <div class="modal fade" id="registerTenantModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-light fw-bold">
+                        <i class="bi bi-building-add text-success me-2"></i>Register New SaaS Tenant Organization
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="newTenantForm" onsubmit="handleRegisterTenant(event)">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-7">
+                                <label class="form-label small text-muted">Organization Name *</label>
+                                <input type="text" id="regOrgName" class="form-control" placeholder="e.g. Awash Bank SC" required oninput="autoSuggestSlug(this.value)">
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label small text-muted">Identifier Slug *</label>
+                                <input type="text" id="regOrgSlug" class="form-control font-mono" placeholder="e.g. awash-bank" required>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted">Financial Sector *</label>
+                                <select id="regOrgSector" class="form-select">
+                                    <option value="Finance - Commercial Bank" selected>Finance - Commercial Bank</option>
+                                    <option value="Finance - Microfinance Institution">Finance - Microfinance Institution</option>
+                                    <option value="Payment Switch / Switch Operator">Payment Switch / Switch Operator</option>
+                                    <option value="Fintech & Mobile Wallet">Fintech & Mobile Wallet</option>
+                                    <option value="Government & Regulatory">Government & Regulatory</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted">License / Regulatory Reference</label>
+                                <input type="text" id="regOrgLicense" class="form-control font-mono" placeholder="e.g. NBE/CB/2026/08">
+                            </div>
+                        </div>
+
+                        <div class="p-3 mb-3 rounded bg-secondary bg-opacity-10 border border-secondary">
+                            <h6 class="text-success fw-bold mb-2 small font-mono">
+                                <i class="bi bi-person-badge me-1"></i> INITIAL TENANT ADMINISTRATOR
+                            </h6>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label small text-muted">Admin Full Name *</label>
+                                    <input type="text" id="regAdminName" class="form-control form-control-sm" placeholder="e.g. Abebe Bikila" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small text-muted">Admin Email Address *</label>
+                                    <input type="email" id="regAdminEmail" class="form-control form-control-sm font-mono" placeholder="admin@organization.et" required>
+                                </div>
+                                <div class="col-12 mt-2">
+                                    <label class="form-label small text-muted">Initial Password (min 8 chars) *</label>
+                                    <input type="password" id="regAdminPass" class="form-control form-control-sm font-mono" placeholder="Minimum 8 characters" required minlength="8">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-3 mb-2 rounded bg-secondary bg-opacity-10 border border-secondary">
+                            <h6 class="text-info fw-bold mb-2 small font-mono">
+                                <i class="bi bi-cpu me-1"></i> PRIMARY TARGET SYSTEM CREDENTIALS
+                            </h6>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label small text-muted">Target System Name</label>
+                                    <input type="text" id="regTargetName" class="form-control form-control-sm" placeholder="e.g. Core Banking Application">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small text-muted">Target Endpoint Base URL</label>
+                                    <input type="url" id="regTargetUrl" class="form-control form-control-sm font-mono" value="http://127.0.0.1:8080" placeholder="https://api.bank.et">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer border-secondary px-0 pb-0 mt-3">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-success fw-semibold" id="btnSubmitTenant">
+                                <i class="bi bi-check-circle me-1"></i> Provision Tenant Organization
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ONBOARDING SUCCESS & SDK CREDENTIALS -->
+    <div class="modal fade" id="onboardSuccessModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark border-success">
+                <div class="modal-header border-success">
+                    <h5 class="modal-title text-success fw-bold">
+                        <i class="bi bi-check-circle-fill me-2"></i>Tenant Provisioned Successfully!
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-light small">
+                        The tenant organization has been registered and isolated telemetry credentials have been generated. The tenant administrator can now log in to access their scoped dashboard.
+                    </p>
+
+                    <div class="card p-3 mb-3 bg-dark-subtle border-secondary font-mono small">
+                        <div class="row g-2">
+                            <div class="col-sm-4 text-muted">Organization:</div>
+                            <div class="col-sm-8 text-light fw-bold" id="succOrgName">-</div>
+                            <div class="col-sm-4 text-muted">Admin Email:</div>
+                            <div class="col-sm-8 text-light" id="succAdminEmail">-</div>
+                            <div class="col-sm-4 text-muted">Target System:</div>
+                            <div class="col-sm-8 text-light" id="succTargetName">-</div>
+                            <div class="col-sm-4 text-muted">Auth Key ID:</div>
+                            <div class="col-sm-8 text-warning fw-bold" id="succKeyId">-</div>
+                            <div class="col-sm-4 text-muted">HMAC Secret:</div>
+                            <div class="col-sm-8 text-info font-mono text-break" id="succSecretKey">-</div>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-light small mb-2"><i class="bi bi-code-slash text-warning me-1"></i>Quickstart Integration Code:</h6>
+                    <ul class="nav nav-tabs nav-tabs-sm border-secondary mb-2" id="succCodeTabs">
+                        <li class="nav-item">
+                            <button class="nav-link active small py-1" data-bs-toggle="tab" data-bs-target="#succ-ts" type="button">TypeScript / Node.js</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link small py-1" data-bs-toggle="tab" data-bs-target="#succ-py" type="button">Python</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link small py-1" data-bs-toggle="tab" data-bs-target="#succ-curl" type="button">cURL Test</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="succ-ts">
+                            <pre class="bg-black p-3 rounded font-mono text-light small mb-0" style="max-height: 220px; overflow-y: auto;" id="succCodeTs"></pre>
+                        </div>
+                        <div class="tab-pane fade" id="succ-py">
+                            <pre class="bg-black p-3 rounded font-mono text-light small mb-0" style="max-height: 220px; overflow-y: auto;" id="succCodePy"></pre>
+                        </div>
+                        <div class="tab-pane fade" id="succ-curl">
+                            <pre class="bg-black p-3 rounded font-mono text-light small mb-0" style="max-height: 220px; overflow-y: auto;" id="succCodeCurl"></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button class="btn btn-primary" data-bs-dismiss="modal" onclick="loadTenantsData()">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: EDIT TENANT -->
+    <div class="modal fade" id="editTenantModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-light fw-bold"><i class="bi bi-pencil-square text-warning me-2"></i>Edit Tenant Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editTenantId">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Organization Name</label>
+                        <input type="text" id="editOrgName" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Sector</label>
+                        <select id="editOrgSector" class="form-select">
+                            <option value="Finance - Commercial Bank">Finance - Commercial Bank</option>
+                            <option value="Finance - Microfinance Institution">Finance - Microfinance Institution</option>
+                            <option value="Payment Switch / Switch Operator">Payment Switch / Switch Operator</option>
+                            <option value="Fintech & Mobile Wallet">Fintech & Mobile Wallet</option>
+                            <option value="Government & Regulatory">Government & Regulatory</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">License / Regulatory Ref</label>
+                        <input type="text" id="editOrgLicense" class="form-control font-mono">
+                    </div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="editOrgActive">
+                        <label class="form-check-label text-light small" for="editOrgActive">Tenant Active & Ingesting</label>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-success" onclick="saveTenantEdit()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/common.js"></script>
+    <script>
+        let _tenantsData = [];
+        let _allTargetsData = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!requireAuth()) return;
+            const user = API.getUser();
+            const isSup = user && (user.is_superadmin || user.role === 'superadmin' || user.email === 'admin@ethiocybershield.et' || user.email === 'admin' || user.organization_id === '00000000-0000-0000-0000-000000000001');
+            if (!isSup) {
+                alert('Access Restricted: SaaS Tenant Administration is available only to Platform Superadmins.');
+                window.location.replace('dashboard.html');
+                return;
+            }
+
+            document.getElementById('navbar').innerHTML = renderNavbar('tenants');
+            await loadTenantsData();
+        });
+
+        async function loadTenantsData() {
+            try {
+                _tenantsData = await API.getTenants();
+                renderTenantsTable(_tenantsData);
+                updateTenantKpis(_tenantsData);
+                populateTenantDropdowns(_tenantsData);
+
+                // Cross-tenant targets
+                _allTargetsData = await API.request('GET', '/targets?all_tenants=true');
+                renderCrossTargetsTable(_allTargetsData);
+            } catch (err) {
+                console.error('Error loading tenants:', err);
+                showToast(`Failed to load tenants: ${err.message}`, 'error');
+            }
+        }
+
+        function updateTenantKpis(tenants) {
+            if (!Array.isArray(tenants)) return;
+            const total = tenants.length;
+            const active = tenants.filter(t => t.is_active).length;
+            const totalTargets = tenants.reduce((acc, t) => acc + (t.target_systems_count || 0), 0);
+            const totalUsers = tenants.reduce((acc, t) => acc + (t.users_count || 0), 0);
+            const totalAlerts = tenants.reduce((acc, t) => acc + (t.alert_counts?.total || 0), 0);
+            const critAlerts = tenants.reduce((acc, t) => acc + (t.alert_counts?.critical || 0), 0);
+
+            document.getElementById('statTotalTenants').innerText = total;
+            document.getElementById('statActiveTenantsSub').innerText = `${active} active, ${total - active} suspended`;
+            document.getElementById('statTotalTargets').innerText = totalTargets;
+            document.getElementById('statTotalUsers').innerText = totalUsers;
+            document.getElementById('statPlatformAlerts').innerText = totalAlerts;
+            document.getElementById('statCritAlertsSub').innerText = `${critAlerts} critical detections across all`;
+            document.getElementById('tenantsCountBadge').innerText = `${total} organizations`;
+        }
+
+        function renderTenantsTable(tenants) {
+            const tbody = document.getElementById('tenantsTableBody');
+            if (!tenants || tenants.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No tenant organizations found. Click "Register New Tenant" above.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = tenants.map(t => {
+                const isActive = t.is_active;
+                const statusBadge = isActive 
+                    ? '<span class="badge bg-success font-mono">ACTIVE</span>' 
+                    : '<span class="badge bg-danger font-mono">SUSPENDED</span>';
+                
+                const alerts = t.alert_counts || { total: 0, critical: 0, high: 0, open: 0 };
+                const alertHtml = alerts.total > 0
+                    ? `<span class="badge badge-critical me-1 font-mono">${alerts.critical} crit</span>
+                       <span class="badge badge-high me-1 font-mono">${alerts.high} high</span>
+                       <span class="text-muted small">(${alerts.total} total)</span>`
+                    : '<span class="text-muted small">0 alerts</span>';
+
+                const targetBadge = t.target_systems_count > 0
+                    ? `<span class="badge bg-info font-mono">${t.target_systems_count} connected</span>`
+                    : '<span class="badge bg-secondary font-mono">None</span>';
+
+                return `
+                <tr>
+                    <td>
+                        <div class="fw-bold text-light">${escapeHtml(t.name)}</div>
+                        <div class="text-muted small font-mono">${escapeHtml(t.slug)} &bull; ID: ${t.id.slice(0,8)}...</div>
+                    </td>
+                    <td>
+                        <div class="text-light small">${escapeHtml(t.sector || 'Finance')}</div>
+                        <div class="text-muted small font-mono">${escapeHtml(t.license_reference || 'N/A')}</div>
+                    </td>
+                    <td>${targetBadge}</td>
+                    <td>
+                        <a href="users.html?organization_id=${t.id}" class="text-info text-decoration-none font-mono" title="View users in User Control">
+                            <i class="bi bi-people me-1"></i>${t.users_count || 0} users
+                        </a>
+                    </td>
+                    <td>${alertHtml}</td>
+                    <td>${statusBadge}</td>
+                    <td class="text-end">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-warning" onclick="switchToTenantContext('${t.id}')" title="Filter entire dashboard to this tenant">
+                                <i class="bi bi-box-arrow-in-right me-1"></i> View
+                            </button>
+                            <button class="btn btn-outline-info" onclick="viewTenantSdk('${t.id}')" title="SDK Keys & Integration Code">
+                                <i class="bi bi-code-slash"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="openEditTenantModal('${t.id}')" title="Edit Organization Details">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-${isActive ? 'danger' : 'success'}" onclick="toggleTenantStatus('${t.id}', ${!isActive})" title="${isActive ? 'Suspend' : 'Activate'} Tenant">
+                                <i class="bi bi-${isActive ? 'slash-circle' : 'check-circle'}"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function filterTenantsTable() {
+            const search = (document.getElementById('tenantSearchInput').value || '').toLowerCase().trim();
+            const sector = (document.getElementById('sectorFilter').value || '').toLowerCase().trim();
+
+            const filtered = _tenantsData.filter(t => {
+                const matchSearch = !search || 
+                    (t.name && t.name.toLowerCase().includes(search)) || 
+                    (t.slug && t.slug.toLowerCase().includes(search)) ||
+                    (t.license_reference && t.license_reference.toLowerCase().includes(search));
+                const matchSector = !sector || (t.sector && t.sector.toLowerCase().includes(sector));
+                return matchSearch && matchSector;
+            });
+
+            renderTenantsTable(filtered);
+        }
+
+        function renderCrossTargetsTable(targets) {
+            const tbody = document.getElementById('crossTargetsTableBody');
+            document.getElementById('allTargetsCountBadge').innerText = `${targets.length} targets`;
+            if (!targets || targets.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No target systems found across organizations.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = targets.map(t => {
+                const isHealthy = t.health_status === 'healthy';
+                const healthBadge = isHealthy 
+                    ? '<span class="badge bg-success font-mono">HEALTHY</span>' 
+                    : '<span class="badge bg-warning text-dark font-mono">DEGRADED</span>';
+
+                return `
+                <tr>
+                    <td>
+                        <div class="fw-bold text-light">${escapeHtml(t.name)}</div>
+                        <div class="text-muted small font-mono">${escapeHtml(t.id.slice(0,8))}...</div>
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary font-mono">${escapeHtml(t.tenant_name || 'Organization')}</span>
+                    </td>
+                    <td><code class="text-info">${escapeHtml(t.base_url)}</code></td>
+                    <td><span class="font-mono text-warning">${escapeHtml(t.key_id)}</span></td>
+                    <td><span class="badge bg-dark border border-secondary font-mono">${escapeHtml(t.sync_mode)}</span></td>
+                    <td>${healthBadge}</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-info font-mono" onclick="viewTenantSdk('${t.organization_id || t.tenant_id}')">
+                            <i class="bi bi-code-slash me-1"></i> SDK Snippet
+                        </button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function populateTenantDropdowns(tenants) {
+            const sel = document.getElementById('sdkTenantSelector');
+            if (!sel) return;
+            let opts = '<option value="">Select an organization...</option>';
+            tenants.forEach(t => {
+                opts += `<option value="${t.id}">${escapeHtml(t.name)} (${t.slug})</option>`;
+            });
+            sel.innerHTML = opts;
+        }
+
+        function autoSuggestSlug(name) {
+            const slug = (name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            document.getElementById('regOrgSlug').value = slug;
+            document.getElementById('regTargetName').value = name ? `${name} Core Switch` : '';
+        }
+
+        function openRegisterTenantModal() {
+            document.getElementById('newTenantForm').reset();
+            document.getElementById('regTargetUrl').value = 'http://127.0.0.1:8080';
+            const m = new bootstrap.Modal(document.getElementById('registerTenantModal'));
+            m.show();
+        }
+
+        async function handleRegisterTenant(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnSubmitTenant');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Provisioning...';
+
+            const payload = {
+                name: document.getElementById('regOrgName').value.trim(),
+                slug: document.getElementById('regOrgSlug').value.trim(),
+                sector: document.getElementById('regOrgSector').value,
+                license_reference: document.getElementById('regOrgLicense').value.trim(),
+                admin_full_name: document.getElementById('regAdminName').value.trim(),
+                admin_email: document.getElementById('regAdminEmail').value.trim().toLowerCase(),
+                admin_password: document.getElementById('regAdminPass').value,
+                target_name: document.getElementById('regTargetName').value.trim(),
+                target_base_url: document.getElementById('regTargetUrl').value.trim()
+            };
+
+            try {
+                const res = await API.createTenant(payload);
+                bootstrap.Modal.getInstance(document.getElementById('registerTenantModal')).hide();
+
+                // Display success modal with credentials & snippets
+                document.getElementById('succOrgName').innerText = res.tenant.name;
+                document.getElementById('succAdminEmail').innerText = res.admin_user.email;
+                document.getElementById('succTargetName').innerText = res.target_system.name;
+                document.getElementById('succKeyId').innerText = res.target_system.key_id;
+                document.getElementById('succSecretKey').innerText = res.target_system.secret_key;
+
+                if (res.sdk_integration) {
+                    document.getElementById('succCodeTs').innerText = res.sdk_integration.typescript;
+                    document.getElementById('succCodePy').innerText = res.sdk_integration.python;
+                    document.getElementById('succCodeCurl').innerText = res.sdk_integration.curl;
+                }
+
+                const succM = new bootstrap.Modal(document.getElementById('onboardSuccessModal'));
+                succM.show();
+                showToast(`Tenant ${res.tenant.name} provisioned successfully!`);
+                await loadTenantsData();
+            } catch (err) {
+                alert(`Tenant Registration Error: ${err.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-circle me-1"></i> Provision Tenant Organization';
+            }
+        }
+
+        function switchToTenantContext(tenantId) {
+            API.setSelectedTenant(tenantId);
+            showToast('Switched to tenant view. Redirecting to Alerts...');
+            setTimeout(() => {
+                window.location.href = 'alerts.html';
+            }, 400);
+        }
+
+        async function viewTenantSdk(tenantId) {
+            if (!tenantId) return;
+            const tabBtn = document.getElementById('tab-sdk-btn');
+            bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+            document.getElementById('sdkTenantSelector').value = tenantId;
+            await renderSdkSnippetsForTenant(tenantId);
+        }
+
+        async function renderSdkSnippetsForTenant(tenantId) {
+            const container = document.getElementById('sdkSnippetsContainer');
+            if (!tenantId) {
+                container.innerHTML = '<div class="alert alert-secondary font-mono small">Select a tenant above.</div>';
+                return;
+            }
+
+            container.innerHTML = '<div class="py-4 text-center text-muted font-mono"><span class="spinner-border spinner-border-sm me-2"></span>Loading SDK keys and templates...</div>';
+            try {
+                const snippets = await API.getTenantSdkSnippets(tenantId);
+                container.innerHTML = `
+                <div class="card p-3 bg-dark-subtle border-secondary mb-3">
+                    <div class="row g-2 font-mono small">
+                        <div class="col-sm-3 text-muted">Ingestion Endpoint:</div>
+                        <div class="col-sm-9 text-light fw-bold">${escapeHtml(snippets.endpoint)}</div>
+                        <div class="col-sm-3 text-muted">Auth Key ID:</div>
+                        <div class="col-sm-9 text-warning fw-bold">${escapeHtml(snippets.key_id)}</div>
+                        <div class="col-sm-3 text-muted">HMAC Secret:</div>
+                        <div class="col-sm-9 text-info">${escapeHtml(snippets.secret_key)}</div>
+                    </div>
+                </div>
+
+                <ul class="nav nav-tabs border-secondary mb-3" id="sdkLangTabs">
+                    <li class="nav-item">
+                        <button class="nav-link active small py-1" data-bs-toggle="tab" data-bs-target="#sdk-ts-panel" type="button">TypeScript / Node.js</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link small py-1" data-bs-toggle="tab" data-bs-target="#sdk-py-panel" type="button">Python</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link small py-1" data-bs-toggle="tab" data-bs-target="#sdk-curl-panel" type="button">cURL Command</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="sdk-ts-panel">
+                        <div class="position-relative">
+                            <button class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2" onclick="navigator.clipboard.writeText(document.getElementById('tsCodeBlock').innerText); showToast('Copied TypeScript SDK snippet!');">
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                            <pre class="bg-black p-3 rounded font-mono text-light small" id="tsCodeBlock">${escapeHtml(snippets.typescript)}</pre>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="sdk-py-panel">
+                        <div class="position-relative">
+                            <button class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2" onclick="navigator.clipboard.writeText(document.getElementById('pyCodeBlock').innerText); showToast('Copied Python snippet!');">
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                            <pre class="bg-black p-3 rounded font-mono text-light small" id="pyCodeBlock">${escapeHtml(snippets.python)}</pre>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="sdk-curl-panel">
+                        <div class="position-relative">
+                            <button class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2" onclick="navigator.clipboard.writeText(document.getElementById('curlCodeBlock').innerText); showToast('Copied cURL command!');">
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                            <pre class="bg-black p-3 rounded font-mono text-light small" id="curlCodeBlock">${escapeHtml(snippets.curl)}</pre>
+                        </div>
+                    </div>
+                </div>`;
+            } catch (err) {
+                container.innerHTML = `<div class="alert alert-danger font-mono small">Failed to load SDK snippets: ${escapeHtml(err.message)}</div>`;
+            }
+        }
+
+        function openEditTenantModal(tenantId) {
+            const t = _tenantsData.find(x => String(x.id) === String(tenantId));
+            if (!t) return;
+            document.getElementById('editTenantId').value = t.id;
+            document.getElementById('editOrgName').value = t.name || '';
+            document.getElementById('editOrgSector').value = t.sector || 'Finance - Commercial Bank';
+            document.getElementById('editOrgLicense').value = t.license_reference || '';
+            document.getElementById('editOrgActive').checked = t.is_active;
+
+            const m = new bootstrap.Modal(document.getElementById('editTenantModal'));
+            m.show();
+        }
+
+        async function saveTenantEdit() {
+            const tid = document.getElementById('editTenantId').value;
+            const payload = {
+                name: document.getElementById('editOrgName').value.trim(),
+                sector: document.getElementById('editOrgSector').value,
+                license_reference: document.getElementById('editOrgLicense').value.trim(),
+                is_active: document.getElementById('editOrgActive').checked
+            };
+
+            try {
+                await API.updateTenant(tid, payload);
+                bootstrap.Modal.getInstance(document.getElementById('editTenantModal')).hide();
+                showToast('Tenant profile updated successfully');
+                await loadTenantsData();
+            } catch (err) {
+                alert(`Update failed: ${err.message}`);
+            }
+        }
+
+        async function toggleTenantStatus(tenantId, newActive) {
+            if (!confirm(`Are you sure you want to ${newActive ? 'activate' : 'suspend'} this tenant organization?`)) return;
+            try {
+                if (newActive) {
+                    await API.updateTenant(tenantId, { is_active: true });
+                } else {
+                    await API.deleteTenant(tenantId);
+                }
+                showToast(`Tenant status updated`);
+                await loadTenantsData();
+            } catch (err) {
+                alert(`Action failed: ${err.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

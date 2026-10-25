@@ -14,9 +14,33 @@ from app.services.auth_service import (
 from app.services.crypto_service import encrypt_secret, decrypt_secret
 from app.services.audit_service import log_action
 from app.services.db import get_service_supabase
+from app.services.tenant_service import DEFAULT_ORGANIZATION_ID
+from app.services.tenant_mgmt_service import is_superadmin
 
 logger = logging.getLogger(__name__)
 auth_bp = Blueprint('auth', __name__)
+
+def _enrich_user_payload(u: dict) -> dict:
+    org_id = u.get('organization_id') or DEFAULT_ORGANIZATION_ID
+    is_sup = is_superadmin(u)
+    org_name = 'Commercial Bank of Ethiopia (Primary)'
+    if org_id:
+        try:
+            sb = get_service_supabase()
+            res = sb.table('organizations').select('name').eq('id', str(org_id)).execute()
+            if res.data and res.data[0].get('name'):
+                org_name = res.data[0]['name']
+        except Exception:
+            pass
+    return {
+        'id': u.get('id'),
+        'email': u.get('email'),
+        'full_name': u.get('full_name'),
+        'role': u.get('role'),
+        'organization_id': org_id,
+        'organization_name': org_name,
+        'is_superadmin': is_sup
+    }
 
 SQLI_PATTERNS = [
     re.compile(r"""(?:'\s*(?:or|and)\s+(?:'?[^'\s]+'?\s*=\s*'?[^'\s]+'?|\d+\s*=\s*\d+|true|false))""", re.I),
@@ -156,13 +180,7 @@ def login():
 
     return jsonify({
         'token': token,
-        'user': {
-            'id': user['id'],
-            'email': user['email'],
-            'full_name': user['full_name'],
-            'role': user['role'],
-            'organization_id': user.get('organization_id')
-        }
+        'user': _enrich_user_payload(user)
     })
 
 @auth_bp.route('/mfa/verify', methods=['POST'])
@@ -199,13 +217,7 @@ def verify_mfa_login():
     log_action(user['id'], 'mfa_login_success', details={'email': user['email']})
     return jsonify({
         'token': full_token,
-        'user': {
-            'id': user['id'],
-            'email': user['email'],
-            'full_name': user['full_name'],
-            'role': user['role'],
-            'organization_id': user.get('organization_id')
-        }
+        'user': _enrich_user_payload(user)
     })
 
 @auth_bp.route('/mfa/setup', methods=['POST'])
@@ -264,15 +276,14 @@ def logout():
 def me():
     sb = get_service_supabase()
     try:
-        res = sb.table('users').select('id, email, full_name, role, created_at').eq('id', g.user['id']).execute()
+        res = sb.table('users').select('id, email, full_name, role, organization_id, created_at').eq('id', g.user['id']).execute()
     except Exception:
         res = sb.table('users').select('*').eq('id', g.user['id']).execute()
     if not res.data:
         return jsonify({'error': 'User not found'}), 404
     user_data = dict(res.data[0])
     user_data.pop('password_hash', None)
-    user_data['organization_id'] = getattr(g, 'organization_id', None)
-    return jsonify(user_data)
+    return jsonify(_enrich_user_payload(user_data))
 
 @auth_bp.route('/users', methods=['POST'])
 @role_required('admin')
@@ -282,6 +293,7 @@ def create_new_user():
     password = data.get('password') or ''
     full_name = (data.get('full_name') or '').strip()
     role = data.get('role', 'viewer')
+    target_org = data.get('organization_id')
 
     if not email or not password or not full_name:
         return jsonify({'error': 'email, password and full_name are required'}), 400
@@ -290,35 +302,181 @@ def create_new_user():
     if role not in VALID_ROLES:
         return jsonify({'error': f'Invalid role. Allowed: {VALID_ROLES}'}), 400
 
-    user = create_user(email, password, full_name, role)
+    # Superadmin can assign user to any organization; regular admin assigns to own
+    if is_superadmin(g.user):
+        org_id = target_org or g.user.get('organization_id') or DEFAULT_ORGANIZATION_ID
+    else:
+        org_id = g.user.get('organization_id') or DEFAULT_ORGANIZATION_ID
+
+    user = create_user(email, password, full_name, role, organization_id=org_id)
     if not user:
         return jsonify({'error': 'Could not create user (email may already exist)'}), 400
 
-    log_action(g.user['id'], 'user_created', 'user', user['id'], {'email': email, 'role': role})
+    log_action(g.user['id'], 'user_created', 'user', user['id'], {'email': email, 'role': role, 'organization_id': org_id})
     return jsonify({
         'id': user['id'],
         'email': user['email'],
         'full_name': user['full_name'],
-        'role': user['role']
+        'role': user['role'],
+        'organization_id': user.get('organization_id')
     }), 201
 
 @auth_bp.route('/users', methods=['GET'])
 @role_required('admin', 'analyst')
 def list_users():
     sb = get_service_supabase()
-    org_id = g.user.get('organization_id')
-    query = sb.table('users').select('id, email, full_name, role, is_active, created_at, organization_id')
+    is_sup = is_superadmin(g.user)
+    requested_org = request.args.get('organization_id')
+
+    # Build organizations map for name display
+    org_map = {}
     try:
-        if org_id:
-            res = query.eq('organization_id', org_id).order('created_at', desc=True).execute()
-        else:
-            res = query.order('created_at', desc=True).execute()
+        org_res = sb.table('organizations').select('id, name, slug').execute()
+        for o in (org_res.data or []):
+            org_map[str(o.get('id'))] = {
+                'name': o.get('name'),
+                'slug': o.get('slug')
+            }
     except Exception:
-        res = sb.table('users').select('id, email, full_name, role, is_active, created_at').order('created_at', desc=True).execute()
-    users = res.data or []
-    if org_id:
-        users = [u for u in users if not u.get('organization_id') or str(u.get('organization_id')) == str(org_id)]
+        pass
+
+    query = sb.table('users').select('id, email, full_name, role, is_active, created_at, organization_id')
+
+    if is_sup:
+        if requested_org and requested_org != 'all':
+            query = query.eq('organization_id', requested_org)
+    else:
+        org_id = g.user.get('organization_id') or DEFAULT_ORGANIZATION_ID
+        query = query.eq('organization_id', org_id)
+
+    try:
+        res = query.order('created_at', desc=True).execute()
+        users = res.data or []
+    except Exception:
+        try:
+            res = sb.table('users').select('id, email, full_name, role, is_active, created_at').order('created_at', desc=True).execute()
+            users = res.data or []
+        except Exception:
+            users = []
+
+    # Resolve organization_id for all users (handling fallback when column is missing in DB)
+    from app.services.auth_service import _USER_ORGS
+    for u in users:
+        if not u.get('organization_id'):
+            u['organization_id'] = _USER_ORGS.get(str(u.get('id'))) or _USER_ORGS.get(u.get('email')) or DEFAULT_ORGANIZATION_ID
+
+    # Filter out by org for non-superadmins or when specific org is requested
+    if is_sup:
+        if requested_org and requested_org != 'all':
+            users = [u for u in users if str(u.get('organization_id')) == str(requested_org)]
+    else:
+        my_org = str(g.user.get('organization_id') or DEFAULT_ORGANIZATION_ID)
+        users = [u for u in users if str(u.get('organization_id')) == my_org]
+
+    # Annotate organization name and slug
+    for u in users:
+        oid = str(u.get('organization_id') or DEFAULT_ORGANIZATION_ID)
+        ometa = org_map.get(oid, {})
+        u['organization_name'] = ometa.get('name') or ('Commercial Bank of Ethiopia (Primary)' if oid == DEFAULT_ORGANIZATION_ID else 'Organization')
+        u['organization_slug'] = ometa.get('slug') or 'cbe'
+
     return jsonify(users)
+
+@auth_bp.route('/users/<user_id>', methods=['PUT'])
+@role_required('admin')
+def update_user_endpoint(user_id):
+    data = request.get_json() or {}
+    sb = get_service_supabase()
+
+    try:
+        res = sb.table('users').select('*').eq('id', user_id).execute()
+        if not res.data:
+            return jsonify({'error': 'User not found'}), 404
+        existing = res.data[0]
+    except Exception as e:
+        return jsonify({'error': f'User lookup failed: {e}'}), 500
+
+    is_sup = is_superadmin(g.user)
+    if not is_sup and str(existing.get('organization_id')) != str(g.user.get('organization_id')):
+        return jsonify({'error': 'Insufficient permissions for this user'}), 403
+
+    updates = {}
+    if 'full_name' in data and data['full_name']:
+        updates['full_name'] = str(data['full_name']).strip()
+    if 'role' in data and data['role'] in VALID_ROLES:
+        updates['role'] = data['role']
+    if 'is_active' in data:
+        updates['is_active'] = bool(data['is_active'])
+    if 'organization_id' in data and is_sup:
+        updates['organization_id'] = data['organization_id']
+
+    if updates:
+        try:
+            up_res = sb.table('users').update(updates).eq('id', user_id).execute()
+            log_action(g.user['id'], 'user_updated', 'user', user_id, updates)
+            ret = up_res.data[0] if up_res.data else {**existing, **updates}
+            ret.pop('password_hash', None)
+            return jsonify(ret), 200
+        except Exception as e:
+            return jsonify({'error': f'Failed to update user: {e}'}), 500
+
+    existing.pop('password_hash', None)
+    return jsonify(existing), 200
+
+@auth_bp.route('/users/<user_id>/reset-password', methods=['POST'])
+@role_required('admin')
+def reset_user_password_endpoint(user_id):
+    data = request.get_json() or {}
+    new_password = str(data.get('password') or '')
+    if not new_password or len(new_password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
+
+    sb = get_service_supabase()
+    try:
+        res = sb.table('users').select('*').eq('id', user_id).execute()
+        if not res.data:
+            return jsonify({'error': 'User not found'}), 404
+        existing = res.data[0]
+    except Exception:
+        return jsonify({'error': 'User lookup failed'}), 500
+
+    is_sup = is_superadmin(g.user)
+    if not is_sup and str(existing.get('organization_id')) != str(g.user.get('organization_id')):
+        return jsonify({'error': 'Insufficient permissions for this user'}), 403
+
+    new_hash = hash_password(new_password)
+    try:
+        sb.table('users').update({'password_hash': new_hash}).eq('id', user_id).execute()
+        log_action(g.user['id'], 'password_reset_by_admin', 'user', user_id)
+        return jsonify({'message': 'Password successfully reset'}), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to reset password: {e}'}), 500
+
+@auth_bp.route('/users/<user_id>', methods=['DELETE'])
+@role_required('admin')
+def delete_user_endpoint(user_id):
+    sb = get_service_supabase()
+    try:
+        res = sb.table('users').select('*').eq('id', user_id).execute()
+        if not res.data:
+            return jsonify({'error': 'User not found'}), 404
+        existing = res.data[0]
+    except Exception:
+        return jsonify({'error': 'User lookup failed'}), 500
+
+    is_sup = is_superadmin(g.user)
+    if not is_sup and str(existing.get('organization_id')) != str(g.user.get('organization_id')):
+        return jsonify({'error': 'Insufficient permissions for this user'}), 403
+
+    if str(user_id) == str(g.user.get('id')):
+        return jsonify({'error': 'Cannot delete your own administrator account'}), 400
+
+    try:
+        sb.table('users').update({'is_active': False}).eq('id', user_id).execute()
+        log_action(g.user['id'], 'user_deactivated', 'user', user_id)
+        return jsonify({'message': f'User {user_id} successfully deactivated'}), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to deactivate user: {e}'}), 500
 
 @auth_bp.route('/api-tokens', methods=['POST'])
 @role_required('admin')

@@ -60,6 +60,7 @@ def create_app():
     from app.routes.baselines import baselines_bp
     from app.routes.risk import risk_bp
     from app.routes.benchmark import benchmark_bp
+    from app.routes.tenants import tenants_bp
     from app.routes.alert_quality import alert_quality_bp
     from app.routes.response import response_bp
     from app.routes.cases import cases_bp
@@ -111,6 +112,7 @@ def create_app():
     app.register_blueprint(baselines_bp, url_prefix='/api/baselines')
     app.register_blueprint(risk_bp, url_prefix='/api/risk')
     app.register_blueprint(benchmark_bp, url_prefix='/api/benchmark')
+    app.register_blueprint(tenants_bp, url_prefix='/api/tenants')
 
 
 

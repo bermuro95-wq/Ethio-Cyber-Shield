@@ -29,6 +29,11 @@
         <div class="card mb-3">
             <div class="card-body py-2">
                 <div class="row g-2 align-items-center">
+                    <div class="col-md-3" id="tenantAlertCol" style="display:none;">
+                        <select class="form-select form-select-sm bg-dark text-light border-secondary font-mono" id="filterTenant" onchange="loadAlerts()">
+                            <option value="all">🏢 All Tenants (Global)</option>
+                        </select>
+                    </div>
                     <div class="col-md-3">
                         <select class="form-select form-select-sm" id="filterStatus" onchange="loadAlerts()">
                             <option value="">All Statuses</option>
@@ -127,6 +132,7 @@
                         <div class="col-md-6">
                             <div class="dossier-card h-100">
                                 <div class="dossier-card-title"><i class="bi bi-bullseye text-danger"></i> Targeted Banking Asset</div>
+                                <div class="dossier-metric"><span class="label">Tenant Org:</span><span class="val text-light fw-bold font-mono" id="mTargetOrg">Commercial Bank</span></div>
                                 <div class="dossier-metric"><span class="label">Target System:</span><span class="val text-light" id="mTargetSystem">ShieldBank Core</span></div>
                                 <div class="dossier-metric"><span class="label">Account:</span><span class="val font-mono fw-bold text-warning" id="mTargetAccount">admin@shieldbank.test</span></div>
                                 <div class="dossier-metric"><span class="label">Endpoint:</span><code class="val font-mono text-info" id="mTargetEndpoint">/api/auth/login</code></div>
@@ -182,10 +188,38 @@
         const user = API.getUser() || {};
         const role = (user.role || 'viewer').toLowerCase();
         const canAct = role !== 'viewer';
+        const _isSuperadmin = user && (user.is_superadmin || user.role === 'superadmin' || user.email === 'admin@ethiocybershield.et' || user.email === 'admin' || user.organization_id === '00000000-0000-0000-0000-000000000001');
 
         let _alertsList = [];
         let _activeAlertDossier = null;
         let _alertModalInst = null;
+        let _allTenants = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (_isSuperadmin) {
+                const col = document.getElementById('tenantAlertCol');
+                if (col) col.style.display = 'block';
+                await loadTenantsFilter();
+            }
+            await loadAlerts();
+        });
+
+        async function loadTenantsFilter() {
+            try {
+                _allTenants = await API.getTenants();
+                const sel = document.getElementById('filterTenant');
+                if (!sel) return;
+                const cur = API.getSelectedTenant();
+                let opts = `<option value="all" ${cur === 'all' ? 'selected' : ''}>🏢 All Tenants (Global)</option>`;
+                _allTenants.forEach(t => {
+                    const isSel = String(t.id) === String(cur);
+                    opts += `<option value="${t.id}" ${isSel ? 'selected' : ''}>🏛️ ${escapeHtml(t.name)}</option>`;
+                });
+                sel.innerHTML = opts;
+            } catch (err) {
+                console.debug('Failed to load tenants filter:', err);
+            }
+        }
 
         async function loadAlerts(silent = false) {
             if (!silent) loadingSpinner('tableArea');
@@ -195,6 +229,15 @@
                 const sev = document.getElementById('filterSeverity').value;
                 if (st) params.status = st;
                 if (sev) params.severity = sev;
+
+                if (_isSuperadmin) {
+                    const tVal = document.getElementById('filterTenant')?.value || API.getSelectedTenant() || 'all';
+                    if (tVal !== 'all') {
+                        params.tenant_id = tVal;
+                    } else {
+                        params.all_tenants = 'true';
+                    }
+                }
 
                 const data = await API.getAlerts(params);
                 _alertsList = data || [];
@@ -209,9 +252,16 @@
                     const clientStr = d ? escapeHtml(d.device.client_software) : 'Web Client';
                     const tInfo = formatThreatTime(a.created_at || a.occurred_at);
 
+                    const tenantColHtml = _isSuperadmin ? `
+                        <td>
+                            <div class="badge bg-secondary font-mono">${escapeHtml(a.tenant_name || 'Organization')}</div>
+                            <div class="small text-muted font-mono">${escapeHtml(a.target_name || 'Core Switch')}</div>
+                        </td>` : '';
+
                     return `
                     <tr id="alertRow_${escapeHtml(a.id)}">
                         <td style="width: 90px;">${severityBadge(a.severity)}</td>
+                        ${tenantColHtml}
                         <td>
                             <div class="fw-semibold text-light">${escapeHtml(a.title)}</div>
                             <div class="small text-muted font-mono"><span class="badge bg-dark border border-secondary text-info me-1">${escapeHtml((a.alert_type || 'DETECTION').toUpperCase())}</span>${escapeHtml((a.description || '').substring(0, 90))}</div>
@@ -244,12 +294,15 @@
                     </tr>`;
                 }).join('');
 
+                const tenantThHtml = _isSuperadmin ? '<th>Tenant & Target</th>' : '';
+
                 document.getElementById('tableArea').innerHTML = `
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
                             <thead>
                                 <tr>
                                     <th>Severity</th>
+                                    ${tenantThHtml}
                                     <th>Alert & Classification</th>
                                     <th>Origin & Location</th>
                                     <th>Attacker Device / Tool</th>
@@ -311,7 +364,11 @@
             document.getElementById('mDevType').textContent = d.device?.device_type || 'Desktop';
             document.getElementById('mDevId').textContent = d.device?.device_id || 'DEV-PROBE';
 
-            document.getElementById('mTargetSystem').textContent = d.target?.target_name || 'ShieldBank Core Testbed';
+            const orgNameEl = document.getElementById('mTargetOrg');
+            if (orgNameEl) {
+                orgNameEl.textContent = alertObj?.tenant_name || d.tenant_name || 'Commercial Bank of Ethiopia';
+            }
+            document.getElementById('mTargetSystem').textContent = alertObj?.target_name || d.target?.target_name || 'ShieldBank Core Testbed';
             document.getElementById('mTargetAccount').textContent = d.target?.account || 'admin@shieldbank.test';
             document.getElementById('mTargetEndpoint').textContent = d.target?.endpoint || '/api/auth/login';
             document.getElementById('mTargetMethod').textContent = d.target?.http_method || 'POST';

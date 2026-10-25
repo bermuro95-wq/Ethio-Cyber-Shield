@@ -170,8 +170,9 @@ const API = {
     },
 
     // Users (admin)
-    getUsers() {
-        return this.request('GET', '/auth/users');
+    getUsers(orgId = null) {
+        const query = orgId ? `?organization_id=${encodeURIComponent(orgId)}` : '';
+        return this.request('GET', `/auth/users${query}`);
     },
 
 
@@ -248,6 +249,47 @@ const API = {
     },
     createUser(data) {
         return this.request('POST', '/auth/users', data);
+    },
+    resetUserPassword(userId, password) {
+        return this.request('POST', `/auth/users/${userId}/reset-password`, { password });
+    },
+
+    // SaaS Multi-Tenancy Management
+    getTenants() {
+        return this.request('GET', '/tenants');
+    },
+    createTenant(data) {
+        return this.request('POST', '/tenants', data);
+    },
+    getTenant(id) {
+        return this.request('GET', `/tenants/${id}`);
+    },
+    updateTenant(id, data) {
+        return this.request('PUT', `/tenants/${id}`, data);
+    },
+    deleteTenant(id) {
+        return this.request('DELETE', `/tenants/${id}`);
+    },
+    getTenantTargets(id) {
+        return this.request('GET', `/tenants/${id}/targets`);
+    },
+    getTenantUsers(id) {
+        return this.request('GET', `/tenants/${id}/users`);
+    },
+    getTenantSdkSnippets(id) {
+        return this.request('GET', `/tenants/${id}/sdk-snippets`);
+    },
+    getSelectedTenant() {
+        return localStorage.getItem('ecs_selected_tenant_id') || 'all';
+    },
+    setSelectedTenant(tenantId) {
+        if (!tenantId || tenantId === 'all') {
+            localStorage.setItem('ecs_selected_tenant_id', 'all');
+            this.setTenant(null);
+        } else {
+            localStorage.setItem('ecs_selected_tenant_id', tenantId);
+            this.setTenant(tenantId);
+        }
     },
     // Live threat detection
     getLiveSummary(minutes = 60) {

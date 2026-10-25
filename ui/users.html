@@ -1,17 +1,534 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=settings.html?tab=users">
-    <title>Redirecting to Settings | Ethio-Cyber Shield</title>
-    <script>
-        window.location.replace('settings.html?tab=users');
-    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Control & Access Governance | Ethio-Cyber Shield</title>
+    <link rel="icon" type="image/jpeg" href="assets/logo-shield.jpg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
 </head>
-<body style="background-color: #090d16; color: #94a3b8; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
-    <div style="text-align: center;">
-        <p>User management has moved into Settings & Access.</p>
-        <p>Redirecting to <a href="settings.html?tab=users" style="color: #10b981;">Settings &rarr;</a></p>
+<body>
+    <div id="navbar"></div>
+
+    <div class="container-fluid py-3 px-3 px-md-4">
+        <!-- Header -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary gap-2">
+            <div>
+                <h4 class="mb-0 fw-bold text-light d-flex align-items-center gap-2">
+                    <i class="bi bi-people text-info"></i>
+                    <span>User Control & Access Governance</span>
+                </h4>
+                <span class="text-muted small font-mono">Cross-tenant identity lifecycle, role provisioning & credential management</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-soc btn-soc-primary btn-sm" onclick="loadUsersData()">
+                    <i class="bi bi-arrow-repeat me-1"></i> Refresh
+                </button>
+                <button class="btn btn-success btn-sm fw-semibold" onclick="openAddUserModal()">
+                    <i class="bi bi-person-plus-fill me-1"></i> Add New User
+                </button>
+            </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3">
+                <div class="card p-3 border-secondary bg-dark-subtle">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted small text-uppercase font-mono">Total Users</span>
+                            <h3 class="mb-0 fw-bold text-light font-mono" id="statTotalUsers">0</h3>
+                        </div>
+                        <div class="fs-2 text-primary opacity-75"><i class="bi bi-people"></i></div>
+                    </div>
+                    <div class="small text-muted mt-1 font-mono" id="statActiveUsersSub">0 active accounts</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card p-3 border-secondary bg-dark-subtle">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted small text-uppercase font-mono">Administrators</span>
+                            <h3 class="mb-0 fw-bold text-warning font-mono" id="statAdmins">0</h3>
+                        </div>
+                        <div class="fs-2 text-warning opacity-75"><i class="bi bi-shield-lock"></i></div>
+                    </div>
+                    <div class="small text-muted mt-1 font-mono">Full tenant management</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card p-3 border-secondary bg-dark-subtle">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted small text-uppercase font-mono">SOC Analysts</span>
+                            <h3 class="mb-0 fw-bold text-info font-mono" id="statAnalysts">0</h3>
+                        </div>
+                        <div class="fs-2 text-info opacity-75"><i class="bi bi-person-workspace"></i></div>
+                    </div>
+                    <div class="small text-muted mt-1 font-mono">Triage, investigate & contain</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card p-3 border-secondary bg-dark-subtle">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted small text-uppercase font-mono">Auditors & Viewers</span>
+                            <h3 class="mb-0 fw-bold text-secondary font-mono" id="statViewers">0</h3>
+                        </div>
+                        <div class="fs-2 text-secondary opacity-75"><i class="bi bi-eye"></i></div>
+                    </div>
+                    <div class="small text-muted mt-1 font-mono">Read-only posture access</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Users Table Card -->
+        <div class="card">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold text-light"><i class="bi bi-person-lines-fill text-success me-2"></i>Accounts Directory</span>
+                    <span class="badge bg-secondary font-mono" id="usersCountBadge">0 users</span>
+                </div>
+                <!-- Filter Controls -->
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <!-- Tenant Filter (for Superadmin) -->
+                    <div id="tenantFilterContainer" style="display: none;">
+                        <select id="userTenantFilter" class="form-select form-select-sm bg-dark text-light border-secondary font-mono" style="min-width: 190px;" onchange="filterUsersTable()">
+                            <option value="">🏢 All Organizations</option>
+                        </select>
+                    </div>
+
+                    <!-- Role Filter -->
+                    <select id="userRoleFilter" class="form-select form-select-sm bg-dark text-light border-secondary font-mono" style="width: 140px;" onchange="filterUsersTable()">
+                        <option value="">All Roles</option>
+                        <option value="admin">Admin</option>
+                        <option value="analyst">Analyst</option>
+                        <option value="viewer">Viewer</option>
+                        <option value="auditor">Auditor</option>
+                    </select>
+
+                    <!-- Search Input -->
+                    <input type="text" id="userSearchInput" class="form-control form-control-sm bg-dark text-light border-secondary font-mono" placeholder="Search user or email..." style="width: 220px;" oninput="filterUsersTable()">
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>User Profile</th>
+                                <th>Tenant Organization</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Created (EAT)</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr><td colspan="6" class="text-center py-4 text-muted">Loading user accounts...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
+
+    <!-- MODAL: ADD NEW USER -->
+    <div class="modal fade" id="addUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-light fw-bold">
+                        <i class="bi bi-person-plus text-success me-2"></i>Add Platform / Tenant User
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addUserForm" onsubmit="handleCreateUser(event)">
+                        <!-- Organization select (only visible to Superadmin) -->
+                        <div class="mb-3" id="modalOrgSelectGroup" style="display: none;">
+                            <label class="form-label small text-muted">Assign to Tenant Organization *</label>
+                            <select id="newModalOrgId" class="form-select font-mono">
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Full Name *</label>
+                            <input type="text" id="newFullName" class="form-control" placeholder="e.g. Chaltu Tolosa" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Email Address *</label>
+                            <input type="email" id="newEmail" class="form-control font-mono" placeholder="user@bank.et" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Role Assignment *</label>
+                            <select id="newRole" class="form-select">
+                                <option value="analyst" selected>Security Analyst (Triage & Containment)</option>
+                                <option value="admin">Administrator (Full Tenant Control)</option>
+                                <option value="viewer">Viewer (Read-Only Dashboards)</option>
+                                <option value="auditor">Auditor (Compliance & Logs)</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Initial Password (min 8 characters) *</label>
+                            <input type="password" id="newPassword" class="form-control font-mono" placeholder="Minimum 8 characters" required minlength="8">
+                        </div>
+
+                        <div class="modal-footer border-secondary px-0 pb-0 mt-3">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-success fw-semibold" id="btnSubmitUser">
+                                <i class="bi bi-check-circle me-1"></i> Create User
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: EDIT USER -->
+    <div class="modal fade" id="editUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-light fw-bold"><i class="bi bi-pencil-square text-warning me-2"></i>Edit User Account</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editUserId">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Email Address</label>
+                        <input type="email" id="editUserEmail" class="form-control font-mono bg-dark-subtle" disabled>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Full Name</label>
+                        <input type="text" id="editUserFullName" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Role</label>
+                        <select id="editUserRole" class="form-select">
+                            <option value="admin">Administrator</option>
+                            <option value="analyst">Security Analyst</option>
+                            <option value="viewer">Viewer</option>
+                            <option value="auditor">Auditor</option>
+                        </select>
+                    </div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="editUserActive">
+                        <label class="form-check-label text-light small" for="editUserActive">Account Active & Allowed to Sign In</label>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-success" onclick="saveUserEdit()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: RESET PASSWORD -->
+    <div class="modal fade" id="resetPassModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark border-warning">
+                <div class="modal-header border-warning">
+                    <h5 class="modal-title text-warning fw-bold"><i class="bi bi-key-fill me-2"></i>Reset User Password</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="resetPassUserId">
+                    <p class="text-light small">
+                        Resetting password for: <strong class="text-warning font-mono" id="resetPassTargetName">-</strong>
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">New Password (min 8 characters) *</label>
+                        <div class="input-group">
+                            <input type="password" id="resetNewPassword" class="form-control font-mono" placeholder="Enter new strong password" minlength="8" required>
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePassVisibility('resetNewPassword', this)">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-warning fw-semibold" onclick="submitPasswordReset()">
+                        <i class="bi bi-check-circle me-1"></i> Confirm Password Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/common.js"></script>
+    <script>
+        let _allUsers = [];
+        let _allTenants = [];
+        let _isSuperadmin = false;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!requireAuth()) return;
+            const user = API.getUser();
+            _isSuperadmin = user && (user.is_superadmin || user.role === 'superadmin' || user.email === 'admin@ethiocybershield.et' || user.email === 'admin' || user.organization_id === '00000000-0000-0000-0000-000000000001');
+
+            document.getElementById('navbar').innerHTML = renderNavbar('users');
+
+            if (_isSuperadmin) {
+                document.getElementById('tenantFilterContainer').style.display = 'block';
+                document.getElementById('modalOrgSelectGroup').style.display = 'block';
+                await loadTenantsForFilter();
+            }
+
+            // Check if query param specifies organization
+            const urlParams = new URLSearchParams(window.location.search);
+            const orgParam = urlParams.get('organization_id');
+            if (orgParam && _isSuperadmin) {
+                document.getElementById('userTenantFilter').value = orgParam;
+            }
+
+            await loadUsersData();
+        });
+
+        async function loadTenantsForFilter() {
+            try {
+                _allTenants = await API.getTenants();
+                const sel = document.getElementById('userTenantFilter');
+                const modalSel = document.getElementById('newModalOrgId');
+                let filterOpts = '<option value="">🏢 All Organizations</option>';
+                let modalOpts = '';
+
+                _allTenants.forEach(t => {
+                    filterOpts += `<option value="${t.id}">${escapeHtml(t.name)} (${t.slug})</option>`;
+                    modalOpts += `<option value="${t.id}">${escapeHtml(t.name)}</option>`;
+                });
+
+                sel.innerHTML = filterOpts;
+                modalSel.innerHTML = modalOpts;
+            } catch (err) {
+                console.debug('Tenants lookup error in users page:', err);
+            }
+        }
+
+        async function loadUsersData() {
+            try {
+                const orgFilter = document.getElementById('userTenantFilter')?.value || null;
+                _allUsers = await API.getUsers(orgFilter);
+                renderUsersTable(_allUsers);
+                updateUserKpis(_allUsers);
+            } catch (err) {
+                console.error('Error loading users:', err);
+                showToast(`Failed to load users: ${err.message}`, 'error');
+            }
+        }
+
+        function updateUserKpis(users) {
+            if (!Array.isArray(users)) return;
+            const total = users.length;
+            const active = users.filter(u => u.is_active).length;
+            const admins = users.filter(u => u.role === 'admin').length;
+            const analysts = users.filter(u => u.role === 'analyst').length;
+            const viewers = users.filter(u => u.role === 'viewer' || u.role === 'auditor').length;
+
+            document.getElementById('statTotalUsers').innerText = total;
+            document.getElementById('statActiveUsersSub').innerText = `${active} active accounts`;
+            document.getElementById('statAdmins').innerText = admins;
+            document.getElementById('statAnalysts').innerText = analysts;
+            document.getElementById('statViewers').innerText = viewers;
+            document.getElementById('usersCountBadge').innerText = `${total} accounts`;
+        }
+
+        function renderUsersTable(users) {
+            const tbody = document.getElementById('usersTableBody');
+            if (!users || users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No user accounts found matching your filters.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = users.map(u => {
+                const isActive = u.is_active !== false;
+                const statusBadge = isActive 
+                    ? '<span class="badge bg-success font-mono">ACTIVE</span>' 
+                    : '<span class="badge bg-danger font-mono">DEACTIVATED</span>';
+
+                let roleBadge = '<span class="badge bg-secondary font-mono">VIEWER</span>';
+                if (u.role === 'admin') roleBadge = '<span class="badge bg-warning text-dark font-mono">ADMIN</span>';
+                if (u.role === 'analyst') roleBadge = '<span class="badge bg-info text-dark font-mono">ANALYST</span>';
+                if (u.role === 'auditor') roleBadge = '<span class="badge bg-light text-dark font-mono">AUDITOR</span>';
+
+                const orgBadge = `<span class="badge bg-dark border border-secondary font-mono text-light">${escapeHtml(u.organization_name || 'Organization')}</span>`;
+
+                return `
+                <tr>
+                    <td>
+                        <div class="fw-bold text-light">${escapeHtml(u.full_name || 'Unnamed')}</div>
+                        <div class="text-muted small font-mono">${escapeHtml(u.email)}</div>
+                    </td>
+                    <td>${orgBadge}</td>
+                    <td>${roleBadge}</td>
+                    <td>${statusBadge}</td>
+                    <td class="small font-mono text-muted">${formatDate(u.created_at)}</td>
+                    <td class="text-end">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-warning" onclick="openResetPasswordModal('${u.id}', '${escapeHtml(u.full_name)} (${escapeHtml(u.email)}')">
+                                <i class="bi bi-key me-1"></i> Reset Pass
+                            </button>
+                            <button class="btn btn-outline-info" onclick="openEditUserModal('${u.id}')">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                            <button class="btn btn-outline-${isActive ? 'danger' : 'success'}" onclick="toggleUserStatus('${u.id}', ${!isActive})">
+                                <i class="bi bi-${isActive ? 'slash-circle' : 'check-circle'}"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function filterUsersTable() {
+            const search = (document.getElementById('userSearchInput').value || '').toLowerCase().trim();
+            const role = (document.getElementById('userRoleFilter').value || '').toLowerCase().trim();
+            const org = (document.getElementById('userTenantFilter')?.value || '').trim();
+
+            const filtered = _allUsers.filter(u => {
+                const matchSearch = !search || 
+                    (u.full_name && u.full_name.toLowerCase().includes(search)) || 
+                    (u.email && u.email.toLowerCase().includes(search));
+                const matchRole = !role || (u.role && u.role.toLowerCase() === role);
+                const matchOrg = !org || String(u.organization_id) === String(org);
+                return matchSearch && matchRole && matchOrg;
+            });
+
+            renderUsersTable(filtered);
+        }
+
+        function openAddUserModal() {
+            document.getElementById('addUserForm').reset();
+            const m = new bootstrap.Modal(document.getElementById('addUserModal'));
+            m.show();
+        }
+
+        async function handleCreateUser(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnSubmitUser');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Creating...';
+
+            const payload = {
+                full_name: document.getElementById('newFullName').value.trim(),
+                email: document.getElementById('newEmail').value.trim().toLowerCase(),
+                role: document.getElementById('newRole').value,
+                password: document.getElementById('newPassword').value
+            };
+
+            if (_isSuperadmin) {
+                const selOrg = document.getElementById('newModalOrgId').value;
+                if (selOrg) payload.organization_id = selOrg;
+            }
+
+            try {
+                await API.createUser(payload);
+                bootstrap.Modal.getInstance(document.getElementById('addUserModal')).hide();
+                showToast(`User ${payload.email} created successfully`);
+                await loadUsersData();
+            } catch (err) {
+                alert(`Error creating user: ${err.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-circle me-1"></i> Create User';
+            }
+        }
+
+        function openEditUserModal(userId) {
+            const u = _allUsers.find(x => String(x.id) === String(userId));
+            if (!u) return;
+            document.getElementById('editUserId').value = u.id;
+            document.getElementById('editUserEmail').value = u.email;
+            document.getElementById('editUserFullName').value = u.full_name || '';
+            document.getElementById('editUserRole').value = u.role || 'viewer';
+            document.getElementById('editUserActive').checked = u.is_active !== false;
+
+            const m = new bootstrap.Modal(document.getElementById('editUserModal'));
+            m.show();
+        }
+
+        async function saveUserEdit() {
+            const uid = document.getElementById('editUserId').value;
+            const payload = {
+                full_name: document.getElementById('editUserFullName').value.trim(),
+                role: document.getElementById('editUserRole').value,
+                is_active: document.getElementById('editUserActive').checked
+            };
+
+            try {
+                await API.updateUser(uid, payload);
+                bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+                showToast('User updated successfully');
+                await loadUsersData();
+            } catch (err) {
+                alert(`Update failed: ${err.message}`);
+            }
+        }
+
+        function openResetPasswordModal(userId, name) {
+            document.getElementById('resetPassUserId').value = userId;
+            document.getElementById('resetPassTargetName').innerText = name;
+            document.getElementById('resetNewPassword').value = '';
+            const m = new bootstrap.Modal(document.getElementById('resetPassModal'));
+            m.show();
+        }
+
+        async function submitPasswordReset() {
+            const uid = document.getElementById('resetPassUserId').value;
+            const pass = document.getElementById('resetNewPassword').value;
+            if (!pass || pass.length < 8) {
+                alert('Password must be at least 8 characters');
+                return;
+            }
+
+            try {
+                await API.resetUserPassword(uid, pass);
+                bootstrap.Modal.getInstance(document.getElementById('resetPassModal')).hide();
+                showToast('Password reset successfully!');
+            } catch (err) {
+                alert(`Password reset failed: ${err.message}`);
+            }
+        }
+
+        async function toggleUserStatus(userId, newActive) {
+            const action = newActive ? 'activate' : 'deactivate';
+            if (!confirm(`Are you sure you want to ${action} this user account?`)) return;
+
+            try {
+                if (newActive) {
+                    await API.updateUser(userId, { is_active: true });
+                } else {
+                    await API.deleteUser(userId);
+                }
+                showToast(`User account status updated`);
+                await loadUsersData();
+            } catch (err) {
+                alert(`Action failed: ${err.message}`);
+            }
+        }
+
+        function togglePassVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.innerHTML = '<i class="bi bi-eye-slash"></i>';
+            } else {
+                input.type = 'password';
+                btn.innerHTML = '<i class="bi bi-eye"></i>';
+            }
+        }
+    </script>
 </body>
 </html>
