@@ -75,6 +75,11 @@ class PostgresTableQuery:
         self._where_params.append(value)
         return self
 
+    def neq(self, column: str, value: Any):
+        self._where_clauses.append(f'"{column}" != %s')
+        self._where_params.append(value)
+        return self
+
     def gte(self, column: str, value: Any):
         self._where_clauses.append(f'"{column}" >= %s')
         self._where_params.append(value)
@@ -83,6 +88,25 @@ class PostgresTableQuery:
     def lte(self, column: str, value: Any):
         self._where_clauses.append(f'"{column}" <= %s')
         self._where_params.append(value)
+        return self
+
+    def gt(self, column: str, value: Any):
+        self._where_clauses.append(f'"{column}" > %s')
+        self._where_params.append(value)
+        return self
+
+    def lt(self, column: str, value: Any):
+        self._where_clauses.append(f'"{column}" < %s')
+        self._where_params.append(value)
+        return self
+
+    def in_(self, column: str, values: list):
+        if not values:
+            self._where_clauses.append("1=0")
+            return self
+        placeholders = ", ".join(["%s"] * len(values))
+        self._where_clauses.append(f'"{column}" IN ({placeholders})')
+        self._where_params.extend(values)
         return self
 
     def or_(self, expr: str):
@@ -143,7 +167,7 @@ class PostgresTableQuery:
                 inserted_rows = []
                 for item in self._insert_data:
                     vals = [
-                        json.dumps(item[c]) if isinstance(item[c], (dict, list)) else item[c]
+                        json.dumps(item[c]) if isinstance(item[c], dict) else item[c]
                         for c in cols
                     ]
                     cur.execute(sql, tuple(vals))
@@ -158,7 +182,7 @@ class PostgresTableQuery:
 
                 set_clauses = [f'"{k}" = %s' for k in self._update_data.keys()]
                 vals = [
-                    json.dumps(v) if isinstance(v, (dict, list)) else v
+                    json.dumps(v) if isinstance(v, dict) else v
                     for v in self._update_data.values()
                 ]
 

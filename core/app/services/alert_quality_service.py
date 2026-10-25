@@ -397,13 +397,27 @@ class AlertQualityService:
                 clean_type = raw_atype
 
             clean_alert = {
+                'organization_id': oid or created_record.get('organization_id') or '00000000-0000-0000-0000-000000000001',
                 'title': created_record.get('title', 'Security Alert'),
                 'description': created_record.get('description', ''),
                 'severity': created_record.get('severity', 'medium'),
                 'status': created_record.get('status', 'open'),
                 'alert_type': clean_type,
+                'risk_score': created_record.get('risk_score', 0),
+                'evidence': created_record.get('evidence', {}),
             }
-            res_ins = sb.table('alerts').insert(clean_alert).execute()
+            try:
+                res_ins = sb.table('alerts').insert(clean_alert).execute()
+            except Exception:
+                legacy_alert = {
+                    'title': clean_alert['title'],
+                    'description': clean_alert['description'],
+                    'severity': clean_alert['severity'],
+                    'status': clean_alert['status'],
+                    'alert_type': clean_alert['alert_type'],
+                }
+                res_ins = sb.table('alerts').insert(legacy_alert).execute()
+
             if res_ins.data and len(res_ins.data) > 0:
                 created_record['id'] = res_ins.data[0]['id']
                 try:

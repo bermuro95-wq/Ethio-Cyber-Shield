@@ -51,18 +51,22 @@ def find_active_incident_for_entity(entity_type: str, entity_value: str, window_
 
     try:
         # Search active incidents
-        query = sb.table('incidents').select('*')\
+        base_query = sb.table('incidents').select('*')\
             .in_('status', ['open', 'investigating'])\
             .gte('incident_date', cutoff)\
             .order('incident_date', desc=True)
 
-        if org_id:
-            try:
-                query = query.eq('organization_id', org_id)
-            except Exception:
-                pass
+        try:
+            if org_id:
+                res = base_query.eq('organization_id', org_id).execute()
+            else:
+                res = base_query.execute()
+        except Exception:
+            res = sb.table('incidents').select('*')\
+                .in_('status', ['open', 'investigating'])\
+                .gte('incident_date', cutoff)\
+                .order('incident_date', desc=True).execute()
 
-        res = query.execute()
         incidents = res.data or []
 
         # Find matching entity in title, description, or risk_reasons
@@ -258,6 +262,7 @@ def promote_alert_to_incident(alert: dict = None, event: dict = None, detection_
     )
 
     incident_payload = {
+        'organization_id': org_id or '00000000-0000-0000-0000-000000000001',
         'title': title,
         'description': description,
         'incident_type': incident_type,
@@ -275,7 +280,13 @@ def promote_alert_to_incident(alert: dict = None, event: dict = None, detection_
         if res.data:
             created_incident = res.data[0]
     except Exception as e:
-        logger.error(f"Failed to auto-create incident: {e}")
+        try:
+            legacy_inc = {k: v for k, v in incident_payload.items() if k != 'organization_id'}
+            res = sb.table('incidents').insert(legacy_inc).execute()
+            if res.data:
+                created_incident = res.data[0]
+        except Exception as e2:
+            logger.error(f"Failed to auto-create incident: {e2}")
 
     if not created_incident:
         import uuid

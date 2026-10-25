@@ -448,13 +448,26 @@ def evaluate_event_stream(event: dict) -> dict:
                 raw_at = candidate_alert.get('alert_type')
                 clean_type = raw_at if raw_at in valid_types else ('high_risk' if candidate_alert.get('severity') in ('high', 'critical') else 'other')
                 clean_cand = {
+                    'organization_id': org_id or candidate_alert.get('organization_id') or '00000000-0000-0000-0000-000000000001',
                     'title': candidate_alert.get('title', 'Security Alert'),
                     'description': candidate_alert.get('description', ''),
                     'severity': candidate_alert.get('severity', 'medium'),
                     'status': candidate_alert.get('status', 'open'),
                     'alert_type': clean_type,
+                    'risk_score': candidate_alert.get('risk_score', 0),
+                    'evidence': candidate_alert.get('evidence', {}),
                 }
-                alert_res = sb.table('alerts').insert(clean_cand).execute()
+                try:
+                    alert_res = sb.table('alerts').insert(clean_cand).execute()
+                except Exception:
+                    legacy_cand = {
+                        'title': clean_cand['title'],
+                        'description': clean_cand['description'],
+                        'severity': clean_cand['severity'],
+                        'status': clean_cand['status'],
+                        'alert_type': clean_cand['alert_type'],
+                    }
+                    alert_res = sb.table('alerts').insert(legacy_cand).execute()
                 if alert_res and alert_res.data and len(alert_res.data) > 0:
                     alert_record = alert_res.data[0]
             except Exception as direct_err:
