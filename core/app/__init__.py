@@ -155,9 +155,17 @@ def create_app():
         def serve_ui(path):
             if path.startswith('api/') or path == 'api' or path == 'health':
                 return {'error': 'Endpoint not found'}, 404
-            target_file = os.path.join(ui_dir, path)
-            if path and os.path.isfile(target_file):
-                return send_from_directory(ui_dir, path)
+
+            # Normalize path: strip optional leading 'ui/' prefix so both /ui/page.html and /page.html resolve cleanly
+            clean_path = path
+            if clean_path.startswith('ui/'):
+                clean_path = clean_path[3:]
+            elif clean_path == 'ui':
+                clean_path = ''
+
+            target_file = os.path.join(ui_dir, clean_path)
+            if clean_path and os.path.isfile(target_file):
+                return send_from_directory(ui_dir, clean_path)
             default_file = 'dashboard.html' if os.path.exists(os.path.join(ui_dir, 'dashboard.html')) else 'index.html'
             return send_from_directory(ui_dir, default_file)
 
