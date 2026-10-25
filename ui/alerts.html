@@ -223,7 +223,11 @@
             }
         }
 
+        let _isLoadingAlerts = false;
+
         async function loadAlerts(silent = false) {
+            if (_isLoadingAlerts) return;
+            _isLoadingAlerts = true;
             if (!silent) loadingSpinner('tableArea');
             try {
                 const params = {};
@@ -328,6 +332,8 @@
                     </div>`;
             } catch (e) {
                 if (!silent) document.getElementById('tableArea').innerHTML = noData(e.message);
+            } finally {
+                _isLoadingAlerts = false;
             }
         }
 
@@ -471,11 +477,22 @@
             } catch (e) { showToast(e.message, 'error'); }
         }
 
-        // Real-time hooks: instantaneous update on SSE event
+        // Real-time hooks: instantaneous update on SSE event with debouncing
+        let _realtimeDebounce = null;
         window._onRealtimeAlert = function(alertData) {
-            loadAlerts(true);
+            if (_realtimeDebounce) clearTimeout(_realtimeDebounce);
+            _realtimeDebounce = setTimeout(() => {
+                _realtimeDebounce = null;
+                loadAlerts(true);
+            }, 600);
         };
-        setInterval(() => loadAlerts(true), 4000);
+
+        // Periodic background poll throttled to 8s; skips when tab is hidden
+        setInterval(() => {
+            if (!document.hidden) {
+                loadAlerts(true);
+            }
+        }, 8000);
         loadAlerts();
     </script>
 </body>

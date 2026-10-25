@@ -443,8 +443,10 @@ function formatThreatTime(isoStr) {
 }
 
 // Dynamic interval updating all threat timers on the page in real-time
+// Throttled to 4s and paused when tab is hidden to prevent browser lag & CPU thrashing
 if (typeof setInterval !== 'undefined') {
     setInterval(() => {
+        if (typeof document !== 'undefined' && document.hidden) return;
         document.querySelectorAll('[data-threat-time]').forEach(el => {
             const iso = el.getAttribute('data-threat-time');
             if (iso) {
@@ -453,7 +455,7 @@ if (typeof setInterval !== 'undefined') {
                 if (relSpan) relSpan.textContent = rel;
             }
         });
-    }, 1000);
+    }, 4000);
 }
 
 function showInstantAlertNotification(alertData) {
@@ -521,8 +523,18 @@ function showInstantAlertNotification(alertData) {
     playAlertTone(sev);
 }
 
+function shouldEnableRealTimeStream() {
+    if (typeof window === 'undefined') return false;
+    const path = (window.location.pathname || '').toLowerCase();
+    // Only live monitoring pages need dedicated persistent SSE connections
+    return path.includes('dashboard') || path.includes('alerts') || path.endsWith('/') || path.endsWith('/ui/');
+}
+
 function initRealTimeStream() {
     if (typeof API === 'undefined' || !API.isAuthenticated()) return;
+    if (!shouldEnableRealTimeStream()) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+
     if (_ecsEventSource && _ecsEventSource.readyState !== EventSource.CLOSED) {
         return;
     }
@@ -569,39 +581,59 @@ function initRealTimeStream() {
                 try { _ecsEventSource.close(); } catch (e) {}
                 _ecsEventSource = null;
             }
-            if (!_ecsReconnectTimer) {
+            if (!_ecsReconnectTimer && !document.hidden && shouldEnableRealTimeStream()) {
                 _ecsReconnectTimer = setTimeout(() => {
                     _ecsReconnectTimer = null;
                     initRealTimeStream();
-                }, 3500);
+                }, 5000);
             }
         };
     } catch (err) {
-        console.warn('[ECS Realtime] Connection error, retrying in 5s:', err);
-        _ecsReconnectTimer = setTimeout(initRealTimeStream, 5000);
+        console.warn('[ECS Realtime] Connection error, retrying in 8s:', err);
+        if (!_ecsReconnectTimer && !document.hidden && shouldEnableRealTimeStream()) {
+            _ecsReconnectTimer = setTimeout(initRealTimeStream, 8000);
+        }
     }
 }
 
-window.addEventListener('beforeunload', () => {
+function closeRealTimeStream() {
     if (_ecsEventSource) {
         try { _ecsEventSource.close(); } catch(e) {}
+        _ecsEventSource = null;
     }
     if (_ecsReconnectTimer) {
         clearTimeout(_ecsReconnectTimer);
+        _ecsReconnectTimer = null;
     }
-});
+}
 
-// Auto-initialize real-time stream and sound button across all pages
+// Pause SSE when tab is hidden or backgrounded, resume when active
+if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            closeRealTimeStream();
+        } else {
+            if (shouldEnableRealTimeStream() && typeof API !== 'undefined' && API.isAuthenticated()) {
+                initRealTimeStream();
+            }
+        }
+    });
+}
+
+window.addEventListener('beforeunload', closeRealTimeStream);
+window.addEventListener('pagehide', closeRealTimeStream);
+
+// Auto-initialize real-time stream and sound button across relevant pages
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         updateSoundToggleButton();
-        if (typeof API !== 'undefined' && API.isAuthenticated()) {
+        if (shouldEnableRealTimeStream() && typeof API !== 'undefined' && API.isAuthenticated()) {
             initRealTimeStream();
         }
     });
 } else {
     updateSoundToggleButton();
-    if (typeof API !== 'undefined' && API.isAuthenticated()) {
+    if (shouldEnableRealTimeStream() && typeof API !== 'undefined' && API.isAuthenticated()) {
         initRealTimeStream();
     }
 }

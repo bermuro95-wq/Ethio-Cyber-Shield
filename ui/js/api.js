@@ -55,12 +55,24 @@ const API = {
             headers['X-ECS-Tenant'] = tenant;
         }
 
-        const opts = { method, headers };
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+        const opts = { method, headers, signal: controller.signal };
         if (body && method !== 'GET') {
             opts.body = JSON.stringify(body);
         }
 
-        const res = await fetch(`${CONFIG.API_BASE_URL}${path}`, opts);
+        let res;
+        try {
+            res = await fetch(`${CONFIG.API_BASE_URL}${path}`, opts);
+        } catch (fetchErr) {
+            if (fetchErr.name === 'AbortError') {
+                throw new Error(`Request timed out after 12s (${path})`);
+            }
+            throw fetchErr;
+        } finally {
+            clearTimeout(timeoutId);
+        }
         
         if (res.status === 401) {
             const data = await res.json().catch(() => ({}));

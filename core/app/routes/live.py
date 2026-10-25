@@ -273,8 +273,8 @@ def live_stream():
 
     def generate():
         nonlocal last_seen
-        # Heartbeat + poll loop (client reconnects if needed)
-        for _ in range(180):  # ~3 minutes of connection then client reconnects
+        # Heartbeat + poll loop (client reconnects cleanly if needed)
+        for _ in range(30):  # ~90 seconds lifecycle per connection
             try:
                 sb = get_service_supabase()
                 res = sb.table('alerts').select(
@@ -292,15 +292,22 @@ def live_stream():
                         row['device_details'] = dossier['device']
                         row['geo_details'] = dossier['geo']
                         row['target_details'] = dossier['target']
-                    except Exception as en_err:
+                    except Exception:
                         pass
                     data = json.dumps(row)
                     yield f"event: alert\ndata: {data}\n\n"
-                # heartbeat so proxies don't kill the connection
+                # Heartbeat ping
                 yield f"event: ping\ndata: {json.dumps({'ts': datetime.now(timezone.utc).isoformat()})}\n\n"
+            except (GeneratorExit, BrokenPipeError, ConnectionResetError):
+                # Client closed tab, refreshed, or navigated away — exit immediately to free thread
+                break
             except Exception as e:
-                yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
-            time.sleep(1)
+                logger.debug(f"SSE stream poll notice: {e}")
+                try:
+                    yield f"event: ping\ndata: {json.dumps({'ts': datetime.now(timezone.utc).isoformat()})}\n\n"
+                except Exception:
+                    break
+            time.sleep(3)
 
     return Response(
         stream_with_context(generate()),

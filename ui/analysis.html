@@ -384,8 +384,11 @@
         let _correlationsData = null;
         let _activeDossier = null;
         let _modalInst = null;
+        let _isLoadingCorrelations = false;
 
-        async function loadCorrelations() {
+        async function loadCorrelations(silent = false) {
+            if (_isLoadingCorrelations) return;
+            _isLoadingCorrelations = true;
             try {
                 const params = {};
                 const tenant = API.getSelectedTenant();
@@ -400,7 +403,11 @@
                 renderHotspots(res.location_correlations || []);
             } catch (err) {
                 console.error("Correlations load error:", err);
-                showToast(`Failed to load attack correlations: ${err.message}`, 'error');
+                if (!silent) {
+                    showToast(`Failed to load attack correlations: ${err.message}`, 'error');
+                }
+            } finally {
+                _isLoadingCorrelations = false;
             }
         }
 
@@ -715,8 +722,12 @@
             loadCorrelations();
         };
 
-        // Auto poll every 6s
-        setInterval(loadCorrelations, 6000);
+        // Auto poll every 12s; skips when tab is hidden or minimized
+        setInterval(() => {
+            if (!document.hidden) {
+                loadCorrelations(true);
+            }
+        }, 12000);
         loadCorrelations();
     </script>
 </body>
