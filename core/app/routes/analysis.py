@@ -46,7 +46,7 @@ def correlate():
 
 
 @analysis_bp.route('/correlations', methods=['GET'])
-@role_required('admin', 'analyst', 'viewer')
+@role_required('admin', 'analyst', 'viewer', 'responder', 'auditor', 'operator', 'superadmin')
 def get_attack_correlations():
     """
     Computes multi-dimensional entity correlation graph:

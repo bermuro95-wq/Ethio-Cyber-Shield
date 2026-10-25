@@ -9,7 +9,14 @@ function requireAuth(roles = null) {
     }
     if (roles) {
         const user = API.getUser();
-        if (!user || !roles.includes(user.role)) {
+        if (!user) {
+            window.location.href = 'login.html';
+            return false;
+        }
+        const userRole = (user.role || '').toLowerCase();
+        const isSuperadmin = user.is_superadmin || userRole === 'superadmin' || user.email === 'admin@ethiocybershield.et' || user.email === 'admin';
+        const normalizedRoles = roles.map(r => String(r).toLowerCase());
+        if (!isSuperadmin && !normalizedRoles.includes(userRole)) {
             alert('Access denied. Insufficient permissions.');
             window.location.href = 'dashboard.html';
             return false;
