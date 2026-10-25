@@ -385,15 +385,33 @@
         }
 
         var urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('session_expired')) {
+        if (urlParams.get('session_expired') || urlParams.get('logout')) {
             if (hasAPI()) {
                 API.clearAuth();
             }
             var alertEl = document.getElementById('loginAlert');
-            alertEl.className = 'alert-box err show';
-            alertEl.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i> <strong>Session Expired:</strong> Please sign in again.';
+            if (alertEl) {
+                alertEl.className = 'alert-box err show';
+                alertEl.innerHTML = '<i class="bi bi-box-arrow-right me-1"></i> <strong>Signed Out:</strong> Please enter your credentials to sign in.';
+            }
         } else if (hasAPI() && API.isAuthenticated()) {
-            window.location.href = 'dashboard.html';
+            // NEVER force-redirect away from login.html.
+            // Give the user full control to proceed to dashboard or cleanly sign out.
+            var user = API.getUser();
+            var alertEl = document.getElementById('loginAlert');
+            if (alertEl) {
+                alertEl.className = 'alert-box ok show';
+                var uName = user ? (user.email || user.full_name || 'Active User') : 'Authenticated Operator';
+                var safeName = String(uName).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                alertEl.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div><i class="bi bi-shield-check me-1 text-success"></i> Signed in as <strong>${safeName}</strong></div>
+                        <div class="d-flex gap-2">
+                            <a href="dashboard.html" class="btn btn-sm btn-primary py-0 px-2 font-mono" style="font-size:0.78rem;">Dashboard &rarr;</a>
+                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 font-mono" style="font-size:0.78rem;" onclick="API.clearAuth(); window.location.reload();">Sign Out</button>
+                        </div>
+                    </div>`;
+            }
         }
 
         // ---- Login submit ----

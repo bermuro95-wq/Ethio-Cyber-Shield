@@ -563,7 +563,11 @@
         }
         startSocClock();
 
+        let _isLoadingDashboard = false;
+
         async function loadDashboard() {
+            if (_isLoadingDashboard) return;
+            _isLoadingDashboard = true;
             try {
                 // Fetch stats, alerts, and targets concurrently
                 const [statsRes, alertsRes, targetsRes] = await Promise.allSettled([
@@ -585,6 +589,8 @@
                 updateFilterCounters(alerts);
             } catch (err) {
                 console.error('[Dashboard Error]', err);
+            } finally {
+                _isLoadingDashboard = false;
             }
         }
 
@@ -1099,60 +1105,53 @@
         loadDashboard();
 
         // =================================================================
-        // INSTANTANEOUS REAL-TIME SSE INTEGRATION
-        // Prepend new attacks directly to DOM with glowing pulse animation!
+        // INSTANTANEOUS REAL-TIME SSE INTEGRATION (BATCHED & DEBOUNCED)
+        // Coalesces incoming events and updates DOM smoothly without freezing Chrome
         // =================================================================
+        let _dashboardDebounceTimer = null;
+        let _pendingAlertsQueue = [];
+
         window._onRealtimeAlert = function(alertData) {
             if (!alertData) return;
-            const d = alertData.dossier || synthesizeClientDossier(alertData);
-            alertData.dossier = d;
+            _pendingAlertsQueue.push(alertData);
 
-            // Trigger audible alarm / chime immediately
-            playAlertTone(alertData.severity || 'high');
+            if (_dashboardDebounceTimer) return;
+            _dashboardDebounceTimer = setTimeout(() => {
+                _dashboardDebounceTimer = null;
+                const batch = _pendingAlertsQueue;
+                _pendingAlertsQueue = [];
 
-            // Check if already in list
-            const existingIdx = _cachedAlerts.findIndex(a => a.id === alertData.id);
-            if (existingIdx !== -1) {
-                _cachedAlerts[existingIdx] = alertData;
-            } else {
-                _cachedAlerts.unshift(alertData);
-            }
+                batch.forEach(al => {
+                    const d = al.dossier || synthesizeClientDossier(al);
+                    al.dossier = d;
 
-            // Immediately re-render feed with glow animation
-            renderLiveStream(_cachedAlerts);
-            updateFilterCounters(_cachedAlerts);
+                    const existingIdx = _cachedAlerts.findIndex(a => a.id === al.id);
+                    if (existingIdx !== -1) {
+                        _cachedAlerts[existingIdx] = al;
+                    } else {
+                        _cachedAlerts.unshift(al);
+                    }
+                });
 
-            const row = document.getElementById('alertRow_' + alertData.id);
-            if (row) {
-                row.classList.add('attack-row-highlight');
-            }
+                // Cap cached alerts to avoid unbounded memory growth
+                if (_cachedAlerts.length > 100) {
+                    _cachedAlerts = _cachedAlerts.slice(0, 100);
+                }
 
-            // Update KPI cards
-            const openCount = _cachedAlerts.filter(a => a.status === 'open').length;
-            const alertsCountEl = document.getElementById('statAlerts');
-            if (alertsCountEl) {
-                alertsCountEl.textContent = openCount;
-                alertsCountEl.className = openCount > 0 ? 'stat-number text-danger' : 'stat-number text-light';
-            }
+                // Render feed smoothly if tab is visible
+                if (typeof document !== 'undefined' && !document.hidden) {
+                    renderLiveStream(_cachedAlerts);
+                    updateFilterCounters(_cachedAlerts);
 
-            // Re-evaluate posture
-            const postureEl = document.getElementById('statPosture');
-            const postureDesc = document.getElementById('statPostureDesc');
-            const postureBadge = document.getElementById('threatPostureBadge');
+                    if (batch.length > 0 && batch[0].id) {
+                        const row = document.getElementById('alertRow_' + batch[0].id);
+                        if (row) row.classList.add('attack-row-highlight');
+                    }
+                }
 
-            if (alertData.severity === 'critical') {
-                postureEl.textContent = 'CRITICAL';
-                postureEl.className = 'stat-number text-danger';
-                postureDesc.textContent = 'Active critical threat detected';
-                postureBadge.className = 'badge badge-critical font-mono';
-                postureBadge.innerHTML = '<span class="live-pulse me-1" style="background:#f43f5e"></span><span id="threatLevelText">POSTURE: CRITICAL</span>';
-            } else if (alertData.severity === 'high') {
-                postureEl.textContent = 'ELEVATED';
-                postureEl.className = 'stat-number text-warning';
-                postureDesc.textContent = 'Suspicious attack probe flagged';
-                postureBadge.className = 'badge badge-high font-mono';
-                postureBadge.innerHTML = '<span class="live-pulse me-1" style="background:#f59e0b"></span><span id="threatLevelText">POSTURE: ELEVATED</span>';
-            }
+                // Update KPI cards once per batch
+                updateKpiCards({}, _cachedAlerts);
+            }, 350);
         };
     </script>
 </body>

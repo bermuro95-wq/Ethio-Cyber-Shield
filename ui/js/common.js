@@ -344,8 +344,16 @@ function updateSoundToggleButton() {
     }
 }
 
+let _lastSoundPlayedTime = 0;
+
 function playAlertTone(severity = 'medium', force = false) {
     if (!_ecsSoundEnabled && !force) return;
+    const nowMs = Date.now();
+    if (!force && nowMs - _lastSoundPlayedTime < 1800) {
+        return; // Throttle audio alarms to max once every 1.8s
+    }
+    _lastSoundPlayedTime = nowMs;
+
     try {
         const ctx = getAudioContext();
         if (!ctx) return;
@@ -465,6 +473,8 @@ if (typeof setInterval !== 'undefined') {
     }, 4000);
 }
 
+let _lastToastTime = 0;
+
 function showInstantAlertNotification(alertData) {
     if (!alertData || !alertData.id) return;
     if (_seenAlertIds.has(alertData.id)) return;
@@ -475,6 +485,12 @@ function showInstantAlertNotification(alertData) {
         _seenAlertIds.delete(first);
     }
 
+    const nowMs = Date.now();
+    if (nowMs - _lastToastTime < 1500) {
+        return; // Throttle visual toast popups to prevent DOM spam
+    }
+    _lastToastTime = nowMs;
+
     let container = document.getElementById('ecs-toast-container');
     if (!container) {
         container = document.createElement('div');
@@ -482,6 +498,11 @@ function showInstantAlertNotification(alertData) {
         container.className = 'toast-container position-fixed top-0 end-0 p-3';
         container.style.zIndex = '10999';
         document.body.appendChild(container);
+    }
+
+    // Limit maximum visible toasts to 3 so DOM doesn't get flooded
+    while (container.children.length >= 3) {
+        container.removeChild(container.firstChild);
     }
 
     const sev = (alertData.severity || 'medium').toLowerCase();
