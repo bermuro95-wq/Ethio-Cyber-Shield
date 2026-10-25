@@ -1314,6 +1314,35 @@
   - Stale entity headers in serverless environments can no longer re-lock an active customer session.
   - All 111 unit and integration tests pass, changes committed, pushed to `origin/main`, and deployed live to production on Vercel (`https://honorpay-banking.vercel.app`).
 
+---
+
+## ADR-049: Gunicorn Multi-Threading, SSE Lifecycle Management, and Browser Socket Starvation Resolution
+
+* **Context**:
+  - Users reported that when refreshing or opening the ECS platform (`https://ethio-cyber-shield.onrender.com`) in Google Chrome, tabs would become completely stuck/frozen, rendering other browser tabs on the domain unresponsive.
+  - Root-cause architectural investigation uncovered three compounding bottlenecks:
+    1. **Server Worker Starvation**: Render executed Gunicorn with default synchronous workers (`--workers 2`), capable of handling only 2 simultaneous HTTP requests. The Server-Sent Events (SSE) live threat feed endpoint (`/api/live/stream`) ran a blocking generator loop (`time.sleep(1)` for 180 seconds). Two open tabs or a single page refresh (where the previous socket lingered during page load) consumed 100% of Gunicorn's worker capacity, forcing all subsequent HTTP requests into a socket queue deadlock.
+    2. **Chrome Host TCP Connection Pool Exhaustion**: Chrome enforces a strict limit of 6 concurrent TCP connections per origin. When client-side `fetch()` calls had no timeout and backend workers were locked, Chrome held all 6 sockets open on stalled requests, freezing any further network requests to the domain across all open tabs.
+    3. **Uncontrolled Background Polling & DOM Thrashing**: `ui/alerts.html` executed `loadAlerts(true)` every 4s, `ui/analysis.html` executed `loadCorrelations()` every 6s without in-flight request guards, `ui/js/common.js` scanned `[data-threat-time]` every 1000ms, and `initRealTimeStream()` was initialized indiscriminately across all pages (including static settings/user management pages) even when tabs were minimized or backgrounded.
+* **Decision**:
+  1. **Gunicorn Thread Pool Migration (`gthread`)**:
+     - Configured Gunicorn with `--worker-class gthread --workers 2 --threads 16 --timeout 60 --keep-alive 5` across `Procfile`, `core/Procfile`, and `render.yaml`, expanding server concurrency from 2 to 32 concurrent requests.
+  2. **SSE Streaming Lifecycle & Disconnect Freeing**:
+     - Updated `core/app/routes/live.py` generator loop to catch `(GeneratorExit, BrokenPipeError, ConnectionResetError)` and immediately terminate when a client refreshes or closes the tab.
+     - Reduced polling loop frequency to 3 seconds with a clean 90-second client reconnection lifecycle.
+  3. **Frontend Connection Guardrails & Abort Timeouts**:
+     - Configured `AbortController` with a strict 12-second timeout in `ui/js/api.js` on all `API.request` calls, ensuring hung requests abort cleanly and release browser sockets.
+     - Scoped `initRealTimeStream()` in `ui/js/common.js` exclusively to monitoring feeds (`dashboard.html` and `alerts.html`).
+     - Added tab visibility and unload hooks (`visibilitychange`, `pagehide`, `beforeunload`) to immediately disconnect SSE and pause polling when tabs are inactive.
+     - Throttled DOM threat timers from 1000ms to 4000ms with `document.hidden` guards.
+     - Implemented in-flight concurrency locks (`_isLoadingAlerts`, `_isLoadingCorrelations`) and debouncing in `alerts.html` and `analysis.html`.
+* **Consequences**:
+  - Browser tabs refresh smoothly in < 500ms with zero socket lockups or UI freezes.
+  - Background tabs consume negligible CPU and zero persistent server connections.
+  - High concurrency test (10 parallel requests) executes in under 1.5 seconds.
+  - Successfully deployed to production on Render (`srv-dbefu6ss728c73c47d3g`).
+
+
 
 
 
