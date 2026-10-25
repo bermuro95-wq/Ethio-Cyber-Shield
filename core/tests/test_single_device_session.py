@@ -1,8 +1,8 @@
 import unittest
 from app.services.auth_service import create_token, decode_token, clear_user_active_session
 
-class TestSingleDeviceAdminSession(unittest.TestCase):
-    def test_single_device_admin_concurrency(self):
+class TestMultiDeviceAdminSession(unittest.TestCase):
+    def test_multi_device_admin_concurrency(self):
         admin_user_id = 'test-admin-uuid-12345'
         clear_user_active_session(admin_user_id)
         
@@ -32,14 +32,13 @@ class TestSingleDeviceAdminSession(unittest.TestCase):
         self.assertIsNotNone(payload_b)
         self.assertEqual(payload_b['sub'], admin_user_id)
         
-        # 3. Device A token must now be REJECTED (superseded)
-        payload_a_superseded = decode_token(token_a)
-        self.assertIsNone(payload_a_superseded, "Superseded Device A token must be rejected")
+        # 3. Device A token must ALSO remain valid (concurrent multi-device login allowed)
+        payload_a_check = decode_token(token_a)
+        self.assertIsNotNone(payload_a_check, "Device A token must remain valid when Device B logs in")
         
         # 4. Device B token remains valid
-        payload_b_recheck = decode_token(token_b)
-        self.assertIsNotNone(payload_b_recheck, "Active Device B token must remain valid")
-        self.assertEqual(payload_b_recheck['jti'], payload_b['jti'])
+        payload_b_check = decode_token(token_b)
+        self.assertIsNotNone(payload_b_check, "Device B token must remain valid")
 
 if __name__ == '__main__':
     unittest.main()

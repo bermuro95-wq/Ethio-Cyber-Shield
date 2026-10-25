@@ -69,7 +69,7 @@ const API = {
             }
             this.clearAuth();
             if (!window.location.pathname.includes('login')) {
-                window.location.href = 'login.html?session_expired=concurrent';
+                window.location.href = 'login.html';
             }
             throw new Error(data.error || 'Session expired or unauthorized');
         }

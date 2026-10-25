@@ -59,13 +59,7 @@ def create_token(user_id: str, email: str, role: str, organization_id: str = Non
     org_id = organization_id or get_current_organization_id()
     new_jti = str(uuid.uuid4())
 
-    # Enforce single active device session for admin accounts
-    if role == 'admin':
-        old_session = _ACTIVE_USER_SESSIONS.get(user_id)
-        if old_session and old_session.get('token'):
-            revoke_token(old_session['token'])
-            logger.info(f"Terminated previous admin session for user {user_id} due to new device login.")
-
+    # Multi-device concurrent login enabled: Each device/browser receives its own valid JWT session
     payload = {
         'sub': user_id,
         'jti': new_jti,
@@ -76,19 +70,6 @@ def create_token(user_id: str, email: str, role: str, organization_id: str = Non
         'exp': datetime.now(timezone.utc) + timedelta(hours=Config.JWT_EXPIRY_HOURS)
     }
     token = jwt.encode(payload, Config.JWT_SECRET, algorithm='HS256')
-
-    if role == 'admin':
-        from flask import has_request_context
-        req_ip = request.remote_addr if has_request_context() else None
-        req_ua = request.headers.get('User-Agent', '')[:300] if has_request_context() else None
-        _ACTIVE_USER_SESSIONS[user_id] = {
-            'jti': new_jti,
-            'token': token,
-            'logged_in_at': datetime.now(timezone.utc).isoformat(),
-            'ip': req_ip,
-            'user_agent': req_ua
-        }
-
     return token
 
 
@@ -101,17 +82,6 @@ def decode_token(token: str) -> dict | None:
         return None
     except jwt.InvalidTokenError:
         return None
-
-    # Single active session tracking
-    user_id = payload.get('sub')
-    role = payload.get('role')
-    jti = payload.get('jti')
-    if role == 'admin' and user_id not in _ACTIVE_USER_SESSIONS:
-        _ACTIVE_USER_SESSIONS[user_id] = {
-            'jti': jti,
-            'token': token,
-            'logged_in_at': datetime.now(timezone.utc).isoformat(),
-        }
 
     return payload
 
