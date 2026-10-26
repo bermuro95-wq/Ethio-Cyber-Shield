@@ -1395,6 +1395,39 @@
   - High-velocity attack simulations and SSE streams render smoothly at 60 FPS without DOM stutter, audio crackle, or Chrome tab freezing.
   - Deployed to production on Render (`srv-dbefu6ss728c73c47d3g`).
 
+---
+
+## ADR-052: API Client Method Collision Resolution, Zero-Recursion Tenant Headers, and Futuristic SOC Login Interface
+
+* **Context**:
+  - Operators experienced severe browser degradation, interface lagging, and were unable to authenticate via the login portal (`login.html`), receiving a generic `"Failed to fetch"` error despite submitting correct administrator credentials.
+  - Furthermore, operators requested removing historical "INSA Ethiopia" text references, modernizing the login form layout with cyber aesthetics, and redesigning the credential autofill widget into a futuristic, multi-role injection pod.
+  - Deep architectural investigation into production logs (`srv-dbefu6ss728c73c47d3g`) revealed an extreme cascade of `GET /api/tenants/undefined` 401 Unauthorized errors (hundreds per minute) originating from `login.html`:
+    - In `ui/js/api.js`, line 33 defined `getTenant()` as a local storage getter (`localStorage.getItem('ecs_tenant_id')`).
+    - Later in the same object, line 276 declared a REST API endpoint also named `getTenant(id)` (`return this.request('GET', '/tenants/' + id)`), which unconditionally overwrote the storage getter.
+    - Inside `API.request(method, path, body)`, line 53 invoked `const tenant = this.getTenant()`. Because the REST method had overwritten the property, calling `this.getTenant()` without parameters returned a pending Promise and initiated an unawaited `GET /api/tenants/undefined` request.
+    - Inside that nested `request()`, `this.getTenant()` was called again, triggering an unbounded recursive loop of asynchronous network calls.
+    - This rapid socket explosion exhausted Chrome's 6-connection-per-host pool, deadlocked the network subsystem, caused persistent browser stutter/lagging, and caused the login endpoint call to abort with `"Failed to fetch"`.
+* **Decision**:
+  1. **Disambiguate Storage vs REST Methods in `API`**:
+     - Separated the storage getter into `getActiveTenantId()` and strictly guarded `getTenant()` to synchronously return `this.getActiveTenantId()`.
+     - Renamed the REST endpoint to `getTenantById(id)` with validation requiring a non-empty, defined tenant identifier.
+     - Scoped `X-ECS-Tenant` header injection exclusively to authenticated, non-auth endpoints (`!path.startsWith('/auth/')`).
+  2. **Enhanced Connection Fallback & Error Handling**:
+     - Updated `ui/js/config.js` to automatically detect execution contexts (`file://`, static local development servers on varying ports, and production host environments) with proper API base routing.
+     - Added comprehensive error trapping in `API.request()` with human-readable connection error reporting.
+  3. **Futuristic Enterprise SOC Login Redesign**:
+     - Removed all "INSA Ethiopia" text from `ui/login.html`, replacing it with `AUTONOMOUS THREAT DEFENSE GRID · ENTERPRISE SOC`.
+     - Built a futuristic HUD glassmorphic container with cyber corner reticles, glowing status pills (`SYSTEM STATUS: DEFENSE GRID ONLINE`), and cyan/emerald focus rings.
+     - Redesigned the credential helper into a **Futuristic Telemetry Injector Pod**: features interactive quick-select presets for Superadmin (Lead SOC), Bank SOC Operator, and FinTech Core Operator with one-click credential injection, cyan flash field feedback, and active privilege tier readouts.
+     - Throttled mouse parallax using hardware-accelerated `requestAnimationFrame` (`translate3d`) and `{ passive: true }` listeners for zero UI lag.
+* **Consequences**:
+  - The recursive `GET /api/tenants/undefined` loop is completely eliminated.
+  - Operators can authenticate smoothly without network timeouts or "Failed to fetch" errors.
+  - Login UI renders with an advanced, high-contrast, futuristic enterprise cyber defense visual language.
+  - Verified across Node simulated browser tests and deployed to Render production.
+
+
 
 
 

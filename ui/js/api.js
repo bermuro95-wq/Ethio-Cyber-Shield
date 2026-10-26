@@ -30,16 +30,26 @@ const API = {
         return !!this.getToken();
     },
 
+    getActiveTenantId() {
+        try {
+            return localStorage.getItem('ecs_tenant_id') || null;
+        } catch {
+            return null;
+        }
+    },
+
     getTenant() {
-        return localStorage.getItem('ecs_tenant_id');
+        return this.getActiveTenantId();
     },
 
     setTenant(tenantId) {
-        if (tenantId) {
-            localStorage.setItem('ecs_tenant_id', tenantId);
-        } else {
-            localStorage.removeItem('ecs_tenant_id');
-        }
+        try {
+            if (tenantId && tenantId !== 'all') {
+                localStorage.setItem('ecs_tenant_id', tenantId);
+            } else {
+                localStorage.removeItem('ecs_tenant_id');
+            }
+        } catch {}
     },
 
     async request(method, path, body = null) {
@@ -50,9 +60,13 @@ const API = {
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
-        const tenant = this.getTenant();
-        if (tenant) {
-            headers['X-ECS-Tenant'] = tenant;
+        
+        // Only attach X-ECS-Tenant header for non-auth requests if an active tenant is selected
+        if (!path.startsWith('/auth/')) {
+            const tenant = this.getActiveTenantId();
+            if (tenant && typeof tenant === 'string' && tenant !== 'undefined' && tenant !== 'null' && tenant !== 'all') {
+                headers['X-ECS-Tenant'] = tenant;
+            }
         }
 
         const controller = new AbortController();
@@ -69,7 +83,8 @@ const API = {
             if (fetchErr.name === 'AbortError') {
                 throw new Error(`Request timed out after 12s (${path})`);
             }
-            throw fetchErr;
+            console.error(`[API Network Error] ${method} ${CONFIG.API_BASE_URL}${path}`, fetchErr);
+            throw new Error(`Network error (${CONFIG.API_BASE_URL}): Unable to reach server. Please check your connection or backend status.`);
         } finally {
             clearTimeout(timeoutId);
         }
@@ -237,12 +252,6 @@ const API = {
     deleteAlert(id) {
         return this.request('DELETE', `/alerts/${id}`);
     },
-    acknowledgeAlert(id) {
-        return this.request('POST', `/alerts/${id}/acknowledge`);
-    },
-    resolveAlert(id, status = 'resolved') {
-        return this.request('POST', `/alerts/${id}/resolve`, { status });
-    },
 
     // Transactions CRUD
     updateTransaction(id, data) {
@@ -273,7 +282,10 @@ const API = {
     createTenant(data) {
         return this.request('POST', '/tenants', data);
     },
-    getTenant(id) {
+    getTenantById(id) {
+        if (!id || id === 'undefined') {
+            return Promise.reject(new Error('Valid tenant ID is required'));
+        }
         return this.request('GET', `/tenants/${id}`);
     },
     updateTenant(id, data) {
