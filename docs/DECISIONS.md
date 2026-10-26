@@ -1427,6 +1427,39 @@
   - Login UI renders with an advanced, high-contrast, futuristic enterprise cyber defense visual language.
   - Verified across Node simulated browser tests and deployed to Render production.
 
+---
+
+## ADR-053: Accurate Regional Threat Geolocation, Edge Telemetry Forwarding, Clean Alert UX, and Superadmin Telemetry Reset
+
+* **Context**:
+  - Threat origin locations in ECS dossiers and dashboards were displaying inaccurate regional cities (e.g., Harar attacks on `213.55.85.89` resolving to Mekelle or Addis Ababa).
+  - Investigation revealed two causes:
+    1. `_OFFLINE_NETWORKS` in `enrichment_service.py` was evaluated in arbitrary list insertion order, causing broad networks (like `/20`) to preempt specific regional blocks (like `/24`).
+    2. Integrated target systems running on Edge platforms (e.g. HonorPay on Vercel Edge) were discarding Vercel/Cloudflare edge geolocation headers (`x-vercel-ip-city`, `x-vercel-ip-country-region`, `x-vercel-ip-latitude`, `x-vercel-ip-longitude`).
+  - Additionally, operators requested removing the per-row "Del" button in `ui/alerts.html` to prevent accidental single-row deletion and uphold audit trail integrity.
+  - Operators also requested the capability to restore/reset all alert telemetry in the deployed environment to start detection validation completely from scratch.
+* **Decision**:
+  1. **Fine-Grained Subnet Ordering & Live IP Geolocation (`enrichment_service.py`)**:
+     - Added granular Ethiopian regional subnets, including Harar (`213.55.85.0/24`, `213.55.84.0/24`), Dire Dawa (`213.55.86.0/23`), and Mekelle (`213.55.80.0/22`).
+     - Enforced descending prefix-length ordering (`_OFFLINE_NETWORKS.sort(key=lambda x: x[0].prefixlen, reverse=True)`) ensuring `/24` subnets strictly evaluate before `/20` or `/16` blocks.
+     - Added live public IP lookup via `ip-api.com` with a 1.2s timeout and in-memory caching (`_IP_ENRICHMENT_CACHE`) for real-time fidelity.
+     - Passed event attributes into `lookup_ip_enrichment` to prioritize edge geo metadata when present.
+  2. **Edge Geolocation Header Telemetry Forwarding (`targetsys/src/lib/telemetry.server.ts`)**:
+     - Extracted Vercel Edge (`x-vercel-ip-*`) and Cloudflare Edge (`cf-ip*`) geolocation headers on every incoming request.
+     - Injected edge city, region, country, latitude, and longitude into canonical security event attributes forwarded to the ECS ingestion gateway.
+  3. **Alert Dashboard UX Streamlining (`ui/alerts.html`)**:
+     - Removed per-row "Del" action button to maintain audit consistency.
+     - Added a dedicated superadmin-only "Reset All Alerts" toolbar button with security confirmation modal.
+  4. **Superadmin Production Telemetry Reset Endpoint (`core/app/routes/alerts.py`)**:
+     - Implemented `POST /api/alerts/reset` guarded by `is_superadmin(user)`.
+     - Clears `alert_notes`, `alerts`, `security_events`, and flushes in-memory `_ALERT_DOSSIER_STORE`.
+     - Recorded audit trail with `log_action(user['id'], 'alerts_reset_all', ...)`.
+* **Consequences**:
+  - Threat locations accurately reflect regional Ethiopian origins (Harar, Dire Dawa, Hawassa, Mekelle, Addis Ababa).
+  - Target system alerts on Vercel reflect true client edge geolocation.
+  - Operators can cleanly reset their production telemetry database to start detection testing from scratch.
+
+
 
 
 

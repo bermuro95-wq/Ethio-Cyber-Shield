@@ -287,6 +287,53 @@ def add_note(alert_id):
     return jsonify(res.data[0] if res.data else {'note': note}), 201
 
 
+@alerts_bp.route('/reset', methods=['POST', 'DELETE'])
+@role_required('admin')
+def reset_all_alerts():
+    user = g.user
+    if not is_superadmin(user):
+        return jsonify({'error': 'Superadmin privileges required to reset all alerts'}), 403
+
+    sb = get_service_supabase()
+    deleted_alerts = 0
+    
+    # 1. Clear alert notes
+    try:
+        sb.table('alert_notes').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
+    except Exception as e:
+        logger.debug(f"Alert notes clear: {e}")
+
+    # 2. Clear alerts
+    try:
+        res = sb.table('alerts').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
+        deleted_alerts = len(res.data) if res.data else 0
+    except Exception as e:
+        logger.debug(f"Alerts clear: {e}")
+
+    # 3. Clear security events if requested
+    data = request.get_json(silent=True) or {}
+    clear_events = data.get('clear_events', True)
+    if clear_events:
+        try:
+            sb.table('security_events').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
+        except Exception as e:
+            logger.debug(f"Security events clear: {e}")
+
+    # 4. Clear in-memory attack dossier store
+    try:
+        from app.services.enrichment_service import _ALERT_DOSSIER_STORE
+        _ALERT_DOSSIER_STORE.clear()
+    except Exception:
+        pass
+
+    log_action(user['id'], 'alerts_reset_all', 'alerts', 'all', {'deleted_alerts': deleted_alerts})
+
+    return jsonify({
+        'message': 'All alert telemetry has been successfully cleared. Monitoring reset from scratch.',
+        'deleted_alerts': deleted_alerts
+    }), 200
+
+
 @alerts_bp.route('/<alert_id>', methods=['DELETE'])
 @role_required('admin')
 def delete_alert(alert_id):

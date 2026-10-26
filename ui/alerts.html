@@ -19,6 +19,9 @@
                 <span class="live-pill"><span class="live-pulse"></span>STREAM ACTIVE</span>
             </div>
             <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-soc btn-soc-danger btn-sm" id="btnResetAlerts" style="display:none;" onclick="confirmResetAllAlerts()">
+                    <i class="bi bi-trash3 me-1"></i> Reset All Alerts
+                </button>
                 <button class="btn btn-soc btn-soc-primary btn-sm" id="btnRefresh" onclick="manualRefreshAlerts()">
                     <i class="bi bi-arrow-repeat me-1"></i> Refresh
                 </button>
@@ -201,6 +204,8 @@
             if (_isSuperadmin) {
                 const col = document.getElementById('tenantAlertCol');
                 if (col) col.style.display = 'block';
+                const resetBtn = document.getElementById('btnResetAlerts');
+                if (resetBtn) resetBtn.style.display = 'inline-block';
                 await loadTenantsFilter();
             }
             await loadAlerts();
@@ -303,7 +308,6 @@
                                 ${canAct ? `
                                     ${a.status === 'open' ? `<button class="btn btn-soc btn-soc-sm font-mono" onclick="ack('${a.id}')">Ack</button>` : ''}
                                     ${a.status !== 'resolved' && a.status !== 'false_positive' ? `<button class="btn btn-soc btn-soc-success btn-soc-sm font-mono" onclick="resolve('${a.id}')">Resolve</button>` : ''}
-                                    ${role === 'admin' ? `<button class="btn btn-soc btn-soc-danger btn-soc-sm font-mono" onclick="delAlert('${a.id}')">Del</button>` : ''}
                                 ` : '-'}
                             </div>
                         </td>
@@ -468,13 +472,25 @@
             } catch (e) { showToast(e.message, 'error'); }
         }
 
-        async function delAlert(id) {
-            if (!confirm('Delete this alert?')) return;
+        async function confirmResetAllAlerts() {
+            if (!confirm('Are you sure you want to restore and reset all alert telemetry to start from scratch? This will clear all existing alerts.')) return;
+            const btn = document.getElementById('btnResetAlerts');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Resetting...';
+            }
             try {
-                await API.deleteAlert(id);
-                showToast('Alert deleted', 'success');
-                loadAlerts(true);
-            } catch (e) { showToast(e.message, 'error'); }
+                const res = await API.resetAlerts();
+                showToast(res.message || 'Alert telemetry reset to scratch.', 'success');
+                await loadAlerts(false);
+            } catch (err) {
+                showToast(err.message || 'Failed to reset alerts.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-trash3 me-1"></i> Reset All Alerts';
+                }
+            }
         }
 
         // Real-time hooks: instantaneous update on SSE event with debouncing

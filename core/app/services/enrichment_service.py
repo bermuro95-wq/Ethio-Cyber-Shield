@@ -11,6 +11,8 @@ import ipaddress
 import logging
 import re
 import hashlib
+import json
+import urllib.request
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timedelta, timezone
 
@@ -71,6 +73,26 @@ _NETWORK_DEFINITIONS = [
         "country": "ET", "country_name": "Ethiopia", "city": "Harar", "region": "Harari",
         "asn": "AS24757", "as_org": "Ethio Telecom", "is_local_ethiopian": True, "is_hosting": False,
         "carrier": "Ethio Telecom", "network_rail": "Eastern Highlands Gateway", "latitude": 9.3139, "longitude": 42.1182
+    }),
+    ("213.55.85.0/24", {
+        "country": "ET", "country_name": "Ethiopia", "city": "Harar", "region": "Harari Region",
+        "asn": "AS24757", "as_org": "Ethio Telecom", "is_local_ethiopian": True, "is_hosting": False,
+        "carrier": "Ethio Telecom", "network_rail": "Eastern Highlands Regional Hub", "latitude": 9.3120, "longitude": 42.1261
+    }),
+    ("213.55.84.0/24", {
+        "country": "ET", "country_name": "Ethiopia", "city": "Harar", "region": "Harari Region",
+        "asn": "AS24757", "as_org": "Ethio Telecom", "is_local_ethiopian": True, "is_hosting": False,
+        "carrier": "Ethio Telecom", "network_rail": "Eastern Highlands Regional Hub", "latitude": 9.3120, "longitude": 42.1261
+    }),
+    ("213.55.86.0/23", {
+        "country": "ET", "country_name": "Ethiopia", "city": "Dire Dawa", "region": "Dire Dawa",
+        "asn": "AS24757", "as_org": "Ethio Telecom", "is_local_ethiopian": True, "is_hosting": False,
+        "carrier": "Ethio Telecom", "network_rail": "Eastern Free Trade Gateway", "latitude": 9.6009, "longitude": 41.8501
+    }),
+    ("213.55.80.0/22", {
+        "country": "ET", "country_name": "Ethiopia", "city": "Mekelle", "region": "Tigray",
+        "asn": "AS24757", "as_org": "Ethio Telecom", "is_local_ethiopian": True, "is_hosting": False,
+        "carrier": "Ethio Telecom", "network_rail": "Northern Regional Gateway", "latitude": 13.4967, "longitude": 39.4753
     }),
     ("213.55.80.0/20", {
         "country": "ET", "country_name": "Ethiopia", "city": "Mekelle", "region": "Tigray",
@@ -203,6 +225,9 @@ for cidr, data in _NETWORK_DEFINITIONS:
     except Exception as e:
         logger.warning(f"Could not load CIDR {cidr}: {e}")
 
+# Sort by prefix length descending so specific subnets (/24, /23, /22) match before broad networks (/16, /14)
+_OFFLINE_NETWORKS.sort(key=lambda x: x[0].prefixlen, reverse=True)
+
 # In-memory LRU-like caches
 _IP_ENRICHMENT_CACHE: Dict[str, Dict[str, Any]] = {}
 _THREAT_INDICATORS_CACHE: Dict[str, Dict[str, Any]] = {}
@@ -241,32 +266,93 @@ def add_threat_indicator(
     }
 
 
-def lookup_ip_enrichment(ip_str: str) -> Dict[str, Any]:
+def lookup_ip_enrichment(ip_str: str, attrs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Resolves Geolocation, ASN, Carrier, Hosting, and Threat flags for an IP address.
-    Fully offline-first with zero external network dependencies.
+    Combines client/CDN telemetry attributes, live high-precision IP geolocation,
+    and pre-seeded offline CIDR registries.
     """
     clean_ip = (ip_str or "").strip()
     if not clean_ip:
         return _default_ip_info("0.0.0.0")
 
+    info = None
     if clean_ip in _IP_ENRICHMENT_CACHE:
-        return dict(_IP_ENRICHMENT_CACHE[clean_ip])
+        info = dict(_IP_ENRICHMENT_CACHE[clean_ip])
+    else:
+        info = _default_ip_info(clean_ip)
 
-    info = _default_ip_info(clean_ip)
+    # 1. First Priority: Actual event attributes (e.g. from Vercel/Cloudflare headers or client payload)
+    if attrs and isinstance(attrs, dict):
+        city_override = attrs.get('city') or attrs.get('location') or attrs.get('x_vercel_ip_city')
+        region_override = attrs.get('region') or attrs.get('x_vercel_ip_country_region')
+        country_override = attrs.get('country') or attrs.get('country_code') or attrs.get('x_vercel_ip_country')
+        lat_override = attrs.get('latitude') or attrs.get('lat') or attrs.get('x_vercel_ip_latitude')
+        lon_override = attrs.get('longitude') or attrs.get('lon') or attrs.get('x_vercel_ip_longitude')
+        if city_override and str(city_override).lower() not in ('unknown', 'null'):
+            info['city'] = str(city_override).strip()
+        if region_override and str(region_override).lower() not in ('unknown', 'null'):
+            info['region'] = str(region_override).strip()
+        if country_override and str(country_override).lower() not in ('unknown', 'null'):
+            info['country'] = str(country_override).strip().upper()
+            if info['country'] == 'ET':
+                info['country_name'] = 'Ethiopia'
+                info['is_local_ethiopian'] = True
+        if lat_override is not None:
+            try: info['latitude'] = float(lat_override)
+            except (ValueError, TypeError): pass
+        if lon_override is not None:
+            try: info['longitude'] = float(lon_override)
+            except (ValueError, TypeError): pass
 
+    # If city is already resolved accurately from attributes, cache and return
+    if info.get('city') and info['city'] != 'Unknown' and not info['city'].startswith('Localhost'):
+        _IP_ENRICHMENT_CACHE[clean_ip] = info
+        return dict(info)
+
+    # 2. Check if clean_ip is a public IP and query live IP geolocation
     try:
         ip_obj = ipaddress.ip_address(clean_ip)
+        is_private = ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved or ip_obj.is_link_local
 
-        # Check pre-seeded offline CIDRs
+        if not is_private:
+            # Query live IP geolocation API with a strict 1.2s timeout
+            try:
+                api_url = f"http://ip-api.com/json/{clean_ip}?fields=status,country,countryCode,region,regionName,city,lat,lon,timezone,isp,org,as,query"
+                req = urllib.request.Request(api_url, headers={"User-Agent": "ECS-GeoLookup/3.0"})
+                with urllib.request.urlopen(req, timeout=1.2) as resp:
+                    geo_resp = json.loads(resp.read().decode('utf-8'))
+                    if geo_resp.get('status') == 'success':
+                        cc = geo_resp.get('countryCode', 'ET')
+                        info.update({
+                            "country": cc,
+                            "country_name": geo_resp.get('country', 'Ethiopia'),
+                            "city": geo_resp.get('city') or info.get('city'),
+                            "region": geo_resp.get('regionName') or geo_resp.get('region') or info.get('region'),
+                            "asn": (geo_resp.get('as') or 'AS0').split()[0],
+                            "as_org": geo_resp.get('org') or geo_resp.get('isp') or 'Ethio Telecom',
+                            "carrier": geo_resp.get('isp') or 'Ethio Telecom',
+                            "is_local_ethiopian": (cc == 'ET'),
+                            "is_hosting": "hosting" in (geo_resp.get('org', '') + geo_resp.get('as', '')).lower(),
+                            "latitude": geo_resp.get('lat', 9.0320),
+                            "longitude": geo_resp.get('lon', 38.7468)
+                        })
+                        _IP_ENRICHMENT_CACHE[clean_ip] = info
+                        return dict(info)
+            except Exception as ex:
+                logger.debug(f"Live IP geolocation lookup skipped for {clean_ip}: {ex}")
+
+        # 3. Offline CIDR Lookup (sorted by prefixlen desc)
         matched_net = False
         for net, data in _OFFLINE_NETWORKS:
             if ip_obj in net:
-                info.update(data)
+                for k, v in data.items():
+                    if k not in info or info[k] == 'Unknown':
+                        info[k] = v
                 matched_net = True
                 break
 
-        if not matched_net and (ip_obj.is_private or ip_obj.is_loopback):
+        if not matched_net and is_private:
             info.update({
                 "country": "INTERNAL",
                 "country_name": "Internal Network (Ethiopia Core Testbed)",
@@ -281,7 +367,7 @@ def lookup_ip_enrichment(ip_str: str) -> Dict[str, Any]:
                 "longitude": 38.7468
             })
 
-        # Check threat intelligence cache
+        # 4. Check threat intelligence cache
         ti_record = _THREAT_INDICATORS_CACHE.get(clean_ip.lower())
         if ti_record:
             info["threat_intel"] = {
@@ -800,7 +886,7 @@ def synthesize_attack_dossier(
         source_ip = "127.0.0.1"
 
     # 2. Geolocation & Network Enrichment
-    geo_data = lookup_ip_enrichment(source_ip)
+    geo_data = lookup_ip_enrichment(source_ip, attrs=attrs)
     country_code = geo_data.get('country') or 'INTERNAL'
     flag = COUNTRY_FLAGS.get(country_code, '🌐')
 

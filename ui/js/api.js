@@ -184,6 +184,9 @@ const API = {
     resolveAlert(id, status = 'resolved') {
         return this.request('POST', `/alerts/${id}/resolve`, { status });
     },
+    resetAlerts() {
+        return this.request('POST', '/alerts/reset');
+    },
 
     // Dashboard
     getDashboardStats() {
