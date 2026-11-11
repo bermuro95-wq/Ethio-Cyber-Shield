@@ -1,7 +1,10 @@
 # Security Policy — Ethio-Cyber-Shield (ECS)
 
-> **Platform**: Ethio-Cyber-Shield (ECS) Independent Defense Platform  
-> **Target Audience**: Financial Institutions, Telecommunications, Critical National Infrastructure (CNI)
+> **Platform**: Ethio-Cyber-Shield (ECS) Sovereign Defense Platform  
+> **Institutional Submission**: Official Security Policy submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Research Consortium**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
+> **Target Audience**: Financial Institutions, Telecommunications, Critical National Infrastructure (CNI) SOC Teams  
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)
 
 ---
 
