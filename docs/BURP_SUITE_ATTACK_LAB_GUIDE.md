@@ -1,7 +1,10 @@
 # End-to-End Cyber Attack Simulation & Detection Walkthrough
-## Running ECS and ShieldBank with Burp Suite Interception
+## Running ECS and HonorPay Banking with Burp Suite Interception
 
-> **Objective**: Guide security engineers and analysts through running both the **Ethio-Cyber-Shield (ECS)** platform and the **ShieldBank (`targetsys`)** banking application, executing simulated attack workflows through **Burp Suite**, and inspecting real-time detection, explainable risk scoring, automated containment, and statutory reporting in ECS.
+> **Institutional Submission**: Official Attack Simulation Guide submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Research Consortium**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
+> **Objective**: Guide security evaluators through executing simulated offensive attack workflows against **HonorPay Banking (`targetsys`)** with **Burp Suite**, and inspecting real-time detection, explainable risk scoring, automated containment, and statutory reporting in **Ethio-Cyber-Shield (ECS)**.  
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)
 
 ---
 

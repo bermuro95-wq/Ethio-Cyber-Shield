@@ -1,10 +1,11 @@
 # Ethio-Cyber-Shield (ECS) — Detection Benchmark & Scenario Library Report (Phase 3.6)
 
+> **Institutional Submission**: Official Benchmark Evaluation Report submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Research Consortium**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
 > **Document Version**: 1.0  
 > **Status**: APPROVED & VERIFIED (Gate 3 Criteria Satisfied)  
-> **Target Release**: ECS v3.0 Independent Platform  
-> **Author**: Core Security Architecture & Detection Engineering Team  
-> **Last Evaluated**: October 2026  
+> **Target Release**: ECS v3.0 Sovereign Platform  
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)  
 
 ---
 

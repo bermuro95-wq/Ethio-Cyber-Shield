@@ -1,8 +1,11 @@
 # Ethio-Cyber-Shield (ECS) v3.0 — Comprehensive Attack Simulation & Detection Testing Guide
 
-> **Target Audience**: SOC Analysts, Penetration Testers, Security Engineers, and Competition Evaluators.  
+> **Institutional Submission**: Official Attack Simulation Guide submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Research Consortium**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
+> **Target Audience**: SOC Analysts, Penetration Testers, Security Engineers, and Regulatory Evaluators.  
 > **Platform Version**: Ethio-Cyber-Shield (ECS) Independent v3.0  
-> **Target Application**: ShieldBank Digital Banking Application (`targetsys`)  
+> **Target Application**: HonorPay Digital Banking Application (`targetsys`)  
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)  
 > **Classification**: Security Operations & Verification Runbook (TLP:CLEAR)
 
 ---
