@@ -1,8 +1,11 @@
 # ECS Redesign — Independent Ethiopian Threat-Detection & Incident-Readiness Platform
 
-> **Document type:** Market/gap analysis + phased execution plan
-> **Product:** Ethio-Cyber-Shield (ECS) v2.0 → v3.0 ("independent platform")
-> **Prepared:** 16 October 2026
+> **Institutional Submission**: Official Architectural Execution Plan submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Research Consortium**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
+> **Document Type**: Market/gap analysis + phased execution plan  
+> **Product**: Ethio-Cyber-Shield (ECS) v2.0 → v3.0 ("independent platform")  
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)  
+> **Prepared**: October 2026
 > **Method:** Public web research (INSA, Ethiopian press, regulators' summaries, local vendors) + analysis of your `ECS_COMPLETE_SYSTEM_ARCHITECTURE_AND_FLOWS.md` and the LocalShield specification.
 > **Reading rule:** Every claim is tagged **[Sourced]** (found online, see §10), **[Vendor]** (a local vendor's own marketing, unverified), or **[Inference]** (my reasoning, a hypothesis to validate with real customers). Do not put **[Inference]** items in a pitch as facts.
 

@@ -1,9 +1,11 @@
-# Ethio-Cyber-Shield (ECS) & ShieldBank — Complete System Setup & Run Guide
+# Ethio-Cyber-Shield (ECS) & HonorPay Banking — Complete System Setup & Run Guide
 
+> **Institutional Submission**: Official Operations & Setup Guide submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Research Consortium**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
 > **Document Classification**: System Operations & Architecture Guide (TLP:CLEAR)  
 > **Platform Version**: Ethio-Cyber-Shield (ECS) Independent v3.0  
-> **Target Application**: ShieldBank Digital Banking Application (`targetsys`)  
-> **Workspace Root**: `/home/neuron/dev/cybershield`
+> **Target Application**: HonorPay Digital Banking Application (`targetsys`)  
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)
 
 ---
 
@@ -12,7 +14,7 @@
 The CyberShield ecosystem consists of two independent, decoupled systems communicating over signed REST APIs:
 
 1. **Ethio-Cyber-Shield (ECS)**: An independent, multi-tenant cybersecurity detection, threat intelligence, and incident-readiness platform designed for Ethiopian critical infrastructure and digital finance operators.
-2. **ShieldBank (`targetsys`)**: A realistic Ethiopian digital banking application (built on TanStack Start, React, Vite, and Web Crypto) acting as the protected financial infrastructure.
+2. **HonorPay Digital Banking (`targetsys`)**: A realistic Ethiopian digital banking application (built on TanStack Start, React, Vite, and Web Crypto) acting as the protected financial infrastructure.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐

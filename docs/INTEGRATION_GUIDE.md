@@ -1,8 +1,11 @@
 # Ethio-Cyber-Shield (ECS) v3.0 — Target Integration & SDK Guide
 
+> **Institutional Submission**: Official Technical Specification submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Authors**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
 > **Audience**: Bank, MFI, PSO, and Fintech Integration Engineers  
 > **Contract**: ECS Event Contract v1.1 (OpenAPI 3.1 & JSON Schema)  
-> **Mandate**: Real-time fraud detection and statutory 48-hour incident-readiness telemetry ingestion under Proclamation No. 1426/2026, NBE Directives, and PDPP 1321/2024.
+> **Mandate**: Real-time fraud detection and statutory 48-hour incident-readiness telemetry ingestion under Proclamation No. 1426/2026, NBE Directives, and PDPP 1321/2024.  
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)
 
 ---
 
