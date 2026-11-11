@@ -357,6 +357,13 @@ def list_scenarios():
                 'expected_detection': 'PRIV-001 (Risk 65/100, High Alert, Session Revocation / Step-up challenge)'
             },
             {
+                'id': 'mule_ring_smurfing',
+                'name': 'Coordinated Financial Mule Ring & Micro-Smurfing (NBE SBB/84/2022)',
+                'severity': 'critical',
+                'description': 'Simulates corporate account compromise with sub-threshold micro-smurfing (4,700 ETB to 3 telebirr/CBE mules) followed by rapid convergence into a cash-out hub, bypassing traditional linear velocity rules.',
+                'expected_detection': 'Bipartite Micro-Smurfing & Johnson Cycle Graph Intelligence (Risk 96/100, Critical Syndicate Dossier, Autonomous Multi-Account Freeze)'
+            },
+            {
                 'id': 'normal_traffic',
                 'name': 'Legitimate Banking Baseline',
                 'severity': 'low',
@@ -389,6 +396,28 @@ def trigger_lab_scenario():
         if active_targets:
             target = active_targets[0]
             target_id = target.get('id')
+
+    if scenario == 'mule_ring_smurfing':
+        from app.services.mule_graph_service import get_mule_graph_service
+        from app.services.tenant_service import get_current_organization_id
+        org_id = getattr(g, 'user', {}).get('organization_id') or get_current_organization_id()
+        svc = get_mule_graph_service()
+        svc.seed_demo_syndicate(org_id)
+        snapshot = svc.get_graph_snapshot(org_id)
+        try:
+            log_action(g.user['id'], 'lab_scenario_triggered', 'target_system', target_id or 'mule_engine', {
+                'scenario': scenario, 'syndicates_count': len(snapshot.get('syndicates', []))
+            })
+        except Exception:
+            pass
+        return jsonify({
+            'status': 'executed',
+            'scenario': scenario,
+            'target_name': target.get('name') if target else 'EthSwitch Sovereign Payment Grid',
+            'syndicates_detected': len(snapshot.get('syndicates', [])),
+            'metrics': snapshot.get('metrics', {}),
+            'message': 'Coordinated mule ring and micro-smurfing scenario injected into dynamic graph.'
+        }), 200
 
     if not target:
         return jsonify({'error': 'No active target system found. Please configure a target in Settings.'}), 400
