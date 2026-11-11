@@ -1,8 +1,10 @@
 # Threat Model — Ethio-Cyber-Shield (ECS) v3.0
 
-> **System**: Ethio-Cyber-Shield (ECS) Independent Detection & Incident-Readiness Platform  
+> **System**: Ethio-Cyber-Shield (ECS) Sovereign Detection & Incident-Readiness Platform  
+> **Institutional Submission**: Official Threat Model submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Research Consortium**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
 > **Methodology**: STRIDE Threat Modeling & Banking CNI Attack Surface Analysis  
-> **Status**: Approved for Phase 1 Hardening
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)
 
 ---
 

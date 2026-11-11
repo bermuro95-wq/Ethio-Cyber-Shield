@@ -1,7 +1,10 @@
 # Ethio-Cyber-Shield (ECS) v3.0 — Phase 0 Validation & Market Analysis Report
 
+> **Institutional Submission**: Official Feasibility & Market Validation Report submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Research Consortium**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
 > **Document Type**: Market, Legal, Threat Landscape & Technical Feasibility Report  
 > **Status**: Completed (Phase 0 Scope Freeze)  
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)  
 > **Date**: October 2026  
 > **Target Audience**: Core Engineering, Product Strategy, and Pilot Design Partners  
 

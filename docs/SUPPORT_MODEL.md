@@ -1,6 +1,9 @@
 # Ethio-Cyber-Shield (ECS) — Support Model & Operational Boundaries
 
+> **Institutional Submission**: Official Operational Support Framework submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Research Consortium**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
 > **Document Version**: 3.0  
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)  
 > **Mandate**: Clearly delineate operational responsibilities, support service levels, and boundaries of assistance across platform editions.  
 > **Adherence to Principle #6**: Ethio-Cyber-Shield explicitly disclaims guaranteed compliance or 24/7 outsourced SOC protection unless formally contracted under a dedicated Managed Defense SLA.
 
