@@ -1,8 +1,9 @@
 # Ethio-Cyber-Shield (ECS) v3.0 — Platform Execution Progress Tracker
 
-> **Repository**: `Ethio-Cyber-Shield`  
-> **Active Branch**: `v3-independent`  
-> **Baseline Release Tag**: `ecs-v2.0`  
+> **Institutional Submission**: Official Platform Delivery Progress Tracker submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Research Consortium**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)  
+> **Repository Directory**: `Ethio-Cyber-Shield`  
 > **Last Updated**: October 2026  
 
 ---

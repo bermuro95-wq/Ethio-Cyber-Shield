@@ -1,5 +1,8 @@
 # Ethio-Cyber-Shield (ECS) — Pilot Onboarding & 14-Day Shadow Protocol
 
+> **Institutional Submission**: Official Onboarding Protocol submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Research Consortium**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)  
 > **Purpose**: Standard operating procedure for onboarding financial operators, commercial banks, and fintechs onto Ethio-Cyber-Shield v3.0 without operational disruption.  
 > **Mandate**: Enforce safe, zero-impact transition from telemetry ingestion to safe automation via the **14-Day Progressive Shadow Protocol**.
 
