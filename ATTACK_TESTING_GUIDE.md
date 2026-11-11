@@ -1,7 +1,15 @@
 # Ethio-Cyber-Shield (ECS) v3.0 & HonorPay Digital Banking — Official Regulatory Security Assessment & Attack Simulation Guide
 
 > **Document Type**: Critical National Infrastructure Regulatory Cybersecurity Verification Dossier  
-> **Target Oversight Authority**: **Information Network Security Administration (INSA)** — Directorate of Critical Infrastructure Protection & National Financial Cyber Defense  
+> **Institutional Submission**: Official Verification Report submitted to the **Information Network Security Administration (INSA)**, Directorate of Critical Infrastructure Protection & National Financial Cyber Defense  
+> **Project Research Consortium**:
+> 1. **Musab Hassen Aliyi** (`CTC-384-26`) — Lead System Architect & Project Coordinator
+> 2. **Osman Mohammed Seid** (`CTC-2974-26`) — Lead Detection Engine & Threat Intelligence Engineer
+> 3. **Kedist Eyasu Embaye** (`CTC-1247-26`) — Security Telemetry & Cryptographic Verification Engineer
+> 4. **Yoseph Abebe Ersedo** (`CTC-430-26`) — SOC Operations & Frontend Visualization Engineer
+> 5. **Omer Mohammed Seid** (`CTC-3716-26`) — Core Backend & Multi-Tenancy Systems Engineer
+> 6. **Efrem Mola Genebo** (`CTC-4772-26`) — Red Team Operations & Attack Simulation Engineer  
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)  
 > **Regulatory Reference Standards**:
 > - **FDRE Proclamation No. 1426/2026** — *Critical Infrastructure Cybersecurity Proclamation* (Mandatory 48-Hour Incident Dossier Reporting & Continuous Threat Monitoring)
 > - **National Bank of Ethiopia (NBE) Financial Cybersecurity Framework & Directive SBB/84/2022** — *Real-Time Transaction Fraud, Account Takeover (ATO) & AML Structuring Controls*
@@ -1104,7 +1112,13 @@ This document certifies that the **Ethio-Cyber-Shield (ECS) v3.0** and **HonorPa
 +-----------------------------------------------------------------------------------+
 | Target Platform:       HonorPay Digital Banking Platform                          |
 | Detection Platform:    Ethio-Cyber-Shield (ECS) v3.0                              |
-| Evaluation Date:       October 25, 2026                                           |
+| Evaluation Date:       October 26, 2026                                           |
+| Engineering Authors:   Musab Hassen Aliyi (CTC-384-26)                            |
+|                        Osman Mohammed Seid (CTC-2974-26)                          |
+|                        Kedist Eyasu Embaye (CTC-1247-26)                          |
+|                        Yoseph Abebe Ersedo (CTC-430-26)                           |
+|                        Omer Mohammed Seid (CTC-3716-26)                           |
+|                        Efrem Mola Genebo (CTC-4772-26)                            |
 | Total Rules Verified:  32 / 32 Rules Confirmed Active (100% Coverage)             |
 | Autonomous Response:   Confirmed Bidirectional Containment (Sub-250ms Latency)   |
 | Zero-PII Compliance:   Confirmed SHA-256 Pseudonymization (PDPP No. 1321/2024)   |

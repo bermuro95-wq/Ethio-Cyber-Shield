@@ -1,6 +1,9 @@
 # Ethio-Cyber-Shield (ECS) — Attack Labs & Synthetic Testbeds
 
-> **Purpose**: Decoupled testing and demonstration testbeds for ECS detection, explainable risk scoring, and automated containment.
+> **Institutional Submission**: Official Verification Lab Specification submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Research Consortium**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
+> **Purpose**: Decoupled testing and demonstration testbeds for ECS detection, explainable risk scoring, and automated containment.  
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)
 
 ---
 
@@ -9,7 +12,7 @@
 In ECS v3.0, the core detection engine is fully decoupled from any specific bank or application.
 To facilitate testing, evaluation, and security demonstrations, the platform supports synthetic labs:
 
-1. **ShieldBank Testbed (`targetsys`)**:
+1. **HonorPay Banking Testbed (`targetsys`)**:
    - Location: `../targetsys`
    - Role: Realistic Ethiopian commercial banking testbed (Vite + TanStack + Drizzle).
    - Features: Customer portal, admin operations console, and interactive Attack Simulator (`/admin/lab`).
@@ -18,11 +21,11 @@ To facilitate testing, evaluation, and security demonstrations, the platform sup
 
 ---
 
-## 2. Running the ShieldBank Lab
+## 2. Running the HonorPay Banking Lab
 
-To run ShieldBank alongside ECS:
+To run HonorPay Banking alongside ECS:
 ```bash
-# Terminal 1: ShieldBank
+# Terminal 1: HonorPay Banking
 cd ../targetsys
 npm run dev
 # Running on http://localhost:8081
