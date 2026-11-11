@@ -465,6 +465,25 @@ const API = {
         return this.request('GET', `/analysis/correlations${q ? '?' + q : ''}`);
     },
 
+    // Mule Ring & Graph Intelligence Engine
+    getMuleGraph(params = {}) {
+        const q = new URLSearchParams(params).toString();
+        return this.request('GET', `/analysis/mule-graph${q ? '?' + q : ''}`);
+    },
+    getMuleRings(params = {}) {
+        const q = new URLSearchParams(params).toString();
+        return this.request('GET', `/analysis/mule-graph/rings${q ? '?' + q : ''}`);
+    },
+    containMuleRing(syndicateId, reason = '') {
+        return this.request('POST', '/analysis/mule-graph/contain-ring', {
+            syndicate_id: syndicateId,
+            reason: reason
+        });
+    },
+    seedDemoMuleRings() {
+        return this.request('POST', '/analysis/mule-graph/seed-demo', {});
+    },
+
     // System Health
     getPlatformHealth() {
         return this.request('GET', '/health');

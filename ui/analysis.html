@@ -221,6 +221,11 @@
                     <i class="bi bi-geo me-1"></i> Geographic Regional Clusters (<span id="badgeLocationCount">0</span>)
                 </button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link text-danger fw-bold" id="tab-mule-graph-btn" data-bs-toggle="tab" data-bs-target="#tab-mule-graph" type="button" role="tab">
+                    <i class="bi bi-diagram-3-fill me-1 text-danger"></i> Financial Mule Rings & Graph Intelligence (<span id="badgeMuleRingsCount" class="badge bg-danger">0</span>)
+                </button>
+            </li>
         </ul>
 
         <!-- Tab Contents -->
@@ -304,6 +309,94 @@
                     </div>
                 </div>
             </div>
+
+            <!-- TAB 4: Financial Mule Rings & Graph Intelligence -->
+            <div class="tab-pane fade" id="tab-mule-graph" role="tabpanel">
+                <div class="row g-3 mb-3">
+                    <div class="col-6 col-md-3">
+                        <div class="correlation-kpi-card" style="border-left: 3px solid #ef4444;">
+                            <div class="correlation-kpi-label"><i class="bi bi-shield-slash me-1 text-danger"></i> Detected Syndicates</div>
+                            <div class="correlation-kpi-val text-danger" id="muleKpiTotalSyndicates">0</div>
+                            <div class="small text-muted mt-1" style="font-size: 0.72rem;">Circular & Smurfing Rings</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="correlation-kpi-card" style="border-left: 3px solid #f59e0b;">
+                            <div class="correlation-kpi-label"><i class="bi bi-cash-stack me-1 text-warning"></i> Laundering Volume</div>
+                            <div class="correlation-kpi-val text-warning" id="muleKpiVolume">0 ETB</div>
+                            <div class="small text-muted mt-1" style="font-size: 0.72rem;">Multi-Hop Flow Total</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="correlation-kpi-card" style="border-left: 3px solid #06b6d4;">
+                            <div class="correlation-kpi-label"><i class="bi bi-people me-1 text-info"></i> Active Mules Identified</div>
+                            <div class="correlation-kpi-val text-info" id="muleKpiActiveMules">0</div>
+                            <div class="small text-muted mt-1" style="font-size: 0.72rem;">Intermediary & Cashout Hubs</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="correlation-kpi-card" style="border-left: 3px solid #10b981;">
+                            <div class="correlation-kpi-label"><i class="bi bi-lock me-1 text-success"></i> Contained Accounts</div>
+                            <div class="correlation-kpi-val text-success" id="muleKpiContained">0</div>
+                            <div class="small text-muted mt-1" style="font-size: 0.72rem;">Statutory 1426/2026 Freezes</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <!-- Left: Interactive Canvas Visualizer -->
+                    <div class="col-lg-8">
+                        <div class="card bg-soc-card border-secondary h-100">
+                            <div class="card-header border-secondary d-flex justify-content-between align-items-center py-2 px-3">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="bi bi-radar text-danger"></i>
+                                    <span class="fw-bold small text-light">Live Force-Directed Topology Visualizer</span>
+                                    <span class="badge bg-dark border border-secondary text-info font-monospace" style="font-size: 0.68rem;">Johnson Cycles + PageRank</span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="window.muleVisualizer && window.muleVisualizer.zoom(1)" title="Zoom In"><i class="bi bi-zoom-in"></i></button>
+                                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="window.muleVisualizer && window.muleVisualizer.zoom(-1)" title="Zoom Out"><i class="bi bi-zoom-out"></i></button>
+                                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="window.muleVisualizer && window.muleVisualizer.resetView()" title="Center Graph"><i class="bi bi-arrows-fullscreen"></i></button>
+                                    <button class="btn btn-sm btn-outline-warning fw-bold py-0 px-2" onclick="window.muleVisualizer && window.muleVisualizer.seedDemo()" title="Seed Demo Scenario"><i class="bi bi-lightning-charge"></i> Seed Demo</button>
+                                </div>
+                            </div>
+                            <div class="card-body p-0 position-relative" id="muleCanvasContainer" style="height: 540px; background: #090d16; overflow: hidden;">
+                                <canvas id="muleGraphCanvas"></canvas>
+                                <!-- Floating Graph Legend -->
+                                <div class="position-absolute bottom-0 start-0 m-2 p-2 rounded bg-dark border border-secondary d-flex flex-wrap gap-3 text-light small opacity-90 shadow-sm" style="font-size: 0.72rem; z-index: 10;">
+                                    <span><span style="color: #ef4444;">●</span> Cash-Out Hub</span>
+                                    <span><span style="color: #f59e0b;">●</span> Intermediary Mule</span>
+                                    <span><span style="color: #06b6d4;">●</span> Compromised Victim</span>
+                                    <span><span style="color: #10b981;">🔒</span> Contained/Frozen</span>
+                                    <span><span style="color: #06b6d4;">→</span> telebirr</span>
+                                    <span><span style="color: #a855f7;">→</span> CBE Birr</span>
+                                    <span><span style="color: #f59e0b;">→</span> EthSwitch</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Detected Syndicates Drawer -->
+                    <div class="col-lg-4">
+                        <div class="card bg-soc-card border-secondary h-100">
+                            <div class="card-header border-secondary d-flex justify-content-between align-items-center py-2 px-3">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                                    <span class="fw-bold small text-light">Active Syndicates Dossier</span>
+                                </div>
+                                <button class="btn btn-sm btn-outline-light py-0 px-2" onclick="window.muleVisualizer && window.muleVisualizer.loadGraphData()">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                </button>
+                            </div>
+                            <div class="card-body p-2" id="muleSyndicateCardsContainer" style="max-height: 540px; overflow-y: auto;">
+                                <div class="text-center py-4 text-muted">
+                                    <span class="spinner-border spinner-border-sm me-2"></span> Loading detected syndicates...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -377,6 +470,7 @@
     <script src="js/config.js"></script>
     <script src="js/api.js"></script>
     <script src="js/common.js"></script>
+    <script src="js/mule-graph.js"></script>
     <script>
         requireAuth(['admin', 'analyst', 'viewer', 'superadmin', 'operator']);
         document.getElementById('navbar').innerHTML = renderNavbar('analysis');
@@ -720,15 +814,59 @@
         window.onGlobalTenantSwitch = function(tId) {
             API.setSelectedTenant(tId);
             loadCorrelations();
+            if (window.muleVisualizer) {
+                window.muleVisualizer.loadGraphData();
+            }
         };
+
+        // Initialize Mule Graph Visualizer
+        function initMuleVisualizerIfNeeded() {
+            if (!window.muleVisualizer && document.getElementById('muleGraphCanvas')) {
+                window.muleVisualizer = new MuleGraphVisualizer('muleGraphCanvas', 'muleCanvasContainer');
+            }
+            if (window.muleVisualizer) {
+                window.muleVisualizer.initCanvas();
+                window.muleVisualizer.loadGraphData();
+            }
+        }
+
+        const muleTabBtn = document.getElementById('tab-mule-graph-btn');
+        if (muleTabBtn) {
+            muleTabBtn.addEventListener('shown.bs.tab', () => {
+                initMuleVisualizerIfNeeded();
+            });
+        }
+
+        async function updateMuleBadge() {
+            try {
+                const res = await API.getMuleRings();
+                if (res && res.total_syndicates !== undefined) {
+                    const badge = document.getElementById('badgeMuleRingsCount');
+                    if (badge) badge.textContent = res.total_syndicates;
+                }
+            } catch (e) {
+                // Ignore background polling errors
+            }
+        }
 
         // Auto poll every 12s; skips when tab is hidden or minimized
         setInterval(() => {
             if (!document.hidden) {
                 loadCorrelations(true);
+                updateMuleBadge();
             }
         }, 12000);
         loadCorrelations();
+        updateMuleBadge();
+
+        // Check URL hash or query for direct tab linking
+        if (window.location.hash === '#tab-mule-graph' || window.location.search.includes('tab=mule-graph')) {
+            const btn = document.getElementById('tab-mule-graph-btn');
+            if (btn && typeof bootstrap !== 'undefined') {
+                const tab = new bootstrap.Tab(btn);
+                tab.show();
+            }
+        }
     </script>
 </body>
 </html>
