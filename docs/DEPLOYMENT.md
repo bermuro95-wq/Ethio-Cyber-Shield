@@ -1,8 +1,10 @@
-# Ethio-Cyber-Shield (ECS) v3.0 — Independent Deployment & Operations Guide
+# Ethio-Cyber-Shield (ECS) v3.0 — Sovereign Deployment & Operations Guide
 
+> **Institutional Submission**: Official Deployment Guide submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Research Consortium**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
 > **Platform**: Ethio-Cyber-Shield (ECS) v3.0  
 > **Target Architecture**: Self-Hostable, Sovereign On-Premise or Private Cloud (Docker Compose)  
-> **Deployment Time**: $\le 15\text{ minutes}$ from scratch
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)
 
 ---
 
