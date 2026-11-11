@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ethio-cyber-shield"
+version = "3.0.0.dev1"
+description = "Sovereign Cybersecurity Detection, Fraud Interception & 48-Hour Incident-Readiness Platform for Ethiopian Critical Infrastructure"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Musab Hassen Aliyi", email = "security@ethiocybershield.et" },
+    { name = "Osman Mohammed Seid" },
+    { name = "Kedist Eyasu Embaye" },
+    { name = "Yoseph Abebe Ersedo" },
+    { name = "Omer Mohammed Seid" },
+    { name = "Efrem Mola Genebo" }
+]
+keywords = [
+    "cybersecurity",
+    "siem",
+    "soar",
+    "ethiopia",
+    "fraud-detection",
+    "insa",
+    "incident-readiness",
+    "banking-security"
+]
+dependencies = [
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "python-dotenv>=1.0.0",
+    "supabase>=2.7.0",
+    "bcrypt>=4.2.0",
+    "PyJWT>=2.9.0",
+    "gunicorn>=23.0.0",
+    "python-dateutil>=2.9.0",
+    "requests>=2.31.0",
+    "psycopg2-binary>=2.9.9",
+    "redis>=5.0.0",
+    "cryptography>=42.0.0",
+    "pyotp>=2.9.0",
+    "pyyaml>=6.0.0"
+]
+
+[project.scripts]
+ecs = "app.cli:main"
+ecs-server = "app.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Rammiso/ethio-cybershield"
+Documentation = "https://github.com/Rammiso/ethio-cybershield/tree/main/Ethio-Cyber-Shield/docs"
+Repository = "https://github.com/Rammiso/ethio-cybershield"
+Issues = "https://github.com/Rammiso/ethio-cybershield/issues"

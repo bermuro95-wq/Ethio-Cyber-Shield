@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ethio-cyber-shield-sdk"
+version = "1.1.0"
+description = "Official Python Telemetry SDK with Transactional Outbox for Ethio-Cyber-Shield (ECS)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Ethio-Cyber-Shield Platform Team", email = "security@ethiocybershield.et" }
+]
+dependencies = [
+    "requests>=2.28.0"
+]
+
+[project.optional-dependencies]
+flask = ["flask>=2.0.0"]
+fastapi = ["fastapi>=0.95.0", "starlette>=0.26.0"]
+django = ["django>=3.2.0"]
