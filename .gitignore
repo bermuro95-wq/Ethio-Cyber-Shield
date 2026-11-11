@@ -10,3 +10,5 @@ Thumbs.db
 .vscode/
 .idea/
 *.log
+.git.backup/
+*.egg-info/
