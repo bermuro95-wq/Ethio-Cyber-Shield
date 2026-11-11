@@ -1,7 +1,10 @@
 # Ethio-Cyber-Shield (ECS) — Community Signal Exchange Governance Charter & Privacy Impact Assessment (PIA)
 
+> **Institutional Submission**: Official Federated Intelligence Specification submitted to the **Information Network Security Administration (INSA)**, Federal Democratic Republic of Ethiopia.  
+> **Project Research Consortium**: Musab Hassen Aliyi (`CTC-384-26`), Osman Mohammed Seid (`CTC-2974-26`), Kedist Eyasu Embaye (`CTC-1247-26`), Yoseph Abebe Ersedo (`CTC-430-26`), Omer Mohammed Seid (`CTC-3716-26`), Efrem Mola Genebo (`CTC-4772-26`).  
 > **Document Version**: v1.0 (Phase 6 Deliverable)  
 > **Platform Version**: ECS v3.0 Independent Defense  
+> **Official Monorepo**: [https://github.com/Rammiso/ethio-cybershield](https://github.com/Rammiso/ethio-cybershield)  
 > **Scope**: Cross-Tenant Federated Threat Intelligence Exchange for Ethiopian Digital Finance & Critical Infrastructure  
 > **Target Audience**: CISOs, Compliance Officers, Legal Counsel, EthioCERT / INSA Observers
 
