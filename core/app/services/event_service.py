@@ -172,6 +172,25 @@ def ingest_event(data: dict, target: dict = None, target_system_id: str = None, 
         except Exception as e:
             logger.error(f"Failed to normalize transaction from event {event_id}: {e}")
 
+        # Hook into Real-Time Financial Mule Ring & Graph Intelligence Engine
+        try:
+            from app.services.mule_graph_service import get_mule_graph_service
+            get_mule_graph_service().record_transfer(
+                org_id=org_id,
+                source_account=account_id_pub or 'ACC_UNKNOWN',
+                destination_account=beneficiary_id_pub or 'BENEFICIARY_UNKNOWN',
+                amount=float(amount_major),
+                currency=currency or 'ETB',
+                payment_rail=payment_rail or 'telebirr',
+                timestamp=occurred_at,
+                source_ip=source_ip,
+                device_id=device_id_pub,
+                raw_event_id=event_id,
+                metadata=attributes,
+            )
+        except Exception as e:
+            logger.debug(f"Error updating mule graph from event {event_id}: {e}")
+
     # 3. Extract & update threat indicators (IPs, accounts, devices)
     if source_ip and (lab_scenario or event_type in ('LOGIN_FAILED', 'AUTHZ_DENIED')):
         ind_data = {

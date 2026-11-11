@@ -408,3 +408,120 @@ def get_attack_correlations():
         'device_correlations': device_list,
         'location_correlations': location_list,
     }), 200
+
+
+# =========================================================================
+# REAL-TIME FINANCIAL MULE RING & GRAPH INTELLIGENCE ENGINE ENDPOINTS
+# =========================================================================
+
+@analysis_bp.route('/mule-graph', methods=['GET'])
+@role_required('admin', 'analyst', 'viewer', 'responder', 'auditor', 'operator', 'superadmin')
+def get_mule_graph():
+    """
+    Returns the real-time serialized node-link graph payload for SOC visualization.
+    Supports tenant isolation and single-syndicate neighborhood filtering.
+    """
+    user = getattr(g, 'user', None) or {}
+    is_sup = is_superadmin(user)
+    target_tenant = request.args.get('tenant_id') or request.args.get('organization_id')
+    if is_sup and target_tenant and target_tenant.lower() != 'all':
+        filter_org = target_tenant
+    elif not is_sup:
+        filter_org = user.get('organization_id') or DEFAULT_ORGANIZATION_ID
+    else:
+        filter_org = DEFAULT_ORGANIZATION_ID
+
+    syndicate_id = request.args.get('syndicate_id')
+    max_nodes = int(request.args.get('max_nodes', 250))
+
+    from app.services.mule_graph_service import get_mule_graph_service
+    svc = get_mule_graph_service()
+    snapshot = svc.get_graph_snapshot(
+        org_id=filter_org,
+        max_nodes=max_nodes,
+        filter_syndicate_id=syndicate_id,
+    )
+    return jsonify({'status': 'ok', 'data': snapshot}), 200
+
+
+@analysis_bp.route('/mule-graph/rings', methods=['GET'])
+@role_required('admin', 'analyst', 'viewer', 'responder', 'auditor', 'operator', 'superadmin')
+def get_detected_mule_rings():
+    """
+    Returns list of detected money laundering syndicates and smurfing rings with explainable reasoning.
+    """
+    user = getattr(g, 'user', None) or {}
+    is_sup = is_superadmin(user)
+    target_tenant = request.args.get('tenant_id') or request.args.get('organization_id')
+    if is_sup and target_tenant and target_tenant.lower() != 'all':
+        filter_org = target_tenant
+    elif not is_sup:
+        filter_org = user.get('organization_id') or DEFAULT_ORGANIZATION_ID
+    else:
+        filter_org = DEFAULT_ORGANIZATION_ID
+
+    from app.services.mule_graph_service import get_mule_graph_service
+    svc = get_mule_graph_service()
+    snapshot = svc.get_graph_snapshot(org_id=filter_org)
+    return jsonify({
+        'status': 'ok',
+        'organization_id': filter_org,
+        'total_syndicates': len(snapshot.get('syndicates', [])),
+        'syndicates': snapshot.get('syndicates', []),
+        'metrics': snapshot.get('metrics', {}),
+    }), 200
+
+
+@analysis_bp.route('/mule-graph/contain-ring', methods=['POST'])
+@role_required('admin', 'analyst', 'responder', 'superadmin')
+def contain_mule_ring():
+    """
+    Autonomous 1-click containment: Freezes all accounts involved in a detected syndicate,
+    blocks associated attacker IPs, and logs tamper-evident audit record.
+    """
+    data = request.get_json() or {}
+    syndicate_id = data.get('syndicate_id')
+    reason = data.get('reason') or "Autonomous containment dispatched from SOC Graph Explorer"
+    if not syndicate_id:
+        return jsonify({'error': 'syndicate_id is required'}), 400
+
+    user = getattr(g, 'user', None) or {}
+    org_id = user.get('organization_id') or DEFAULT_ORGANIZATION_ID
+    user_id = user.get('id')
+
+    from app.services.mule_graph_service import get_mule_graph_service
+    svc = get_mule_graph_service()
+    result = svc.contain_syndicate(
+        org_id=org_id,
+        syndicate_id=syndicate_id,
+        reason=reason,
+        operator_user_id=user_id,
+    )
+    if 'error' in result:
+        return jsonify(result), 404
+    return jsonify({'status': 'ok', 'result': result}), 200
+
+
+@analysis_bp.route('/mule-graph/seed-demo', methods=['POST'])
+@role_required('admin', 'analyst', 'superadmin')
+def seed_demo_mule_rings():
+    """
+    Re-seeds demonstrative Ethiopian financial mule rings (circular routing & smurfing)
+    for live demonstration to examination committees and INSA evaluators.
+    """
+    user = getattr(g, 'user', None) or {}
+    org_id = user.get('organization_id') or DEFAULT_ORGANIZATION_ID
+
+    from app.services.mule_graph_service import get_mule_graph_service
+    svc = get_mule_graph_service()
+    svc.clear_stores(org_id)
+    svc._seed_initial_state(org_id)
+    snapshot = svc.get_graph_snapshot(org_id)
+
+    return jsonify({
+        'status': 'ok',
+        'message': 'Demo financial mule syndicates seeded successfully',
+        'metrics': snapshot.get('metrics', {}),
+        'syndicates_count': len(snapshot.get('syndicates', [])),
+    }), 200
+
