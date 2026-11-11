@@ -12,4 +12,5 @@ redis>=5.0.0
 cryptography>=42.0.0
 pyotp>=2.9.0
 pyyaml>=6.0.0
+networkx>=3.0
 
