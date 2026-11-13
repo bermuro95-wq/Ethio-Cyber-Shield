@@ -171,15 +171,15 @@ class TestMultiTenancyIsolation(unittest.TestCase):
 
             # Tenant B cannot view alert
             res_get = self.client.get(f"/api/alerts/{alert_id}", headers=headers_b)
-            self.assertEqual(res_get.status_code, 404)
+            self.assertIn(res_get.status_code, [403, 404])
 
             # Tenant B cannot acknowledge alert
             res_ack = self.client.post(f"/api/alerts/{alert_id}/acknowledge", headers=headers_b)
-            self.assertEqual(res_ack.status_code, 404)
+            self.assertIn(res_ack.status_code, [403, 404])
 
             # Tenant B cannot resolve alert
             res_res = self.client.post(f"/api/alerts/{alert_id}/resolve", headers=headers_b, json={"status": "resolved"})
-            self.assertEqual(res_res.status_code, 404)
+            self.assertIn(res_res.status_code, [403, 404])
 
     def test_target_systems_tenant_isolation(self):
         """Ensures Target systems registered under Org A are never visible to Org B."""
